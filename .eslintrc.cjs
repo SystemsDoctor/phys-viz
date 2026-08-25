@@ -43,7 +43,15 @@ module.exports = {
           {
             patterns: [
               {
-                group: ['three', 'react', 'react-dom', '@/scene/*', '@/shell/*', '@/modules/*'],
+                group: [
+                  'three',
+                  'three/*',
+                  'react',
+                  'react-dom',
+                  '@/scene/*',
+                  '@/shell/*',
+                  '@/modules/*',
+                ],
                 message: 'kernel/ must stay pure: no rendering, no UI, no module imports.',
               },
             ],
@@ -94,14 +102,49 @@ module.exports = {
       files: ['src/modules/**/*.{ts,tsx}'],
       excludedFiles: ['src/modules/testing/**', 'src/modules/registry.ts', 'src/modules/types.ts'],
       rules: {
-        'no-restricted-imports': [
+        // Plain no-restricted-imports can't tell a type-only import from a
+        // runtime one; the @typescript-eslint version can, which is what
+        // lets us allow `import type { SceneContext } from '@/scene/SceneContext'`
+        // (the §21 cookbook pattern) while still banning every other scene
+        // import. Paired with consistent-type-imports so a type-only usage
+        // is always written as `import type` and therefore actually visible
+        // to that check, not smuggled in as a plain value import.
+        'no-restricted-imports': 'off',
+        '@typescript-eslint/consistent-type-imports': 'error',
+        '@typescript-eslint/no-restricted-imports': [
           'error',
           {
             patterns: [
               {
-                group: ['three', 'react', 'react-dom', '@/shell/*'],
+                group: ['three', 'three/*', 'react', 'react-dom', '@/shell/*', '../../shell/*'],
                 message:
                   'modules/ must stay declarative: no three.js, no React, no shell imports. See ARCHITECTURE.md §6.',
+              },
+              {
+                group: ['@/modules/*', '!@/modules/types'],
+                message:
+                  'modules/ must not import another module — only kernel and modules/types are allowed. See ARCHITECTURE.md §6.',
+              },
+              {
+                group: ['../*', '!../types'],
+                message:
+                  'modules/ must not import a sibling module (or anything else in modules/) via a relative path — only kernel and modules/types are allowed. See ARCHITECTURE.md §6.',
+              },
+              {
+                group: ['../../scene/*'],
+                message:
+                  'modules/ must not reach into scene/ via a relative path — use the SceneContext type from @/scene/SceneContext instead. See ARCHITECTURE.md §6/§21.',
+              },
+              {
+                group: ['@/scene/*', '!@/scene/SceneContext'],
+                message:
+                  'modules/ may only use scene via the SceneContext type, never other scene runtime values. See ARCHITECTURE.md §6/§21.',
+              },
+              {
+                group: ['@/scene/SceneContext'],
+                allowTypeImports: true,
+                message:
+                  'modules/ may only import SceneContext as a type (`import type ... from "@/scene/SceneContext"`), never as a runtime value. See ARCHITECTURE.md §6/§21.',
               },
             ],
           },

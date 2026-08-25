@@ -15,6 +15,45 @@
  * have some colour vision deficiency, so a diagram that distinguishes
  * force from velocity by colour alone must be colourblind-safe.
  */
+
+/* Self-hosted — see public/fonts/README.md. No CDN dependency in a
+   lecture hall with captive-portal wifi (§19). */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/phys-viz/fonts/ibm-plex-sans-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/phys-viz/fonts/ibm-plex-sans-latin-500-normal.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/phys-viz/fonts/ibm-plex-sans-latin-600-normal.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/phys-viz/fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/phys-viz/fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Surfaces — cool paper, not cream. Drafting vellum under fluorescent light. */
   --surf-0: #f7f8fa; /* page */

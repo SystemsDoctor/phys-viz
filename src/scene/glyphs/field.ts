@@ -6,6 +6,7 @@
  */
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
+import type { SubstrateHost } from '../internal/SubstrateHost';
 
 export type FieldMode = 'length' | 'color' | 'normalized';
 
@@ -19,6 +20,6 @@ export interface FieldProps {
 
 export type FieldHandle = Handle<FieldProps>;
 
-export function createField(_props: FieldProps): FieldHandle {
+export function createField(_props: FieldProps, _host: SubstrateHost): FieldHandle {
   throw new Error('scene/glyphs/field: not implemented (see M2 in ARCHITECTURE.md §20)');
 }

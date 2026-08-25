@@ -90,6 +90,17 @@ describe('createCameraController', () => {
     expect(() => controller.setLockedToPlane(false)).not.toThrow();
   });
 
+  it('onChange fires during a goTo tween and can be unsubscribed', () => {
+    let calls = 0;
+    const unsubscribe = controller.onChange(() => calls++);
+    controller.goTo('+x', 0); // reducedMotion:true forces instant, but onDone path still runs
+    expect(calls).toBeGreaterThan(0);
+    unsubscribe();
+    const before = calls;
+    controller.goTo('+y', 0);
+    expect(calls).toBe(before);
+  });
+
   it('dispose does not throw', () => {
     expect(() => controller.dispose()).not.toThrow();
   });

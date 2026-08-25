@@ -5,6 +5,7 @@
  */
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
+import type { SubstrateHost } from '../internal/SubstrateHost';
 
 export interface AxesProps {
   group?: GroupHandle;
@@ -14,6 +15,6 @@ export interface AxesProps {
 
 export type AxesHandle = Handle<AxesProps>;
 
-export function createAxes(_props: AxesProps): AxesHandle {
+export function createAxes(_props: AxesProps, _host: SubstrateHost): AxesHandle {
   throw new Error('scene/glyphs/axes: not implemented (see M2 in ARCHITECTURE.md §20)');
 }

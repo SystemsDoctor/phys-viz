@@ -5,6 +5,7 @@
  */
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
+import type { SubstrateHost } from '../internal/SubstrateHost';
 
 export interface SurfaceProps {
   group?: GroupHandle;
@@ -19,6 +20,6 @@ export interface SurfaceProps {
 
 export type SurfaceHandle = Handle<SurfaceProps>;
 
-export function createSurface(_props: SurfaceProps): SurfaceHandle {
+export function createSurface(_props: SurfaceProps, _host: SubstrateHost): SurfaceHandle {
   throw new Error('scene/glyphs/surface: not implemented (see M2 in ARCHITECTURE.md §20)');
 }

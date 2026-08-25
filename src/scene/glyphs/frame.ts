@@ -5,6 +5,7 @@
  */
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
+import type { SubstrateHost } from '../internal/SubstrateHost';
 
 export interface FrameGlyphProps {
   group?: GroupHandle;
@@ -16,6 +17,6 @@ export interface FrameGlyphProps {
 
 export type FrameGlyphHandle = Handle<FrameGlyphProps>;
 
-export function createFrame(_props: FrameGlyphProps): FrameGlyphHandle {
+export function createFrame(_props: FrameGlyphProps, _host: SubstrateHost): FrameGlyphHandle {
   throw new Error('scene/glyphs/frame: not implemented (see M2 in ARCHITECTURE.md §20)');
 }

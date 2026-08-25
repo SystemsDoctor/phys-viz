@@ -57,6 +57,12 @@ export interface CameraController {
   resize(width: number, height: number): void;
   /** Advance in-flight tweens and tick OrbitControls. Call once per rendered frame. */
   update(): void;
+  /**
+   * Fires on every user-driven orbit/pan/zoom and every in-flight tween
+   * tick — the signal `Viewport.renderOnDemand` needs to mark a frame
+   * dirty even though nothing else changed. Returns an unsubscribe.
+   */
+  onChange(listener: () => void): () => void;
   dispose(): void;
 }
 
@@ -113,6 +119,10 @@ export function createCameraController(options: CameraControllerOptions): Camera
   let height = 1;
 
   let controls: OrbitControls | null = null;
+  const changeListeners = new Set<() => void>();
+  function notifyChange(): void {
+    for (const listener of changeListeners) listener();
+  }
 
   function canonicalToWorldPosition(t: number, p: number, r: number): THREE.Vector3 {
     const canonical = new THREE.Vector3().setFromSpherical(new THREE.Spherical(r, p, t));
@@ -144,6 +154,7 @@ export function createCameraController(options: CameraControllerOptions): Camera
     controls = new OrbitControls(activeCamera, canvas);
     controls.target.copy(target);
     controls.enableDamping = false;
+    controls.addEventListener('change', notifyChange);
     controls.update();
   }
 
@@ -190,6 +201,7 @@ export function createCameraController(options: CameraControllerOptions): Camera
       setCameraTransform(posAfter, upAfter);
       applyOrthoFrustum();
       onDone();
+      notifyChange();
       return;
     }
     if (controls) controls.enabled = false;
@@ -212,6 +224,7 @@ export function createCameraController(options: CameraControllerOptions): Camera
     const up = tween.upBefore.clone().lerp(tween.upAfter, t).normalize();
     setCameraTransform(position, up);
     applyOrthoFrustum();
+    notifyChange();
     if (t >= 1) {
       tween.onDone();
       tween = null;
@@ -254,6 +267,7 @@ export function createCameraController(options: CameraControllerOptions): Camera
       applyPerspAspect();
       applyOrthoFrustum();
       rebindControls();
+      notifyChange();
     },
 
     setUpAxis(axis, animate = true) {
@@ -267,6 +281,7 @@ export function createCameraController(options: CameraControllerOptions): Camera
         setCameraTransform(posAfter, upAfter);
         applyOrthoFrustum();
         rebindControls();
+        notifyChange();
         return;
       }
       // Reuse the tween machinery directly (bypassing startTween's own
@@ -361,9 +376,15 @@ export function createCameraController(options: CameraControllerOptions): Camera
       applyOrthoFrustum();
     },
 
+    onChange(listener) {
+      changeListeners.add(listener);
+      return () => changeListeners.delete(listener);
+    },
+
     dispose() {
       controls?.dispose();
       controls = null;
+      changeListeners.clear();
     },
   };
 }

@@ -4,6 +4,7 @@
  */
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
+import type { SubstrateHost } from '../internal/SubstrateHost';
 
 export interface ArcProps {
   group?: GroupHandle;
@@ -16,6 +17,6 @@ export interface ArcProps {
 
 export type ArcHandle = Handle<ArcProps>;
 
-export function createArc(_props: ArcProps): ArcHandle {
+export function createArc(_props: ArcProps, _host: SubstrateHost): ArcHandle {
   throw new Error('scene/glyphs/arc: not implemented (see M2 in ARCHITECTURE.md §20)');
 }

@@ -5,6 +5,7 @@
  */
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
+import type { SubstrateHost } from '../internal/SubstrateHost';
 
 export interface PatchProps {
   group?: GroupHandle;
@@ -15,6 +16,6 @@ export interface PatchProps {
 
 export type PatchHandle = Handle<PatchProps>;
 
-export function createPatch(_props: PatchProps): PatchHandle {
+export function createPatch(_props: PatchProps, _host: SubstrateHost): PatchHandle {
   throw new Error('scene/glyphs/patch: not implemented (see M2 in ARCHITECTURE.md §20)');
 }

@@ -6,6 +6,7 @@
  * See ARCHITECTURE.md §8, §15. TODO(M2): implement.
  */
 import type { Handle } from './Handle';
+import type { SubstrateHost } from '../internal/SubstrateHost';
 
 export interface GraticuleProps {
   viewportSize: [number, number];
@@ -14,6 +15,6 @@ export interface GraticuleProps {
 
 export type GraticuleHandle = Handle<GraticuleProps>;
 
-export function createGraticule(_props: GraticuleProps): GraticuleHandle {
+export function createGraticule(_props: GraticuleProps, _host: SubstrateHost): GraticuleHandle {
   throw new Error('scene/glyphs/graticule: not implemented (see M2 in ARCHITECTURE.md §20)');
 }

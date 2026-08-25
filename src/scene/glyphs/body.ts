@@ -5,6 +5,7 @@
  */
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
+import type { SubstrateHost } from '../internal/SubstrateHost';
 
 export type BodyKind = 'box' | 'sphere' | 'cylinder' | 'disc' | 'rod' | 'spring';
 
@@ -19,6 +20,6 @@ export interface BodyProps {
 
 export type BodyHandle = Handle<BodyProps>;
 
-export function createBody(_props: BodyProps): BodyHandle {
+export function createBody(_props: BodyProps, _host: SubstrateHost): BodyHandle {
   throw new Error('scene/glyphs/body: not implemented (see M2 in ARCHITECTURE.md §20)');
 }

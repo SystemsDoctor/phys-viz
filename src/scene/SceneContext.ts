@@ -9,22 +9,51 @@
  * `MockSceneContext` in `src/modules/testing/` must mirror this API
  * exactly (checked by a type-level test, per the M2 acceptance criterion
  * in §20).
- *
- * TODO(M2): implement against the real glyph factories once they exist.
  */
 
 import type { Palette } from './theme';
+import type { Handle } from './glyphs/Handle';
 import type { ArrowHandle, ArrowProps } from './glyphs/arrow';
+import type { CurvedArrowHandle, CurvedArrowProps } from './glyphs/curvedArrow';
+import type { PathHandle, PathProps } from './glyphs/path';
+import type { PointHandle, PointProps } from './glyphs/point';
 import type { PatchHandle, PatchProps } from './glyphs/patch';
+import type { SurfaceHandle, SurfaceProps } from './glyphs/surface';
 import type { ArcHandle, ArcProps } from './glyphs/arc';
-// Additional glyph handle/prop types are added here as glyphs/* are implemented.
+import type { BodyHandle, BodyProps } from './glyphs/body';
+import type { FieldHandle, FieldProps } from './glyphs/field';
+import type { FrameGlyphHandle, FrameGlyphProps } from './glyphs/frame';
+import type { AxesHandle, AxesProps } from './glyphs/axes';
+import type { GraticuleHandle, GraticuleProps } from './glyphs/graticule';
+import type { LabelHandle, LabelProps } from './annotate/label';
+import type { DimensionLineHandle, DimensionLineProps } from './annotate/dimensionLine';
+
+/** ADR 0009 — the only camera-facing thing a module ever reads. */
+export type UpAxis = 'y' | 'z';
 
 export interface GroupHandle {
   readonly id: string;
 }
 
+/**
+ * Declares a draggable pick target for an already-created glyph's
+ * anchor point. Registration only — no pointer/mouse code here or in
+ * any module; the shell (M3-6) owns pointer events and calls
+ * `Viewport.pick()`.
+ */
+export interface DraggableProps {
+  paramKey: string;
+  getPoint(): readonly [number, number, number];
+  group?: GroupHandle;
+  /** Pick radius in screen pixels. Default 14. */
+  radiusPx?: number;
+}
+export type DraggableHandle = Handle<DraggableProps>;
+
 export interface SceneContext {
   readonly palette: Palette;
+  /** Live — a later up-axis switch (M3's settings menu) must be visible on the next read. */
+  readonly up: UpAxis;
 
   /**
    * A named, retained group of scene objects. Modules attach glyphs to a
@@ -34,14 +63,20 @@ export interface SceneContext {
   group(name: string): GroupHandle;
 
   arrow(props: ArrowProps): ArrowHandle;
+  curvedArrow(props: CurvedArrowProps): CurvedArrowHandle;
+  path(props: PathProps): PathHandle;
+  point(props: PointProps): PointHandle;
   patch(props: PatchProps): PatchHandle;
+  surface(props: SurfaceProps): SurfaceHandle;
   arc(props: ArcProps): ArcHandle;
-  // curvedArrow(props): CurvedArrowHandle;
-  // path(props): PathHandle;
-  // point(props): PointHandle;
-  // surface(props): SurfaceHandle;
-  // body(props): BodyHandle;
-  // field(props): FieldHandle;
-  // frame(props): FrameHandle;
-  // axes(props): AxesHandle;
+  body(props: BodyProps): BodyHandle;
+  field(props: FieldProps): FieldHandle;
+  frame(props: FrameGlyphProps): FrameGlyphHandle;
+  axes(props: AxesProps): AxesHandle;
+  graticule(props: GraticuleProps): GraticuleHandle;
+
+  label(props: LabelProps): LabelHandle;
+  dimensionLine(props: DimensionLineProps): DimensionLineHandle;
+
+  draggable(props: DraggableProps): DraggableHandle;
 }

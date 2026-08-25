@@ -29,7 +29,7 @@
  *     defaults; and the same for a randomized state.
  *  9. No NaN in any scalar across a sampling of the parameter space
  *     (100 quasi-random states).
- * 10. Every explain.mdx, if present, parses.
+ * 10. Every explain.md, if present, parses.
  */
 import { describe, it, expect } from 'vitest';
 import { manifests } from '@/modules/registry';
@@ -51,7 +51,7 @@ describe('module contract', () => {
       it.todo('parametric modules: update({t}) is independent of history');
       it.todo('URL round-trip preserves state');
       it.todo('no NaN across a sampling of the parameter space');
-      it.todo('explain.mdx, if present, parses');
+      it.todo('explain.md, if present, parses');
     });
   }
 

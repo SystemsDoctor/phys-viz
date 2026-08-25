@@ -70,11 +70,15 @@ eigendecomposition) turns a scrub into a multi-second freeze on the
 lecture-hall laptop. If `step()` can't stay cheap, that's usually a sign
 the module wants a closed form instead — re-read §2.
 
-## 6. Write `explain.mdx`
+## 6. Write `explain.md`
 
 A short "what am I looking at, what should I notice, what's the
 equation" panel, with KaTeX for the math. Optional but strongly
 encouraged (§9) — a visualization without a caption teaches less.
+
+**Plain markdown, not MDX** (ADR 0002). No components, no JSX, no
+interactive widgets in the prose — interactivity belongs in params and
+layers, where the shell renders it and the URL serializes it.
 
 ## 7. Run the contract suite
 

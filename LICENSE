@@ -23,7 +23,7 @@ SOFTWARE.
 ---
 
 This license covers the project's CODE. Per ARCHITECTURE.md §19, module
-explanatory text and figures (each module's `explain.mdx` and any
+explanatory text and figures (each module's `explain.md` and any
 accompanying diagrams) are licensed separately under Creative Commons
 Attribution-ShareAlike 4.0 International (CC BY-SA 4.0):
 https://creativecommons.org/licenses/by-sa/4.0/

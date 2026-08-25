@@ -79,6 +79,9 @@ We *do* care about numerical honesty where it is itself the lesson. A module may
 | Testing | **Vitest** (unit + contract), **Playwright** (smoke) | |
 | Lint/format | **ESLint** (with `no-restricted-imports` boundaries) + **Prettier** | |
 | CI/CD | **GitHub Actions** → `actions/deploy-pages` | |
+| Explain panels | **Plain markdown**, rendered client-side (ADR 0002) | Not MDX. Prose plus KaTeX needs no JSX pipeline, and a panel cannot then smuggle UI past §6. |
+| Offline | **Service worker**, precaching the shell *and every module chunk* (ADR 0005) | The lecture hall with dead wifi is the failure that matters most (§1). |
+| GIF export | Small self-hosted pure-JS encoder, loaded on demand (ADR 0006) | No video: `MediaRecorder` output varies by browser and a WASM encoder blows the §17 bundle budget. |
 
 ### Explicitly rejected
 
@@ -86,13 +89,14 @@ We *do* care about numerical honesty where it is itself the lesson. A module may
 - **A physics engine** (cannon-es, rapier, matter.js) — see §2.
 - **Tailwind** — the design system here is small and token-driven; utility classes obscure the token layer.
 - **Next.js / SSR** — no server, no benefit.
+- **Video export** (`MediaRecorder`, WASM encoders) — GIF covers the actual use, which is a short silent loop in a slide. See ADR 0006.
 
 ---
 
 ## 5. Repository layout
 
 ```
-physviz/
+phys-viz/
 ├── .github/
 │   └── workflows/
 │       ├── deploy.yml            # build + deploy to Pages on push to main
@@ -139,7 +143,7 @@ physviz/
 │   │   │   ├── manifest.ts       # eagerly loaded (gallery listing)
 │   │   │   ├── index.ts          # lazily loaded (implementation)
 │   │   │   ├── params.ts
-│   │   │   ├── explain.mdx       # the "what am I looking at" panel
+│   │   │   ├── explain.md        # the "what am I looking at" panel
 │   │   │   └── module.test.ts
 │   │   ├── rotational-dynamics/
 │   │   └── fields-gradients/
@@ -248,6 +252,8 @@ Owns the canvas, `WebGLRenderer`, resize observer, and the single `requestAnimat
 - **Orthographic ↔ perspective toggle.** Orthographic must be the default for any module about components, projections, or angles — reading a vector's components off a perspective projection is misleading, and this is a pedagogical requirement, not a preference.
 - Preset views: `+X`, `+Y`, `+Z`, isometric, and "fit to content", each animated over ~400 ms with an ease so students keep their spatial bearings. Instant camera cuts are disorienting.
 - Camera state is part of serialized state (§14) so a bookmarked demo restores the viewing angle.
+- **`y` is up by default** (ADR 0009), matching three.js and putting a 2D module's xy-plane straight on screen with `x` right and `y` up. The up axis is user-switchable to `z` from the global settings menu (§9); the camera up vector, the presets, and the "iso" orientation all follow it, and switching reorients through the same ~400 ms eased transition rather than cutting. Both conventions are right-handed (ADR 0008). Modules with a notion of *vertical* read `ctx.up` rather than hardcoding an axis.
+- **`dimensions: 2` modules get this same orthographic camera, locked to the plane** — there is no second 2D renderer (ADR 0007). Pan and zoom stay available; only orbit is suppressed. Each such module also gets a shell-provided **"release rotation"** toggle so a student can tip the scene and see that the 2D diagram is a slice of a 3D situation, and re-locking returns to the exact original view.
 
 ### `glyphs/`
 Each glyph is a factory returning a **handle** with `set(props)`, `visible(bool)`, and `dispose()`. Handles are retained; `set` mutates buffers in place.
@@ -290,6 +296,9 @@ Renders the module's `LayerDef[]` as a checklist, grouped. This is the "click a 
 ### Timeline
 Play / pause / step / scrub / speed / **reverse**. Behaviour depends on the module's time model (§12).
 
+### Settings menu
+One global, app-level settings menu — not attached to the viewport or to a panel — holding the display preferences that would otherwise scatter: the **up-axis toggle** (`y`/`z`, ADR 0009), theme, and projector mode. These are viewer preferences, so they persist locally across sessions, and they are serialized into the URL only when they differ from the default (§14).
+
 ### Plot panel
 Two plot types, both generic:
 
@@ -300,7 +309,9 @@ Two plot types, both generic:
 A live table of module-declared scalars with units, formatted by `kernel/units`. In presenter mode this can be pinned as a large overlay.
 
 ### Explain panel
-Each module ships an `explain.mdx` — a short "what am I looking at, what should I notice, what's the equation" panel with KaTeX. Optional but strongly encouraged; a visualization without a caption teaches less.
+Each module ships an `explain.md` — a short "what am I looking at, what should I notice, what's the equation" panel with KaTeX. Optional but strongly encouraged; a visualization without a caption teaches less.
+
+**Plain markdown, not MDX** (ADR 0002). Rendered client-side with KaTeX for the math. An explain panel therefore cannot contain interactive controls, which is deliberate: interactivity belongs in params and layers, where the shell renders it and the URL serializes it, not in prose that neither can reach.
 
 ### Predict mode
 A shell-level feature: hide the outcome, let the student commit to a prediction, then reveal. Implemented as "freeze time at t=0 and hide layers tagged `reveal: true` until the student clicks". Modules opt in by tagging layers. Predict-observe-explain is the pedagogy that makes interactive sims outperform a chalkboard; making it a shell feature means every module gets it.
@@ -524,6 +535,7 @@ interface AppState {
   camera: { theta: number; phi: number; radius: number;
             target: [number, number, number]; projection: 'ortho' | 'persp' };
   ui: { presenterMode: boolean; predictMode: boolean; panelsOpen: string[] };
+  prefs: { upAxis: 'y' | 'z'; theme: 'light' | 'dark'; projector: boolean };
 }
 ```
 
@@ -536,7 +548,7 @@ The render loop subscribes to the store **outside React** (Zustand's `subscribe`
 The bookmarkable-demo feature. Hash routing, so GitHub Pages needs no rewrite rules.
 
 ```
-https://<user>.github.io/physviz/#/m/vector-algebra?v=1&a=1,2,0&b=0,3,1&L=xp,proj&t=2.40&c=iso.o
+https://<user>.github.io/phys-viz/#/m/vector-algebra?v=1&a=1,2,0&b=0,3,1&L=xp,proj&t=2.40&c=iso.o
 ```
 
 Rules:
@@ -547,6 +559,7 @@ Rules:
 - `L=` — comma-separated list of layer `urlKey`s whose state *differs from default*, with `-` prefix for "turned off". `L=xp,-axes`.
 - `t=` — time, 2 dp, omitted when 0.
 - `c=` — camera, compactly encoded (`iso.o` = isometric, orthographic; explicit angles when the user has orbited).
+- Display preferences (`prefs`, §13) are omitted at their defaults like everything else, so a short link stays short — but a demo prepared in z-up and handed to a class reproduces what the instructor actually saw (ADR 0009).
 - If the encoded string exceeds 1800 characters, fall back to `?z=<lz-string compressed blob>`. Rare; only the sandbox module with long expressions should hit it.
 - **Debounce camera writes to the URL/history.** `OrbitControls` fires many `change` events per drag frame; writing to the URL/history on every one spams browser history and can visibly stall the render thread. Debounce camera-state URL sync (e.g. ~250 ms after the last `change`, or only on `end`), while the in-memory Zustand `camera` field itself can still update every frame for the render loop to read.
 
@@ -664,7 +677,7 @@ Assertions:
 7. For `parametric` modules: `update({t: 5})` from a fresh instance equals `update({t: 0}); update({t: 5})`.
 8. URL round-trip: encode(defaults) → decode → deep-equals defaults; and the same for a randomized state.
 9. No `NaN` in any scalar across a sampling of the parameter space (100 quasi-random states).
-10. Every `explain.mdx`, if present, parses.
+10. Every `explain.md`, if present, parses.
 
 A new module either passes this or does not merge. **No module-specific test code is required to get this coverage** — that is the point.
 
@@ -682,7 +695,7 @@ Documented in `MODULE_AUTHORING.md`: check on a projector, check at 320 px width
 
 ```ts
 export default defineConfig({
-  base: '/physviz/',            // MUST match the repo name for project Pages
+  base: '/phys-viz/',            // MUST match the repo name for project Pages
   build: {
     target: 'es2020',
     rollupOptions: {
@@ -723,7 +736,7 @@ Each milestone has a binary acceptance criterion. Do not proceed until it is met
 
 ### M0 — Scaffold and deploy (target: day 1)
 Vite + TS + React + three, ESLint boundary rules, Vitest, Playwright, both GitHub Actions workflows.
-**Accept when:** a rotatable cube is live at `https://<user>.github.io/physviz/`, CI is green, and a deliberate cross-layer import (importing `three` from a file in `src/modules/`) fails lint.
+**Accept when:** a rotatable cube is live at `https://<user>.github.io/phys-viz/`, CI is green, and a deliberate cross-layer import (importing `three` from a file in `src/modules/`) fails lint.
 
 ### M1 — Kernel (target: week 1–2)
 `math`, `frames`, `calculus`, `geometry`, `ode`, `units`, `expr`.
@@ -750,6 +763,10 @@ These two are chosen because they stress *different* parts of the substrate: rot
 ### M6 — Authoring path (target: week 10) — **the extensibility gate**
 `_template/` module, `MODULE_AUTHORING.md`, `PHYSICS_CONVENTIONS.md`, a `npm run new:module` generator.
 **Accept when:** a person who has never seen the codebase — a colleague or a capable undergraduate — ships a working, contract-passing module in **under four hours** using only `MODULE_AUTHORING.md`. If they cannot, the failure is in the substrate or the docs, not in them. Fix it and retest. **Do not skip this gate**; everything after it depends on the answer.
+
+### M6.5 — Post-gate platform features (target: week 11)
+Two features deliberately sequenced *after* the authoring gate, so they are built against a substrate that a stranger has already proven authorable: **offline support via a service worker** (ADR 0005) and **GIF export** (ADR 0006).
+**Accept when:** the site loads and runs every module with the network disabled, including a module never visited while online; and a GIF exported from a module is byte-identical across two runs from the same state, with the §15 semantic colours still distinguishable after palette quantization.
 
 ### M7+ — Library growth (ongoing)
 Then, in rough order of pedagogical value per unit effort: Work & Energy (potential surface with the total-energy plane), Momentum & Collisions (with the CM-frame toggle), Non-inertial Frames & Coriolis, Oscillations, Gravitation & Central Forces, Kinematics, Newton's Laws & FBDs, Statics & Trusses, Sandbox.
@@ -886,7 +903,7 @@ export default module;
 2. Fill in `manifest.ts`.
 3. Declare params, layers, scalars.
 4. Build handles in `create()`, set them in `update()`, dispose them in `dispose()`.
-5. Write `explain.mdx`.
+5. Write `explain.md`.
 6. Run `npm run test:contract` — it will find your module automatically.
 7. Check on a projector, at 320 px, and with a colour-blindness simulator.
 
@@ -913,16 +930,35 @@ The pattern is worth noting: **three generic substrate features** — half-plane
 
 ---
 
-## 23. Open decisions (resolve as ADRs)
+## 23. Decisions (recorded as ADRs)
 
-Record each in `docs/adr/` when decided.
+The six questions this document originally left open are now resolved.
+Each is recorded in `docs/adr/` and is binding; a change of course needs
+a new ADR that supersedes the old one, not an edit to it.
 
-1. **MDX for explain panels, or plain markdown?** MDX allows interactive inline examples but adds build complexity. Start with markdown; revisit if authors want inline widgets.
-2. **Module versioning and deprecation.** When a module's params change meaning, is the old URL migrated or does it load a pinned old build? Migration is proposed (§14); pinning may be needed if a course depends on a specific semester's behaviour.
-3. **Do modules ever compose?** E.g. embedding the vector-algebra display inside the torque module. Currently no — modules are leaves. Composition is a real extensibility multiplier but a large contract change; defer until at least eight modules exist and the demand is demonstrated.
-4. **Offline use.** A service worker giving full offline capability would guarantee a demo works in a lecture hall with dead wifi. Cheap to add, high value; likely worth doing right after M6.
-5. **GIF / video export.** Requested often, moderate effort, no architectural risk. Post-M6.
-6. **Should `dimensions: 2` modules use an orthographic 3D camera with locked rotation, or a genuine 2D renderer?** Locked-ortho-3D is far simpler and reuses everything. Proposed: locked ortho, with a "release rotation" affordance so a 2D scene can still be tipped to reveal that it is a slice of 3D — which is itself pedagogically useful.
+| # | Question | Decision | ADR |
+|---|---|---|---|
+| 1 | MDX or plain markdown for explain panels? | **Plain markdown**, files named `explain.md`, rendered client-side with KaTeX. Revisit only if an author demonstrates a panel that is genuinely better for an inline widget. | [0002](adr/0002-markdown-for-explain-panels.md) |
+| 2 | Migrate old URLs, or pin old builds? | **Migrate forward.** A `schemaVersion` bump obliges a migration in the same change; an unmigratable link loads defaults with a non-blocking notice. No per-module pinned builds. | [0003](adr/0003-migrate-urls-not-pinned-builds.md) |
+| 3 | Do modules ever compose? | **No — modules stay leaves.** Deferred, not rejected: revisit when ≥8 modules exist *and* a concrete duplication case is demonstrated. Share downward (a new glyph, a kernel function), never sideways. | [0004](adr/0004-no-module-composition.md) |
+| 4 | Offline use? | **Yes — service worker**, precaching the shell and **every** module chunk, with a user-clicked update, never a silent mid-lecture swap. Scheduled as M6.5. | [0005](adr/0005-offline-via-service-worker.md) |
+| 5 | GIF / video export? | **GIF yes, video no.** On-demand pure-JS encoder, frames rendered deterministically from module state. Scheduled as M6.5. | [0006](adr/0006-gif-export-no-video.md) |
+| 6 | `dimensions: 2`: locked ortho, or a real 2D renderer? | **Locked orthographic 3D**, one renderer, plus a shell-provided **"release rotation"** toggle so a student can tip the scene and see the 2D diagram is a slice of 3D. | [0007](adr/0007-locked-ortho-for-2d-modules.md) |
+
+Handedness is settled too: **all coordinate systems are right-handed**,
+in every module, plot, and glyph — Cartesian, polar/cylindrical, and
+spherical alike ([ADR 0008](adr/0008-right-handed-coordinates.md)), now
+recorded in full in `PHYSICS_CONVENTIONS.md`.
+
+The up axis that ADR 0008 left open is settled too: **y-up by default**,
+user-switchable to z-up from the global settings menu, exposed to modules
+as `ctx.up` ([ADR 0009](adr/0009-y-up-default-with-up-axis-toggle.md)).
+
+Still genuinely open, and tracked in `TASKS.md`: the module-specific sign
+conventions that handedness does not imply — the sign of a bending
+moment, the direction of positive heel angle — which
+`PHYSICS_CONVENTIONS.md` defers to an ADR per non-obvious choice as each
+one is decided.
 
 ---
 

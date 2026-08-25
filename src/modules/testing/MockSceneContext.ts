@@ -12,7 +12,7 @@
  *
  * TODO(M2/M3): implement alongside the real SceneContext.
  */
-import type { SceneContext, GroupHandle } from '@/scene/SceneContext';
+import type { SceneContext } from '@/scene/SceneContext';
 
 export interface MockSceneContextStats {
   created: number;

@@ -11,8 +11,8 @@ import type { Handle } from './Handle';
 
 export interface ArrowProps {
   group?: GroupHandle;
-  from: [number, number, number];
-  to: [number, number, number];
+  from: readonly [number, number, number];
+  to: readonly [number, number, number];
   color?: string;
   label?: string;
   dashed?: boolean;

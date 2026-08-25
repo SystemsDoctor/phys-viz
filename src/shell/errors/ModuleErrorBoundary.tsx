@@ -22,7 +22,7 @@ export class ModuleErrorBoundary extends React.Component<
     return { error };
   }
 
-  render() {
+  render(): React.ReactNode {
     throw new Error('shell/errors/ModuleErrorBoundary: not implemented (see M3 in ARCHITECTURE.md §20)');
   }
 }

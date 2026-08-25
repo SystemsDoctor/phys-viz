@@ -9,6 +9,9 @@ dist-ssr/
 .vite/
 *.local
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Testing
 coverage/
 test-results/

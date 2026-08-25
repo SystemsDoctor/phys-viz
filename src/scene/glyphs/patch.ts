@@ -8,7 +8,7 @@ import type { Handle } from './Handle';
 
 export interface PatchProps {
   group?: GroupHandle;
-  points: [number, number, number][];
+  points: (readonly [number, number, number])[];
   color?: string;
   opacity?: number;
 }

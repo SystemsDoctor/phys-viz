@@ -18,7 +18,7 @@ const module: PhysicsModule = {
 
   // defaultView: { preset: 'iso', projection: 'ortho' },
 
-  create(ctx: SceneContext) {
+  create(_ctx: SceneContext) {
     // Build every handle ONCE here, attached to a ctx.group(...) that
     // matches a layer `key` so the shell's toggles work with no code in
     // this module. Example:

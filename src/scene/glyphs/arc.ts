@@ -7,8 +7,8 @@ import type { Handle } from './Handle';
 
 export interface ArcProps {
   group?: GroupHandle;
-  from: [number, number, number];
-  to: [number, number, number];
+  from: readonly [number, number, number];
+  to: readonly [number, number, number];
   radius: number;
   color?: string;
   label?: string;

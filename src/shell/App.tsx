@@ -5,11 +5,27 @@
  * Must NOT import a concrete module implementation directly — modules
  * are loaded through `@/modules/registry`'s `loadModule()`.
  *
- * TODO(M3): wire up hash routing (wouter), the Zustand store
- * (shell/state), and the routes below.
+ * Currently just the M0 throwaway: mounts src/scene/demoCube.ts's
+ * rotatable cube onto a full-viewport canvas to satisfy the M0
+ * acceptance criterion. TODO(M3): replace with hash routing (wouter),
+ * the Zustand store (shell/state), and the real routes.
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import { mountDemoCube } from '@/scene/demoCube';
 
 export function App(): React.ReactElement {
-  throw new Error('shell/App: not implemented (see M3 in ARCHITECTURE.md §20)');
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    return mountDemoCube(canvas);
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', display: 'block' }}
+    />
+  );
 }

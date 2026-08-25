@@ -86,6 +86,8 @@ export class Viewport {
 
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Required for the `surface` glyph's clipPlane (§8) to take effect.
+    this.renderer.localClippingEnabled = true;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xeceef2);

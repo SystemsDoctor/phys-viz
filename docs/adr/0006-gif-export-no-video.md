@@ -50,7 +50,7 @@ whatever the display happened to do.
   with the resulting file size shown before encoding starts. GIF is a
   palette-limited format and a careless export is tens of megabytes.
 - GIF's 256-colour palette interacts with §15: the Okabe–Ito semantic
-  colours must survive quantization, because colour *is* data here. Check
+  colours must survive quantization, because colour _is_ data here. Check
   an exported GIF against the palette, and prefer the projector token
   variant for export since it is higher contrast.
 - If someone later needs video, that is a new ADR superseding this one,

@@ -60,7 +60,8 @@ module.exports = {
             patterns: [
               {
                 group: ['react', 'react-dom', '@/shell/*', '@/modules/*'],
-                message: 'scene/ may use kernel and three, but must not depend on react, shell, or modules.',
+                message:
+                  'scene/ may use kernel and three, but must not depend on react, shell, or modules.',
               },
             ],
           },
@@ -75,8 +76,14 @@ module.exports = {
           {
             patterns: [
               {
-                group: ['@/modules/*/index', '@/modules/*/manifest', '!@/modules/types', '!@/modules/registry'],
-                message: 'shell/ may only depend on modules/types and modules/registry, never a concrete module implementation.',
+                group: [
+                  '@/modules/*/index',
+                  '@/modules/*/manifest',
+                  '!@/modules/types',
+                  '!@/modules/registry',
+                ],
+                message:
+                  'shell/ may only depend on modules/types and modules/registry, never a concrete module implementation.',
               },
             ],
           },
@@ -93,7 +100,8 @@ module.exports = {
             patterns: [
               {
                 group: ['three', 'react', 'react-dom', '@/shell/*'],
-                message: 'modules/ must stay declarative: no three.js, no React, no shell imports. See ARCHITECTURE.md §6.',
+                message:
+                  'modules/ must stay declarative: no three.js, no React, no shell imports. See ARCHITECTURE.md §6.',
               },
             ],
           },

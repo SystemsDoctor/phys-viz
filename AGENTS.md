@@ -64,13 +64,14 @@ record them as an ADR in `docs/adr/`. A module author writes a
 `ScalarDef[]`), and an `index.ts` with `create()`/`update()`/`scalars()`/
 `dispose()` — no React, no CSS, no URL handling, no plotting code. To
 add a new module: `npm run new:module -- <kebab-case-id>`, then follow
-`docs/MODULE_AUTHORING.md` end to end. To add a *capability* that every
+`docs/MODULE_AUTHORING.md` end to end. To add a _capability_ that every
 module can use, change `src/scene/glyphs/`, `src/shell/controls/`, or
 `src/shell/plots/` instead of special-casing one module.
 
 Key invariants a module's `update(state)` must hold, because the
 contract test (`tests/contract/`) checks them and CI will fail
 otherwise:
+
 - **Idempotent**: same `state` in -> same scene out, regardless of call
   history. No `if (firstRender)` branches.
 - Builds handles once in `create()`, only calls `.set()` in `update()` —

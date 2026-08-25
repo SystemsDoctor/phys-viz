@@ -30,7 +30,7 @@ in a URL, effectively permanent (§10).
 
 Twenty lines of data: id, title, category, blurb, tags, `timeModel`
 (prefer `'parametric'`; see §12), `dimensions`, `schemaVersion` (bump
-only when a param's *meaning* changes, not its default), and `level`.
+only when a param's _meaning_ changes, not its default), and `level`.
 
 ## 4. Declare `params`, `layers`, `scalars` in `params.ts`
 
@@ -89,7 +89,7 @@ npm run test:contract
 It finds your module automatically via the registry glob (§11) and runs
 it through the full conformance checklist in §18. No module-specific
 test code is required to pass it. `module.test.ts` is for anything
-*specific* to your module — e.g. a golden-value physics check.
+_specific_ to your module — e.g. a golden-value physics check.
 
 ## 8. Manual checklist
 

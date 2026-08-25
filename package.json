@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run --exclude tests/contract/** --exclude tests/e2e/**",
+    "test:coverage": "vitest run --exclude tests/contract/** --exclude tests/e2e/** --coverage",
     "test:contract": "vitest run tests/contract",
     "test:e2e": "playwright test",
     "new:module": "node scripts/new-module.mjs"
@@ -37,6 +38,7 @@
     "@typescript-eslint/eslint-plugin": "^7.16.0",
     "@typescript-eslint/parser": "^7.16.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react-hooks": "^4.6.2",

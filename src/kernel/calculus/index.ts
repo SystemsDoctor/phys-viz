@@ -31,7 +31,11 @@ export function curl(_field: VectorField, _p: Vec3, _h?: number): Vec3 {
   throw new Error('kernel/calculus: not implemented (see M1 in ARCHITECTURE.md §20)');
 }
 
-export function lineIntegral(_field: VectorField, _path: (t: number) => Vec3, _n: number): QuadratureResult {
+export function lineIntegral(
+  _field: VectorField,
+  _path: (t: number) => Vec3,
+  _n: number,
+): QuadratureResult {
   throw new Error('kernel/calculus: not implemented (see M1 in ARCHITECTURE.md §20)');
 }
 

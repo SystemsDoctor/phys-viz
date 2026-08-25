@@ -35,10 +35,34 @@ const module: PhysicsModule = {
     const gCross = ctx.group('xprod');
     const gArea = ctx.group('xarea');
 
-    const aArrow = ctx.arrow({ group: gA, color: ctx.palette.position, label: '\\vec{a}', from: [0, 0, 0], to: [0, 0, 0] });
-    const bArrow = ctx.arrow({ group: gA, color: ctx.palette.velocity, label: '\\vec{b}', from: [0, 0, 0], to: [0, 0, 0] });
-    const sArrow = ctx.arrow({ group: gSum, color: ctx.palette.energy, label: '\\vec{a}+\\vec{b}', from: [0, 0, 0], to: [0, 0, 0] });
-    const shadow = ctx.arrow({ group: gProj, color: ctx.palette.construction, dashed: true, from: [0, 0, 0], to: [0, 0, 0] });
+    const aArrow = ctx.arrow({
+      group: gA,
+      color: ctx.palette.position,
+      label: '\\vec{a}',
+      from: [0, 0, 0],
+      to: [0, 0, 0],
+    });
+    const bArrow = ctx.arrow({
+      group: gA,
+      color: ctx.palette.velocity,
+      label: '\\vec{b}',
+      from: [0, 0, 0],
+      to: [0, 0, 0],
+    });
+    const sArrow = ctx.arrow({
+      group: gSum,
+      color: ctx.palette.energy,
+      label: '\\vec{a}+\\vec{b}',
+      from: [0, 0, 0],
+      to: [0, 0, 0],
+    });
+    const shadow = ctx.arrow({
+      group: gProj,
+      color: ctx.palette.construction,
+      dashed: true,
+      from: [0, 0, 0],
+      to: [0, 0, 0],
+    });
     const xArrow = ctx.arrow({
       group: gCross,
       color: ctx.palette.angular,
@@ -47,8 +71,20 @@ const module: PhysicsModule = {
       from: [0, 0, 0],
       to: [0, 0, 0],
     });
-    const patch = ctx.patch({ group: gArea, color: ctx.palette.angular, opacity: 0.18, points: [] });
-    const angle = ctx.arc({ group: gA, color: ctx.palette.construction, label: '\\theta', from: [1, 0, 0], to: [0, 1, 0], radius: 1.2 });
+    const patch = ctx.patch({
+      group: gArea,
+      color: ctx.palette.angular,
+      opacity: 0.18,
+      points: [],
+    });
+    const angle = ctx.arc({
+      group: gA,
+      color: ctx.palette.construction,
+      label: '\\theta',
+      from: [1, 0, 0],
+      to: [0, 1, 0],
+      radius: 1.2,
+    });
 
     return {
       update(s: ModuleState) {
@@ -62,7 +98,9 @@ const module: PhysicsModule = {
         bArrow.set({ from: [0, 0, 0], to: b });
 
         const style = s.params.sumStyle as string;
-        sArrow.set(style === 'tip' ? { from: a, to: add(a, b) } : { from: [0, 0, 0], to: add(a, b) });
+        sArrow.set(
+          style === 'tip' ? { from: a, to: add(a, b) } : { from: [0, 0, 0], to: add(a, b) },
+        );
 
         const proj = scale(b, dot(a, b) / dot(b, b));
         shadow.set({ from: [0, 0, 0], to: proj });

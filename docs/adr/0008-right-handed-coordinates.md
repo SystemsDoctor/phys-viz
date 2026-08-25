@@ -68,7 +68,7 @@ uniform, and because a left-handed slip is invisible in a screenshot.
   screen with `x` right and `y` up, which is the conventional orientation
   for a 2D plot, and composes cleanly with the locked-ortho decision in
   ADR 0007.
-- Module-specific sign conventions that are *not* implied by handedness —
+- Module-specific sign conventions that are _not_ implied by handedness —
   the sign of a bending moment, the direction of positive heel angle —
   are still per-module choices, and each non-obvious one gets its own ADR
   as it arises. This ADR closes handedness, not every sign question.

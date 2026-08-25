@@ -17,7 +17,17 @@
 
 export type Vec2 = readonly [number, number];
 export type Vec3 = readonly [number, number, number];
-export type Mat3 = readonly [number, number, number, number, number, number, number, number, number];
+export type Mat3 = readonly [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+];
 export type Mat4 = readonly number[]; // 16 elements, column-major
 export type Quat = readonly [number, number, number, number]; // x, y, z, w
 

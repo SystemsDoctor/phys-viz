@@ -9,5 +9,7 @@ export function ExpressionField(_props: {
   vars: string[];
   onChange: (v: string) => void;
 }): React.ReactElement {
-  throw new Error('shell/controls/ExpressionField: not implemented (see M3 in ARCHITECTURE.md §20)');
+  throw new Error(
+    'shell/controls/ExpressionField: not implemented (see M3 in ARCHITECTURE.md §20)',
+  );
 }

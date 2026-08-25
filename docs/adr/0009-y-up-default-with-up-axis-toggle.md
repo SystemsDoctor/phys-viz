@@ -40,7 +40,7 @@ The up axis is a **scene-level convention**, exposed to modules as
 
 - The camera's up vector follows the setting, as do the preset views and
   the "iso" orientation.
-- A module with a notion of *vertical* — gravity, a ground plane, a
+- A module with a notion of _vertical_ — gravity, a ground plane, a
   hanging pendulum — reads `ctx.up` instead of hardcoding `[0, 1, 0]`.
 - A module with no notion of vertical — vector algebra, fields and
   gradients — ignores it entirely and is unaffected.
@@ -54,7 +54,7 @@ The up axis is a **scene-level convention**, exposed to modules as
   `src/modules/types.ts`. It needs no `MODULE_CONTRACT_VERSION` bump, and
   it lands naturally in the M2 work that expands `SceneContext` to the
   full glyph set.
-- Reading `ctx.up` is *data*, not UI code, so this does not weaken the
+- Reading `ctx.up` is _data_, not UI code, so this does not weaken the
   §9 promise that a module author writes no UI. It is one line in the
   modules that care and absent in the ones that don't.
 - The rejected alternative was to relabel axes — draw the same picture
@@ -63,7 +63,7 @@ The up axis is a **scene-level convention**, exposed to modules as
   module reporting `v_y` would sit next to a triad labelled `z`. Silent
   inconsistency between the scene and the module's own words is worse
   than either convention.
-- A module that hardcodes an up axis is not *broken* under this decision —
+- A module that hardcodes an up axis is not _broken_ under this decision —
   it simply ignores the setting and always draws vertical along `+y`.
   That is an acceptable failure mode for early modules, and worth calling
   out in `MODULE_AUTHORING.md` rather than enforcing mechanically.

@@ -23,6 +23,8 @@ export class ModuleErrorBoundary extends React.Component<
   }
 
   render(): React.ReactNode {
-    throw new Error('shell/errors/ModuleErrorBoundary: not implemented (see M3 in ARCHITECTURE.md §20)');
+    throw new Error(
+      'shell/errors/ModuleErrorBoundary: not implemented (see M3 in ARCHITECTURE.md §20)',
+    );
   }
 }

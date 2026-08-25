@@ -31,7 +31,7 @@ and the layer boundary in §6 continues to forbid module-to-module
 imports outright — including via a relative path.
 
 This is deferred, not rejected. We revisit when **both** conditions in
-§23 hold: at least eight modules exist, *and* the demand is demonstrated
+§23 hold: at least eight modules exist, _and_ the demand is demonstrated
 by a concrete case where two modules would otherwise duplicate a
 non-trivial construction.
 

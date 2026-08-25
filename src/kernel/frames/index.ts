@@ -44,6 +44,11 @@ export function transformVelocity(_frame: Frame, _r: Vec3, _vRel: Vec3): Vec3 {
   throw new Error('kernel/frames: not implemented (see M1 in ARCHITECTURE.md §20)');
 }
 
-export function transformAcceleration(_frame: Frame, _r: Vec3, _vRel: Vec3, _aRel: Vec3): AccelerationTerms {
+export function transformAcceleration(
+  _frame: Frame,
+  _r: Vec3,
+  _vRel: Vec3,
+  _aRel: Vec3,
+): AccelerationTerms {
   throw new Error('kernel/frames: not implemented (see M1 in ARCHITECTURE.md §20)');
 }

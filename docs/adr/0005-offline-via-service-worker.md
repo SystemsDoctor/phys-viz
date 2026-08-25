@@ -26,7 +26,7 @@ makes the site fully usable offline: HTML, CSS, fonts, KaTeX, the
 vendor/three/katex chunks, **and every module chunk**.
 
 Precaching the lazily-loaded module chunks is the non-obvious part and
-it is required. §11 makes each module its own chunk so the *initial* load
+it is required. §11 makes each module its own chunk so the _initial_ load
 stays O(1) in module count — but a module that has never been visited is
 not in the HTTP cache, so without explicit precaching, "offline" would
 mean "offline for the one module you happened to open earlier."
@@ -42,7 +42,7 @@ than swapping code underneath a live demo.
   mid-lecture must not have the page reload or the behaviour change
   under them; that is precisely the "no fiddling mid-lecture" need in
   §1. The reload is always the user's click.
-- Precaching every module chunk means the *first* visit downloads the
+- Precaching every module chunk means the _first_ visit downloads the
   whole library in the background. That is acceptable and is the deal
   offline requires, but it puts the §17 per-module chunk budget
   (≤80 KB gzipped) under real pressure as the library grows: at 50

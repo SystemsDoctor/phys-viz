@@ -20,7 +20,9 @@ export function Timeline(_props: {
   playing: boolean;
   speed: number;
   direction: 1 | -1;
-  onChange: (patch: Partial<{ t: number; playing: boolean; speed: number; direction: 1 | -1 }>) => void;
+  onChange: (
+    patch: Partial<{ t: number; playing: boolean; speed: number; direction: 1 | -1 }>,
+  ) => void;
 }): React.ReactElement {
   throw new Error('shell/timeline: not implemented (see M3 in ARCHITECTURE.md §20)');
 }

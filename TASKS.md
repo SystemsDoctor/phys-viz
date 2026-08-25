@@ -13,14 +13,15 @@ dropped, mark it and say why rather than renumbering the ones after it.
 
 ## Status convention
 
-| Status | Meaning |
-|---|---|
-| `READY` | Unblocked. Prerequisites are met and this can be started now. |
-| `DONE` | The stated acceptance criterion is met and verified (not just "code written" — run the check). |
+| Status    | Meaning                                                                                                                                                       |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `READY`   | Unblocked. Prerequisites are met and this can be started now.                                                                                                 |
+| `DONE`    | The stated acceptance criterion is met and verified (not just "code written" — run the check).                                                                |
 | `BLOCKED` | Cannot start yet. Reason stated inline (usually: an earlier milestone's acceptance criterion isn't met — milestones in §20 are ordered and gated on purpose). |
-| `IDEA` | Not scheduled work. Captured so it isn't lost, but out of scope until explicitly pulled onto the active milestone. |
+| `IDEA`    | Not scheduled work. Captured so it isn't lost, but out of scope until explicitly pulled onto the active milestone.                                            |
 
 Rules for working this file:
+
 - Do not start a `BLOCKED` task to "get ahead." The milestone order in
   §20 is deliberate (`AGENTS.md`: "do not start M2 work before M1's
   acceptance criterion is met, etc."). If a `BLOCKED` task turns out to
@@ -33,7 +34,7 @@ Rules for working this file:
   don't let them evaporate into chat history.
 - `IDEA` entries are promoted to `READY` explicitly when someone decides
   to schedule them, never worked ad hoc.
-- Each milestone's **gate task** (`M*-G`) *is* the §20 acceptance
+- Each milestone's **gate task** (`M*-G`) _is_ the §20 acceptance
   criterion. It is the only task in the section whose `DONE` unblocks
   the next milestone.
 
@@ -57,9 +58,9 @@ fails lint.
 ### Toolchain gaps found on the second pass
 
 - [DONE] **M0-6** Install dependencies and run `npm run typecheck && npm run lint && npm run test:unit && npm run test:contract && npm run build` end to end at least once in this environment — never yet executed here, so none of the config above is actually verified. Ran `npm install` (committed `package-lock.json`); fixed six pre-existing type errors surfaced by the first real `typecheck` run (readonly `Vec3` tuples vs. mutable tuple props on `ArrowProps`/`ArcProps`/`PatchProps`, two unused-symbol errors, one error-boundary `render()` return type) so all five commands now pass clean
-- [READY] **M0-7** Add `@vitest/coverage-v8` and a `test:coverage` script with a ≥90% line threshold scoped to `src/kernel/**`. M1's acceptance criterion is a coverage number and there is currently no coverage tooling at all (§18, §20 M1)
-- [READY] **M0-8** Add `format:check` to `ci.yml`. The script exists in `package.json` but CI never runs it, so Prettier drift lands silently. Note it fails repo-wide today: files are checked out CRLF on Windows while Prettier defaults to `endOfLine: "lf"`, and the committed markdown tables aren't Prettier-shaped — so this needs `endOfLine: "auto"` (or a `.gitattributes` decision) plus one formatting sweep before it can gate anything
-- [READY] **M0-9** Harden the ESLint module boundary — four real holes in `.eslintrc.cjs` today: (a) the `three` group is an exact match, so `three/examples/jsm/...` slips through every layer's ban (add `three/*`); (b) the `src/modules/**` override does not restrict `@/modules/*`, so one module can import another, which §6 forbids; (c) it does not restrict `@/scene/*`, so a module can import scene *runtime values*, not just the `SceneContext` type the §21 cookbook needs — allow the type-only import and ban the rest (pair with `@typescript-eslint/consistent-type-imports`); (d) alias-based patterns don't catch relative escapes (`../other-module/index`, `../../scene/...`) — add relative patterns too
+- [DONE] **M0-7** Add `@vitest/coverage-v8` and a `test:coverage` script with a ≥90% line threshold scoped to `src/kernel/**`. M1's acceptance criterion is a coverage number and there is currently no coverage tooling at all (§18, §20 M1). Added `coverage` config to `vite.config.ts` (provider `v8`, `include: ['src/kernel/**']`, 90% thresholds on lines/statements/functions/branches) and a `test:coverage` script; ran it and confirmed it reports and fails correctly against the still-unimplemented kernel (expected — M1 is where kernel tests bring it over threshold). Not wired into `ci.yml` yet; that's M1-24
+- [DONE] **M0-8** Add `format:check` to `ci.yml`. The script exists in `package.json` but CI never runs it, so Prettier drift lands silently. Note it fails repo-wide today: files are checked out CRLF on Windows while Prettier defaults to `endOfLine: "lf"`, and the committed markdown tables aren't Prettier-shaped — so this needs `endOfLine: "auto"` (or a `.gitattributes` decision) plus one formatting sweep before it can gate anything. Chose the `.gitattributes` decision over `endOfLine: "auto"`: added `* text=auto eol=lf` (plus binary declarations for image/font formats ahead of M0-10) so the repo is LF regardless of a contributor's local `core.autocrlf` — this checkout had it `true`, which is the actual root cause. Ran `prettier --write .` for the one-time sweep (reformats the markdown tables and a couple of long lines); `format:check` now passes and is added as a CI step before typecheck
+- [READY] **M0-9** Harden the ESLint module boundary — four real holes in `.eslintrc.cjs` today: (a) the `three` group is an exact match, so `three/examples/jsm/...` slips through every layer's ban (add `three/*`); (b) the `src/modules/**` override does not restrict `@/modules/*`, so one module can import another, which §6 forbids; (c) it does not restrict `@/scene/*`, so a module can import scene _runtime values_, not just the `SceneContext` type the §21 cookbook needs — allow the type-only import and ban the rest (pair with `@typescript-eslint/consistent-type-imports`); (d) alias-based patterns don't catch relative escapes (`../other-module/index`, `../../scene/...`) — add relative patterns too
 - [READY] **M0-10** Self-host fonts: download IBM Plex Sans + IBM Plex Mono woff2 into `public/fonts/` and add the `@font-face` rules to `src/design/tokens.css` (§15, §19; `public/fonts/README.md` carries this as a TODO(M0)). A lecture hall behind a captive portal is exactly where a CDN font fails
 - [READY] **M0-11** Verify the built `dist/` actually contains `.nojekyll` and that no emitted asset path begins with `_` in a way Pages would drop (§19)
 
@@ -127,7 +128,7 @@ All `BLOCKED` on **M1-G**.
 - [BLOCKED: M1-G] **M2-12** `annotate/` — `label({ latex, anchor, offset })` as a KaTeX-rendered **HTML overlay** (crisp at any zoom, selectable, accessible to screen readers), positioned by projecting the anchor each frame
 - [BLOCKED: M1-G] **M2-13** `annotate/` — dimension lines, dashed projection drop-lines, leader lines
 - [BLOCKED: M1-G] **M2-14** `theme/` — semantic palette (§15 tokens) → three materials, plus the projector variant (higher contrast, ~1.6× line weight, no subtle transparency) toggled at runtime. Modules only ever see `ctx.palette.*`, never a hex
-- [BLOCKED: M1-G] **M2-15** Picking — ray-cast against registered draggable handles using `kernel/geometry`'s ray intersections (M1-12). Scene exposes the hit; the *shell* wires the drag to the param (M3-6). No mouse code in modules
+- [BLOCKED: M1-G] **M2-15** Picking — ray-cast against registered draggable handles using `kernel/geometry`'s ray intersections (M1-12). Scene exposes the hit; the _shell_ wires the drag to the param (M3-6). No mouse code in modules
 - [BLOCKED: M1-G] **M2-21** Up-axis support in the scene layer per ADR 0009: `ctx.up` on `SceneContext` (and mirrored in `MockSceneContext`, M2-17/M2-18), the camera up vector and presets following it, and switching reorienting through the same ~400 ms eased transition as the presets rather than cutting — `prefers-reduced-motion` respected (§15)
 - [BLOCKED: M1-G] **M2-16** Expand `SceneContext` to the full glyph set. It currently declares only `arrow`/`patch`/`arc` with the rest commented out — every glyph from M2-8/9/10/11 plus `label` needs a factory on the context, or modules cannot reach it
 - [BLOCKED: M1-G] **M2-17** `MockSceneContext` real implementation (`src/modules/testing/MockSceneContext.ts` currently throws) — headless, no WebGL, no DOM, tallying handle creates/disposes (which is what makes contract assertion 4 possible) and recording handle property sets (assertions 5 and 5b)
@@ -156,7 +157,7 @@ All `BLOCKED` on **M2-G**.
 - [BLOCKED: M2-G] **M3-5** Auto-generated controls for **every** `ParamDef` kind — number (including `logScale`), vector, toggle, select, expression, angle (`src/shell/params/`, `src/shell/controls/`, all currently stubs). A module author writes zero UI code (§9)
 - [BLOCKED: M2-G] **M3-6** Drag-to-param wiring: a param declared `draggable` becomes draggable in the viewport via M2-15's picking, with the shell owning all pointer handling
 - [BLOCKED: M2-G] **M3-7** Layer manager UI from `LayerDef[]`, grouped, driving scene group visibility so modules need no `if (layers.x)` branches (`src/shell/layers/`)
-- [BLOCKED: M2-G] **M3-8** Layer toggle fade-in ~150 ms so students see *what* appeared; disabled under `prefers-reduced-motion` (§15)
+- [BLOCKED: M2-G] **M3-8** Layer toggle fade-in ~150 ms so students see _what_ appeared; disabled under `prefers-reduced-motion` (§15)
 
 ### Time
 
@@ -208,7 +209,7 @@ All `BLOCKED` on **M2-G**.
 - [BLOCKED: M2-G] **M3-38** Implement contract assertion 8 (URL round-trip) now that the codec exists, so every future module inherits the check
 - [BLOCKED: M2-G] **M3-41** Global application settings menu (ADR 0009) — app-level, not attached to the viewport or a panel. Holds the **up-axis toggle** (`y`/`z`) and becomes the home for the other display preferences that would otherwise scatter: theme and projector mode. Add the `prefs` slice to the §13 store shape
 - [BLOCKED: M2-G] **M3-42** Persist `prefs` locally across sessions (they are viewer preferences), **and** serialize them into the URL only when they differ from the default, per §14's omit-defaults rule — so a short link stays short but a demo prepared in z-up reproduces what the instructor saw
-- [BLOCKED: M2-G] **M3-39** Per-`schemaVersion` migration tests in the shell's unit tests (ADR 0003). Contract assertion 8 only covers the *current* version — the contract suite cannot know last semester's schema, so an unmigratable old link is a defect no existing test would catch
+- [BLOCKED: M2-G] **M3-39** Per-`schemaVersion` migration tests in the shell's unit tests (ADR 0003). Contract assertion 8 only covers the _current_ version — the contract suite cannot know last semester's schema, so an unmigratable old link is a defect no existing test would catch
 - [BLOCKED: M2-G] **M3-G** **Gate:** the M3-36 stub renders a complete usable UI with zero module-side UI code, and round-trips through the URL. Do not start M4 until this is true
 
 ## M4 — First module: Vector Algebra
@@ -237,7 +238,7 @@ All `BLOCKED` on **M3-G**.
 `types.ts`. If the contract had to change, fix it now before there are
 20 modules depending on it.
 
-The pair is chosen because they stress *different* substrate: rotation
+The pair is chosen because they stress _different_ substrate: rotation
 stresses quaternions, stepped time, and rigid bodies; fields stress
 instanced glyphs, parametric surfaces, quadrature, and scalar colouring
 (§20). All `BLOCKED` on **M4-G**.
@@ -308,15 +309,15 @@ All `BLOCKED` on **M6-G**.
 Specification requirements not owned by a single milestone. Each is
 tagged with the milestone that must not ship without it.
 
-- [DONE] **X-1** Repo-name discrepancy resolved in favour of **`phys-viz`** everywhere. `ARCHITECTURE.md` §5 (tree root), §14 (URL example), §19 (`base`), and §20 (M0 acceptance URL) now match the folder, `package.json` name, and the configured `base`. `base` must keep matching the Pages repo name exactly, including case, or every asset 404s. *(gated M0)*
-- [READY] **X-2** Add the CC BY-SA 4.0 licence for module explanatory text and figures alongside the MIT code licence, and state the split in `README.md` and on the About route. §19 flags this as the thing that lets physics-education colleagues adopt and contribute, which is the realistic path to this outliving one semester. *(gates M0)*
-- [BLOCKED: M3-G] **X-3** Enforce the §17 bundle budgets in CI where possible: initial JS (shell + scene + kernel) ≤250 KB gzipped, per-module chunk ≤80 KB gzipped. A small script over the Vite output that fails the build is enough — "check manually otherwise" is how budgets rot. *(gates M4)*
-- [BLOCKED: M3-G] **X-4** Verify `manualChunks` actually produces the intended `three` / `vendor` / `katex` split, and that adding a module leaves the initial bundle unchanged. The O(1)-in-module-count claim in §11 is load-bearing for the entire growth plan. *(gates M4)*
-- [BLOCKED: M2-G] **X-5** Honour `prefers-reduced-motion` everywhere motion exists: camera easing (M2-5) and layer fades (M3-8). §15 names exactly these two. *(gates M4)*
-- [BLOCKED: M3-G] **X-6** Verify the projector token override works as a single class on `<html>`, covering contrast, ~1.6× line weight, larger labels, and disabled subtle transparency across **both** DOM chrome and scene materials (`src/design/projector.css` + M2-14). *(gates M4)*
-- [READY] **X-7** Keep `README.md` current: live URL, what the project is, how to run it, where the docs are, how to contribute a module. It is the front door for the M6 author. *(gates M6)*
-- [BLOCKED: M0-G] **X-8** Keep recording decisions as ADRs under `docs/adr/`, following `0001-record-architecture-decisions.md`. All of §23's questions are now written (0002–0009), including the up-axis question ADR 0008 exposed. The open queue is one ADR per module-specific sign convention as it arises, plus every future contract, URL-schema, or cross-module convention change. An accepted ADR is never edited — a change of course gets a new ADR that supersedes it. *(continuous)*
-- [BLOCKED: M0-G] **X-9** Keep `AGENTS.md` and `CLAUDE.md` in step with the substrate as it lands — both currently describe stubs as though they were working APIs, and stale agent docs produce confidently wrong code. *(continuous)*
+- [DONE] **X-1** Repo-name discrepancy resolved in favour of **`phys-viz`** everywhere. `ARCHITECTURE.md` §5 (tree root), §14 (URL example), §19 (`base`), and §20 (M0 acceptance URL) now match the folder, `package.json` name, and the configured `base`. `base` must keep matching the Pages repo name exactly, including case, or every asset 404s. _(gated M0)_
+- [READY] **X-2** Add the CC BY-SA 4.0 licence for module explanatory text and figures alongside the MIT code licence, and state the split in `README.md` and on the About route. §19 flags this as the thing that lets physics-education colleagues adopt and contribute, which is the realistic path to this outliving one semester. _(gates M0)_
+- [BLOCKED: M3-G] **X-3** Enforce the §17 bundle budgets in CI where possible: initial JS (shell + scene + kernel) ≤250 KB gzipped, per-module chunk ≤80 KB gzipped. A small script over the Vite output that fails the build is enough — "check manually otherwise" is how budgets rot. _(gates M4)_
+- [BLOCKED: M3-G] **X-4** Verify `manualChunks` actually produces the intended `three` / `vendor` / `katex` split, and that adding a module leaves the initial bundle unchanged. The O(1)-in-module-count claim in §11 is load-bearing for the entire growth plan. _(gates M4)_
+- [BLOCKED: M2-G] **X-5** Honour `prefers-reduced-motion` everywhere motion exists: camera easing (M2-5) and layer fades (M3-8). §15 names exactly these two. _(gates M4)_
+- [BLOCKED: M3-G] **X-6** Verify the projector token override works as a single class on `<html>`, covering contrast, ~1.6× line weight, larger labels, and disabled subtle transparency across **both** DOM chrome and scene materials (`src/design/projector.css` + M2-14). _(gates M4)_
+- [READY] **X-7** Keep `README.md` current: live URL, what the project is, how to run it, where the docs are, how to contribute a module. It is the front door for the M6 author. _(gates M6)_
+- [BLOCKED: M0-G] **X-8** Keep recording decisions as ADRs under `docs/adr/`, following `0001-record-architecture-decisions.md`. All of §23's questions are now written (0002–0009), including the up-axis question ADR 0008 exposed. The open queue is one ADR per module-specific sign convention as it arises, plus every future contract, URL-schema, or cross-module convention change. An accepted ADR is never edited — a change of course gets a new ADR that supersedes it. _(continuous)_
+- [BLOCKED: M0-G] **X-9** Keep `AGENTS.md` and `CLAUDE.md` in step with the substrate as it lands — both currently describe stubs as though they were working APIs, and stale agent docs produce confidently wrong code. _(continuous)_
 
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 
@@ -367,8 +368,8 @@ not wait on the platform work, or vice versa.
 
 - [DONE] **ADR-1** → [`0002-markdown-for-explain-panels.md`](docs/adr/0002-markdown-for-explain-panels.md). **Plain markdown**, files named `explain.md`, KaTeX for the math; revisit only if an author demonstrates a panel genuinely better for an inline widget. Applied: the four stubs renamed, `_template`'s MDX-only `{/* … */}` comment converted to an HTML comment, and §5/§9/§18/§21, `MODULE_AUTHORING.md`, `LICENSE`, and the contract-test checklist updated. Unblocks **M3-26**
 - [DONE] **ADR-2** → [`0003-migrate-urls-not-pinned-builds.md`](docs/adr/0003-migrate-urls-not-pinned-builds.md). **Migrate old URLs forward**; no pinned per-module builds. A `schemaVersion` bump now obliges a migration in the same change, migrations are append-only and kept indefinitely, and an unmigratable link loads defaults with a non-blocking notice. Confirms **M3-21**/**M3-22**, adds **M3-39**
-- [DONE] **ADR-3** → [`0004-no-module-composition.md`](docs/adr/0004-no-module-composition.md). **No composition — modules stay leaves.** Deferred, not rejected: revisit when ≥8 modules exist *and* a concrete duplication case is demonstrated. Share capability downward (a new glyph, a kernel function), never sideways. Makes **M0-9**'s cross-module import ban load-bearing rather than advisory
-- [DONE] **ADR-4** → [`0005-offline-via-service-worker.md`](docs/adr/0005-offline-via-service-worker.md). **Service worker, full offline**, precaching the shell *and every module chunk*, with a user-clicked update rather than a silent mid-lecture swap. Scheduled as **M6.5 / P-1 … P-6**
+- [DONE] **ADR-3** → [`0004-no-module-composition.md`](docs/adr/0004-no-module-composition.md). **No composition — modules stay leaves.** Deferred, not rejected: revisit when ≥8 modules exist _and_ a concrete duplication case is demonstrated. Share capability downward (a new glyph, a kernel function), never sideways. Makes **M0-9**'s cross-module import ban load-bearing rather than advisory
+- [DONE] **ADR-4** → [`0005-offline-via-service-worker.md`](docs/adr/0005-offline-via-service-worker.md). **Service worker, full offline**, precaching the shell _and every module chunk_, with a user-clicked update rather than a silent mid-lecture swap. Scheduled as **M6.5 / P-1 … P-6**
 - [DONE] **ADR-5** → [`0006-gif-export-no-video.md`](docs/adr/0006-gif-export-no-video.md). **GIF export; no video** — no `MediaRecorder`, no WebM/MP4, no WASM encoder; frames rendered deterministically from module state. Scheduled as **M6.5 / P-7 … P-12**
 - [DONE] **ADR-6** → [`0007-locked-ortho-for-2d-modules.md`](docs/adr/0007-locked-ortho-for-2d-modules.md). **Locked orthographic 3D for 2D modules**, one renderer, plus the release-rotation toggle. Unblocks **M3-31**, adds **M3-40**
 - [DONE] **ADR-7** → [`0008-right-handed-coordinates.md`](docs/adr/0008-right-handed-coordinates.md). **All coordinate systems are right-handed**, everywhere: Cartesian (`x̂ × ŷ = ẑ`), polar/cylindrical `(r, θ, z)` with `θ` from `+x` toward `+y`, spherical `(r, θ, φ)` in the physics convention (`θ` polar from `+z`). Positive angles are counter-clockwise viewed from the positive side of the axis; pseudovectors (`ω`, `α`, `τ = r × F`, `L = r × p`) follow the right-hand rule and keep the `doubleHead` marking. Recorded in full in `PHYSICS_CONVENTIONS.md`, which closes that doc's live `TODO`. A module may **not** flip a sign locally to make a picture look nicer

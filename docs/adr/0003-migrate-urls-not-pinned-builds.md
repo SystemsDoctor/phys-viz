@@ -39,7 +39,7 @@ A link that cannot be migrated loads defaults and shows a
 - Migrations are append-only and are kept indefinitely. They are small
   pure functions and cheap to retain; deleting one silently breaks links
   that are already in students' bookmarks.
-- Because migration is total, a module's *visual* behaviour may improve
+- Because migration is total, a module's _visual_ behaviour may improve
   under an old link — a fix reaches every link ever shared. That is the
   intended trade: correctness over frozen reproducibility.
 - If a course ever genuinely needs frozen behaviour for a semester, that

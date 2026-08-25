@@ -55,10 +55,20 @@ change, not a module hack.
 - `scalars(state)` is pure and side-effect-free; it feeds the readout
   table and both plot types for free.
 - `dispose()` releases every handle. The contract suite checks this.
+- If you use `kernel/math`'s scratch pool (`tmp.v3()`), never hold a
+  result across calls — it aliases a ring buffer and wraps. Read the
+  values out or copy them (`[...v]`) before returning from `update()`;
+  never stash a `tmp.v3()` result in a closure inside `create()`.
 
 If your module is `timeModel: 'stepped'`, also implement `step(dt,
 state)` and `reset(state)` — see the obligations in §12 (fixed timestep,
-the 20,000-step scrub cap, and why reverse playback is disabled).
+the 20,000-step scrub cap, and why reverse playback is disabled). Keep
+`step()` cheap: the shell may call it up to 20,000 times in a row to
+fast-forward a scrub with no yield back to the browser between calls, so
+anything expensive in there (recomputing an inertia tensor, an
+eigendecomposition) turns a scrub into a multi-second freeze on the
+lecture-hall laptop. If `step()` can't stay cheap, that's usually a sign
+the module wants a closed form instead — re-read §2.
 
 ## 6. Write `explain.mdx`
 

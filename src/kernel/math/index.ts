@@ -53,6 +53,14 @@ export function normalize(_a: Vec3): Vec3 {
  * Pre-allocated ring of temporary vectors so hot paths allocate nothing.
  * Usage: `const v = tmp.v3(); v[0] = ...` — do not retain the reference
  * past the current frame/update call.
+ *
+ * CONTRACT: the ring wraps. A `tmp.v3()` result is only valid until the
+ * Nth-next `tmp.v3()`/`tmp.v2()` call (N = ring size). Never store a
+ * scratch result on `this`, in a closure, or return it from a module's
+ * `create()` — copy it into owned storage (`[...v]` or `structuredClone`)
+ * first, or callers get silent, hard-to-repro corruption when the ring
+ * wraps under them. Module authors: never call `tmp.v3()` inside
+ * `create()` and hold the result across `update()` calls.
  */
 export const tmp = {
   v2(): [number, number] {

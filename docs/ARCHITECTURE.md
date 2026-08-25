@@ -503,6 +503,7 @@ For genuinely path-dependent systems. Obligations:
 - Must implement `step(dt, state)` and `reset(state)`.
 - **Fixed timestep only.** The shell drives `step` with a fixed `dt` (default 1/240 s, module-overridable) and accumulates, so behaviour is identical regardless of frame rate. Variable-dt integration makes demos non-reproducible.
 - Scrubbing is implemented by the shell as `reset()` then fast-forward, **capped at 20,000 steps**. If a module cannot reach its scrub target within the cap, the shell shows "fast-forwarding…" and then clamps. If you find yourself wanting to raise the cap, you are building a simulator; go back to §2.
+- **`step()` must stay cheap** — the shell's fast-forward loop is not obligated to yield back to the browser between steps, so 20,000 sequential calls to an expensive `step()` (an inertia-tensor recompute, an eigendecomposition) can freeze the tab for seconds mid-scrub, mid-lecture. Keep `step()` to simple arithmetic; if that is not possible, the shell should chunk fast-forward across animation frames rather than block, which is a shell obligation, not a module workaround.
 - Reverse playback is *not* available. The shell greys out the reverse control and shows a tooltip explaining why. This is honest and is itself a small lesson about irreversibility.
 
 ### Determinism requirement
@@ -547,6 +548,7 @@ Rules:
 - `t=` — time, 2 dp, omitted when 0.
 - `c=` — camera, compactly encoded (`iso.o` = isometric, orthographic; explicit angles when the user has orbited).
 - If the encoded string exceeds 1800 characters, fall back to `?z=<lz-string compressed blob>`. Rare; only the sandbox module with long expressions should hit it.
+- **Debounce camera writes to the URL/history.** `OrbitControls` fires many `change` events per drag frame; writing to the URL/history on every one spams browser history and can visibly stall the render thread. Debounce camera-state URL sync (e.g. ~250 ms after the last `change`, or only on `end`), while the in-memory Zustand `camera` field itself can still update every frame for the render loop to read.
 
 **Migration:** `src/shell/state/migrations.ts` holds `Record<moduleId, Record<fromVersion, (old) => new>>`. An old shared link from a previous semester must still work; a link that cannot be migrated loads defaults and shows a non-blocking notice rather than erroring.
 
@@ -657,6 +659,7 @@ Assertions:
 3. Every numeric param default lies within `[min, max]`.
 4. `create()` → `update(defaults)` → `dispose()` leaves **zero undisposed handles** (the mock context tallies creates and disposes). This is the leak check.
 5. **Idempotence:** `update(A); update(B); update(A)` produces the same recorded handle-property set as `update(A)` alone.
+5b. **Determinism:** `update(A)` called twice in a row (no state change between) produces byte-identical recorded handle-property sets, and likewise for `scalars(A)` called twice. Catches hidden state leaking into a module via `Date.now()`, unseeded `Math.random()`, or a captured mutable closure variable — the determinism requirement in §12 is otherwise unenforced by any test.
 6. **Purity of `scalars()`:** calling it twice with the same state gives identical results and does not mutate the scene.
 7. For `parametric` modules: `update({t: 5})` from a fresh instance equals `update({t: 0}); update({t: 5})`.
 8. URL round-trip: encode(defaults) → decode → deep-equals defaults; and the same for a randomized state.

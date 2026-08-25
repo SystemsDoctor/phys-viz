@@ -10,6 +10,17 @@
 import type { Dimension } from '@/kernel/units';
 import type { SceneContext } from '@/scene/SceneContext';
 
+/**
+ * Version of THIS FILE's contract shape (not a module's `schemaVersion`,
+ * which versions one module's param meanings). Bump only alongside a
+ * breaking change to the interfaces below, recorded as an ADR
+ * (docs/adr/), per ARCHITECTURE.md §10. Existing module folders carry no
+ * per-module marker against this number today — a bump is a signal to
+ * manually sweep `src/modules/*` for the break, not something CI checks
+ * for you yet.
+ */
+export const MODULE_CONTRACT_VERSION = 1;
+
 /** How a module relates to time. Prefer 'parametric' over 'stepped'. */
 export type TimeModel =
   | 'static' // no time dependence; timeline hidden

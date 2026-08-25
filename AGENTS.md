@@ -119,6 +119,30 @@ point), `src/design/tokens.css` (colour + type source of truth),
 `tests/contract` (the suite every module must pass), `docs/` (this
 project's real documentation — read before asking).
 
+## Task tracking — `TASKS.md`
+
+`TASKS.md` at the repo root is the execution tracker for the milestone
+plan in ARCHITECTURE.md §20 (plus §22/§23 backlog items). Before
+starting non-trivial work, check it for the relevant task instead of
+re-deriving scope from the milestone list. Every task carries one status:
+
+- `READY` — unblocked, may be started.
+- `DONE` — acceptance criterion actually verified (tests run, lint run,
+  page loaded) — not merely "code exists."
+- `BLOCKED` — cannot start yet; the blocking reason is stated inline.
+  Milestones are ordered and gated on purpose (§20: "do not start M2
+  work before M1's acceptance criterion is met"). Do not start a
+  `BLOCKED` task to get ahead — if it turns out to actually be
+  unblocked, flip its status and say why in the same change.
+- `IDEA` — captured but not scheduled; promote to `READY` only when
+  explicitly pulled onto the active milestone.
+
+When you finish a task, verify its acceptance criterion and mark it
+`DONE` in the same change — don't leave it stale for a later pass. When
+you discover new work mid-task, add it to `TASKS.md` under the owning
+milestone with the correct status rather than letting it live only in
+chat history.
+
 ## Current state of the codebase
 
 This scaffold matches the repository layout in ARCHITECTURE.md §5 but

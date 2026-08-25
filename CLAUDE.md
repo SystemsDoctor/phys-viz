@@ -18,6 +18,15 @@ of it. `docs/ARCHITECTURE.md` is the binding source of truth for both.
 
 ## Working in this repo
 
+- Check `TASKS.md` before starting non-trivial work — it tracks every
+  milestone task from ARCHITECTURE.md §20 (plus the §22/§23 backlog)
+  against a status: `READY` (start it), `DONE` (acceptance criterion
+  actually verified, not just coded), `BLOCKED` (earlier milestone not
+  accepted yet — state the reason, don't work around it), `IDEA`
+  (unscheduled, don't touch unless asked to promote it). When you finish
+  a task, verify its acceptance criterion and flip it to `DONE` in the
+  same change; when you find new work mid-task, add it to `TASKS.md`
+  under the right milestone rather than leaving it only in chat.
 - Prefer the smallest change that satisfies the current milestone in
   ARCHITECTURE.md §20 over a larger "while I'm in here" refactor. The
   milestones are ordered and gated for a reason (§20: "Do not proceed

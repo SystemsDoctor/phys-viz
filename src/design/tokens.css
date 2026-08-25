@@ -1,0 +1,75 @@
+/**
+ * Design tokens — single source of truth for colour + type.
+ * ARCHITECTURE.md §15.
+ *
+ * The subject's own world is technical drafting and laboratory
+ * instrumentation. The interface should read as an INSTRUMENT, not a
+ * web app with a 3D widget in it. Light mode is the default — projected
+ * dark backgrounds wash out in a lit lecture hall.
+ *
+ * Colour semantics are BINDING across all modules (see
+ * docs/PHYSICS_CONVENTIONS.md). Acceleration is vermilion everywhere.
+ * Module authors pick from `ctx.palette.velocity`, never a raw hex.
+ *
+ * The Okabe-Ito basis is not aesthetic preference: ~8% of male students
+ * have some colour vision deficiency, so a diagram that distinguishes
+ * force from velocity by colour alone must be colourblind-safe.
+ */
+:root {
+  /* Surfaces — cool paper, not cream. Drafting vellum under fluorescent light. */
+  --surf-0: #f7f8fa; /* page */
+  --surf-1: #ffffff; /* panels */
+  --surf-2: #eceef2; /* wells, viewport backdrop */
+  --rule: #c8ccd4; /* hairlines, graticule ticks */
+  --ink-0: #12161d; /* primary text */
+  --ink-1: #4a5260; /* secondary text */
+  --ink-2: #7b8494; /* tertiary, disabled */
+
+  /* Semantic physics colours — Okabe-Ito derived, colourblind-safe. */
+  --q-position: #0072b2; /* blue      — position, displacement */
+  --q-velocity: #009e73; /* green     — velocity, momentum */
+  --q-accel: #d55e00; /* vermilion — acceleration */
+  --q-force: #cc79a7; /* magenta   — force, torque */
+  --q-angular: #7a4fbf; /* violet    — omega, L, pseudovectors */
+  --q-field: #56b4e9; /* sky       — field vectors */
+  --q-energy: #e69f00; /* amber     — energy, work */
+  --q-construction: #7b8494; /* grey — axes, projections, guides */
+
+  /* Type — two deliberately distinct registers (§15). Chrome uses Plex;
+     mathematics is rendered by KaTeX in Computer Modern and is left
+     alone. Self-hosted in public/fonts/ — no CDN dependency in a
+     lecture hall with captive-portal wifi (§19). */
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 40px;
+
+  --motion-camera: 400ms;
+  --motion-layer: 150ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark mode exists for students on laptops; the projector default
+       stays light. TODO(M3): tune against §15's guidance and test on an
+       actual panel, not just in DevTools. */
+    --surf-0: #14171c;
+    --surf-1: #1b1f26;
+    --surf-2: #232833;
+    --rule: #363c47;
+    --ink-0: #eef1f6;
+    --ink-1: #b7bfcc;
+    --ink-2: #838c9c;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-camera: 0ms;
+    --motion-layer: 0ms;
+  }
+}

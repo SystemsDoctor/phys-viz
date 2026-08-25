@@ -1,0 +1,15 @@
+/**
+ * Projector mode override (ARCHITECTURE.md §15). One class on <html>
+ * (`html.projector-mode`). Raises contrast, thickens lines ~1.6x,
+ * increases label size, disables subtle transparency.
+ *
+ * Test on an actual projector before Milestone 4 ships — a palette that
+ * sings on a laptop can vanish on a 4000-lumen projector in a bright
+ * room.
+ *
+ * TODO(M2/M3): fill in the overrides once glyphs and chrome exist to
+ * theme.
+ */
+html.projector-mode {
+  --rule: #8a8f99;
+}

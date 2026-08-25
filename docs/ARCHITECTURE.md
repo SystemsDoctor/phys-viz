@@ -106,13 +106,15 @@ phys-viz/
 │   └── fonts/                    # self-hosted; no CDN dependency in a lecture hall
 ├── src/
 │   ├── kernel/                   # LAYER 0 — pure. No DOM, no three, no React.
-│   │   ├── math/                 # vec2, vec3, mat3, mat4, quat, scratch pools
+│   │   ├── math/                 # vec2, vec3, mat3, mat4, quat, scratch pools, symmetric eigendecomposition
 │   │   ├── frames/               # coordinate systems, frame transforms, rotating frames
 │   │   ├── calculus/             # grad, div, curl, jacobian, quadrature
 │   │   ├── geometry/             # polygon area/centroid, half-plane clip, convex hull
-│   │   ├── ode/                  # rk4, velocityVerlet, rkf45, event detection
+│   │   ├── ode/                  # rk4, velocityVerlet, rkf45, event detection, general root-finder
 │   │   ├── units/                # dimensional quantities, formatting
 │   │   ├── expr/                 # constrained expression parser + evaluator
+│   │   ├── random/               # seeded PRNG (M1-20 — added at M1, not in the original list)
+│   │   ├── inertia/              # inertia tensors for the schematic body set + parallel-axis theorem (M1-21 — added at M1, not in the original list)
 │   │   └── index.ts
 │   ├── scene/                    # LAYER 1 — the ONLY place `three` is imported.
 │   │   ├── SceneContext.ts       # the object handed to every module
@@ -207,6 +209,7 @@ Pure computation. Fully unit-testable with no browser. Target ≥90% line covera
 - `Vec2`, `Vec3`, `Mat3`, `Mat4`, `Quat` as plain typed structures with free functions (`add`, `cross`, `normalize`, …). Provide both allocating and in-place (`addInto(out, a, b)`) variants.
 - **Scratch pool**: a pre-allocated ring of temporary vectors (`tmp.v3()`) so hot paths allocate nothing. Document it loudly; garbage collection pauses are visible as stutter on a projector.
 - Quaternions for all orientation. Never store orientation as Euler angles — the rigid-body and gyroscope modules will gimbal-lock.
+- Symmetric 3×3 eigendecomposition (`eigenSymmetric3`, added at M1 — see M1-22): a `Mat3` operation, so it lives here rather than a dedicated folder. Needed for the inertia ellipsoid and principal axes in M5, and later Mohr's circle.
 
 ### `kernel/frames`
 
@@ -231,6 +234,7 @@ Pure computation. Fully unit-testable with no browser. Target ≥90% line covera
 - `rk4`, `velocityVerlet` (symplectic — the default for anything conservative), `rkf45` (adaptive).
 - Event detection: root-find a scalar event function between steps (bisection is fine) for turning points, zero-crossings, and "hits the ground".
 - All integrators are pure `(state, dt) => state` and allocate nothing.
+- `findRoot` (added at M1 — see M1-15; not in this file's original list): a general scalar root-finder, Newton-Raphson with a bisection fallback. §12 assumes one exists ("a Kepler orbit via Newton-Raphson on Kepler's equation").
 
 ### `kernel/units`
 
@@ -244,6 +248,14 @@ Pure computation. Fully unit-testable with no browser. Target ≥90% line covera
 - A small recursive-descent parser over a whitelisted grammar: numbers, named variables, `+ - * / ^`, parentheses, and a fixed function set (`sin cos tan asin acos atan atan2 exp ln sqrt abs sign min max floor`).
 - Compiles to a closure. **No `eval`, no `new Function`.** This is user-facing input on a public site.
 - Returns typed errors with character offsets so the input field can underline the problem.
+
+### `kernel/random`
+
+Added at M1 (see M1-20); not in this file's original list. §12's determinism requirement permits module randomness only via "a seeded PRNG from the kernel, seeded from a serialized param" — a bookmarked demo must render identically every time. A small, fast, deterministic, non-cryptographic generator (mulberry32) plus `nextInt`/`nextRange` helpers. Contract assertion 9's quasi-random parameter sampling also needs it.
+
+### `kernel/inertia`
+
+Added at M1 (see M1-21); not in this file's original list. Inertia tensors for the schematic body set (box, sphere, cylinder, disc, rod — the same shapes `body` in §8 draws), about each body's own center of mass in its own principal-axis frame, plus the parallel-axis theorem to translate a tensor to an offset point. §18's golden-value list names "the inertia tensor of a uniform cuboid"; M5's rotational-dynamics module needs the rest.
 
 ---
 

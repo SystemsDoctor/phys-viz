@@ -1,0 +1,170 @@
+/**
+ * Shell chrome styles — panels, controls, layout. Built on the tokens
+ * in tokens.css (ARCHITECTURE.md §15). Plain CSS, no CSS-in-JS, no
+ * Tailwind (§4) — classnames are BEM-ish and scoped by a `pv-` prefix
+ * since this is the one global stylesheet for all of src/shell/.
+ */
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--ink-0);
+  background: var(--surf-0);
+}
+
+/* Visible focus ring everywhere — never `outline: none` (§16). */
+:focus-visible {
+  outline: 2px solid var(--q-position);
+  outline-offset: 2px;
+}
+
+.pv-param-group {
+  border: none;
+  margin: 0 0 var(--space-3) 0;
+  padding: 0;
+}
+
+.pv-param-group legend {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-1);
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.pv-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.pv-field__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ink-1);
+}
+
+.pv-field__symbol {
+  font-family: var(--font-mono);
+  color: var(--ink-2);
+}
+
+.pv-field__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ink-0);
+}
+
+.pv-slider {
+  width: 100%;
+  accent-color: var(--q-position);
+}
+
+.pv-vector-pad {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.pv-vector-pad__input {
+  width: 100%;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--surf-1);
+  color: var(--ink-0);
+}
+
+.pv-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--ink-0);
+  cursor: pointer;
+}
+
+.pv-toggle__box {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--q-position);
+}
+
+.pv-select {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--surf-1);
+  color: var(--ink-0);
+}
+
+.pv-expr {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--surf-1);
+  color: var(--ink-0);
+  box-sizing: border-box;
+}
+
+.pv-expr--error {
+  border-color: var(--q-accel);
+}
+
+.pv-expr__error {
+  font-size: 11px;
+  color: var(--q-accel);
+  font-family: var(--font-mono);
+  white-space: pre;
+}
+
+.pv-angle-dial {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pv-angle-dial__face {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: var(--surf-2);
+  cursor: grab;
+  touch-action: none;
+}
+
+/* Points right at rotate(0) — value=0 in the dial's atan2 convention
+   also points right, so `rotate(${-value}rad)` lines the two up. */
+.pv-angle-dial__needle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 2px;
+  background: var(--q-position);
+  transform-origin: left center;
+  border-radius: 1px;
+}
+
+.pv-angle-dial__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--ink-0);
+}

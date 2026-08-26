@@ -1,11 +1,25 @@
 // Renders a `kind: 'toggle'` ParamDef, and layer checklist rows.
-// TODO(M3): implement.
 import React from 'react';
 
-export function Toggle(_props: {
+export interface ToggleProps {
   label: string;
   value: boolean;
   onChange: (v: boolean) => void;
-}): React.ReactElement {
-  throw new Error('shell/controls/Toggle: not implemented (see M3 in ARCHITECTURE.md §20)');
+}
+
+export function Toggle(props: ToggleProps): React.ReactElement {
+  const { label, value, onChange } = props;
+  const id = React.useId();
+  return (
+    <label className="pv-toggle" htmlFor={id}>
+      <input
+        id={id}
+        className="pv-toggle__box"
+        type="checkbox"
+        checked={value}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>{label}</span>
+    </label>
+  );
 }

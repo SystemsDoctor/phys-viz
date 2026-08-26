@@ -82,6 +82,29 @@ function cubeFaces(center: V3, h: number): ((u: number, v: number) => V3)[] {
   ];
 }
 
+/**
+ * The user-shaped cap: a fixed-boundary-circle disk pushed into a bowl
+ * by `depth` (0 = flat). Shared between `update()` and `scalars()` —
+ * same reasoning as `cubeFaces` above, one definition rather than two
+ * copies drifting apart.
+ */
+function capSurface(center: V3, radius: number, depth: number): (u: number, v: number) => V3 {
+  return (u, v) => [
+    center[0] + radius * u * Math.cos(2 * Math.PI * v),
+    center[1] + radius * u * Math.sin(2 * Math.PI * v),
+    center[2] - depth * (1 - u * u),
+  ];
+}
+
+/** The cap's boundary circle — independent of `depth`, since the rim never moves as the cap deforms. */
+function capBoundary(center: V3, radius: number): (t: number) => V3 {
+  return (t) => [
+    center[0] + radius * Math.cos(2 * Math.PI * t),
+    center[1] + radius * Math.sin(2 * Math.PI * t),
+    center[2],
+  ];
+}
+
 const SPIN_GAIN = 2;
 
 const module: PhysicsModule = {
@@ -101,6 +124,7 @@ const module: PhysicsModule = {
     const gCurl = ctx.group('curlPaddlewheel');
     const gFluxCap = ctx.group('fluxCap');
 
+    // ---- Heightmap: f(x,y), banded colorField IS the level-curve mechanism ----
     const heightmapSurface = ctx.surface({
       group: gHeightmap,
       parametric: () => [0, 0, 0],
@@ -109,6 +133,7 @@ const module: PhysicsModule = {
       resolution: [40, 40],
     });
 
+    // ---- Gradient at the probe: arrow, its perpendicular tangent, the probe point ----
     const probeGradArrow = ctx.arrow({
       group: gProbeGrad,
       color: ctx.palette.field,
@@ -128,6 +153,7 @@ const module: PhysicsModule = {
       sizePx: 8,
     });
 
+    // ---- Gradient field over the whole domain (instanced glyph, one draw call) ----
     const gradFieldGlyph = ctx.field({
       group: gGradField,
       sample: () => [0, 1, 0],
@@ -136,6 +162,7 @@ const module: PhysicsModule = {
       mode: 'length',
     });
 
+    // ---- Directional derivative: D_u f = grad(f) . u_hat ----
     const dirDerivUArrow = ctx.arrow({
       group: gDirDeriv,
       color: ctx.palette.construction,
@@ -152,6 +179,7 @@ const module: PhysicsModule = {
       to: [0, 0, 0],
     });
 
+    // ---- Shrinking-box divergence: limit definition and the theorem ----
     const divBoxFaces = Array.from({ length: 6 }, () =>
       ctx.surface({
         group: gDivBox,
@@ -162,6 +190,7 @@ const module: PhysicsModule = {
       }),
     );
 
+    // ---- Curl paddlewheel: draggable, zero pointer code (M3-6) ----
     const curlAxisArrow = ctx.arrow({
       group: gCurl,
       color: ctx.palette.angular,
@@ -180,6 +209,7 @@ const module: PhysicsModule = {
       endAngle: 4.71238898,
     });
 
+    // ---- Flux & Stokes: a continuously user-shaped surface, fixed boundary circle ----
     const fluxCapSurface = ctx.surface({
       group: gFluxCap,
       parametric: () => [0, 0, 0],
@@ -297,16 +327,8 @@ const module: PhysicsModule = {
         const capCenter = s.params.capCenter as V3;
         const capRadius = s.params.capRadius as number;
         const capDepth = s.params.capDepth as number;
-        const capSurf = (u: number, v: number): V3 => [
-          capCenter[0] + capRadius * u * Math.cos(2 * Math.PI * v),
-          capCenter[1] + capRadius * u * Math.sin(2 * Math.PI * v),
-          capCenter[2] - capDepth * (1 - u * u),
-        ];
-        const boundary = (t: number): V3 => [
-          capCenter[0] + capRadius * Math.cos(2 * Math.PI * t),
-          capCenter[1] + capRadius * Math.sin(2 * Math.PI * t),
-          capCenter[2],
-        ];
+        const capSurf = capSurface(capCenter, capRadius, capDepth);
+        const boundary = capBoundary(capCenter, capRadius);
         fluxCapSurface.set({ parametric: (u, v) => mut3(capSurf(u, v)) });
         const BOUNDARY_SEGMENTS = 48;
         const boundaryPts: [number, number, number][] = [];
@@ -365,16 +387,8 @@ const module: PhysicsModule = {
         const capCenter = s.params.capCenter as V3;
         const capRadius = s.params.capRadius as number;
         const capDepth = s.params.capDepth as number;
-        const capSurf = (u: number, v: number): V3 => [
-          capCenter[0] + capRadius * u * Math.cos(2 * Math.PI * v),
-          capCenter[1] + capRadius * u * Math.sin(2 * Math.PI * v),
-          capCenter[2] - capDepth * (1 - u * u),
-        ];
-        const boundary = (t: number): V3 => [
-          capCenter[0] + capRadius * Math.cos(2 * Math.PI * t),
-          capCenter[1] + capRadius * Math.sin(2 * Math.PI * t),
-          capCenter[2],
-        ];
+        const capSurf = capSurface(capCenter, capRadius, capDepth);
+        const boundary = capBoundary(capCenter, capRadius);
         const circulation = lineIntegral(F, boundary, n).value;
         const curlFluxThroughCap = surfaceFlux((p) => curl(F, p), capSurf, n, n).value;
 

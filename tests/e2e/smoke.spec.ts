@@ -306,6 +306,65 @@ test('settings menu (M3-41/42): up-axis choice persists across reload via localS
   await expect(page.locator('html')).toHaveClass(/projector-mode/);
 });
 
+test('free rotation (ADR 0012) applies globally: toggling it on a dimensions:3 module (not just dimensions:2) does not error', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+
+  // rotational-dynamics declares dimensions: 3 — before ADR 0012 the
+  // "Free rotation" setting had no wiring at all for a module like this.
+  await page.goto('#/m/rotational-dynamics');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+
+  await page.getByLabel('Display settings').click();
+  const freeRotation = page.getByRole('checkbox', { name: 'Free rotation' });
+  await expect(freeRotation).not.toBeChecked();
+  await freeRotation.check();
+  await page.waitForTimeout(100);
+  await freeRotation.uncheck();
+  // Re-locking tweens for ~400ms before forcing ortho — wait it out.
+  await page.waitForTimeout(500);
+
+  expect(errors).toEqual([]);
+});
+
+test('Recenter view (ADR 0012) shifts content into the visible pane without erroring, on a 3D module too', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+
+  await page.goto('#/m/fields-gradients');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+  await page.getByRole('button', { name: 'Recenter view' }).click();
+  await page.waitForTimeout(500); // the goTo tween
+
+  expect(errors).toEqual([]);
+});
+
+test("playback stops at the timeline's own end instead of running forever past it (ADR 0012)", async ({
+  page,
+}) => {
+  // control-showcase is `timeModel: 'parametric'` and reachable without
+  // any per-module setup. Speed 4x makes DEFAULT_MAX_T (20s) reachable
+  // in ~5s of wall-clock playback instead of 20.
+  await page.goto('#/m/control-showcase');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+
+  await page.getByLabel('Speed').selectOption('4');
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible({
+    timeout: 8_000,
+  });
+  await expect(page.locator('.pv-timeline__t')).toHaveText('20.00s');
+
+  // Playback actually stopped, not just visually capped: waiting longer
+  // must not move t past the bound.
+  await page.waitForTimeout(500);
+  await expect(page.locator('.pv-timeline__t')).toHaveText('20.00s');
+});
+
 test('320px layout (§18 manual checklist, M3-35): module route stacks instead of overflowing', async ({
   page,
 }) => {

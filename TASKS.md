@@ -356,6 +356,73 @@ npm run test:unit` (468 tests, including 2 new `SettingsMenu` cases, 2
   removed in-panel button) and the dynamic per-module layer-toggle sweep
   now exercising radio-button rendering for `rotational-dynamics`
 
+## UI-2 — Post-review bug fixes (camera lock scope, recenter, playback clamp)
+
+Bugs found reviewing UI-1's work: [`0012-global-2d-lock-recenter-offset-playback-clamp.md`](docs/adr/0012-global-2d-lock-recenter-offset-playback-clamp.md)
+amends ADR 0011 with the corrected scope and full rationale.
+
+- [DONE] **UI-9** "Free rotation" now applies globally instead of only to
+  `dimensions: 2` modules — `ModuleView.tsx`'s mount effect and live-prefs
+  effect both dropped the `manifest.dimensions === 2` gate around
+  `camera.setLockedToPlane`/`camera.setProjection`. Default (unchecked):
+  every module locks orbit and forces orthographic projection; checked:
+  orbit unlocks and the module's own declared projection (persp, for a
+  module that asked for one) is restored. Also closed a real
+  pre-existing gap surfaced while fixing this: `viewport.camera.setState(...)`
+  was never called anywhere, so a fresh mount always started at
+  `Viewport`'s own internal placeholder angle rather than the module's
+  `defaultView` (or a decoded URL's bookmarked orientation) — now called
+  once at mount, before the lock is applied, so locking freezes onto the
+  _correct_ angle. Verified: `camera/index.test.ts`'s existing
+  `setState`/`setLockedToPlane`/`setProjection` unit coverage plus a new
+  Playwright test (`free rotation ... applies globally`) toggling the
+  setting on `rotational-dynamics` (`dimensions: 3`) end to end with
+  zero console errors — the exact case that previously had no wiring at
+  all
+- [DONE] **UI-10** "Recenter view" now also re-centers content within the
+  _visible_ pane, not the full canvas, when the floating panel overlays
+  part of it. New `CameraController.setPaneOffset(width, height,
+occludedRightPx)` — a `THREE.Camera.setViewOffset` asymmetric-frustum
+  shift, math verified directly against three.js's own
+  `updateProjectionMatrix` source for both camera types — exposed via
+  `Viewport.centerInVisibleArea`. `ModuleView` computes the occluded
+  width from real `getBoundingClientRect()`s of the canvas and panel
+  (0 when collapsed or genuinely stacked below the canvas, detected by
+  an actual vertical-overlap check rather than a duplicated CSS
+  breakpoint constant) and applies it on mount, on every panel
+  collapse/expand, and on every Recenter click. Verified: 4 new
+  `camera/index.test.ts` cases (offset math, clearing, both projections,
+  onChange notification) plus a Playwright regression test on a 3D
+  module (`fields-gradients`)
+- [DONE] **UI-11** Playback no longer runs forever past the scrub
+  slider's own end. Root cause: a bare `<input type="range" max={maxT}>`
+  only clamps where the thumb is _drawn_ — `ModuleView`'s own play-loop
+  never bounded `t`, and `Timeline`'s `maxT` default (20s) was never
+  even passed in from `ModuleView`, so the two could have silently
+  drifted apart too. `Timeline` now exports `DEFAULT_MAX_T`, passed
+  explicitly into `<Timeline maxT={DEFAULT_MAX_T}>`, and the same
+  constant clamps the play-loop for both `parametric` (both directions —
+  forward stops at `DEFAULT_MAX_T`, reverse at `0`) and `stepped`
+  (forward only, matching reverse being disabled for stepped models per
+  §12) time models, setting `playing: false` the instant a bound is
+  reached. Verified end to end by a new Playwright test: play a
+  `parametric` module at 4x speed, confirm `t` reaches exactly
+  `20.00s` and _stays_ there rather than continuing to climb
+- [DONE] **UI-12** `fields-gradients/index.ts` cleanup pass for
+  consistency with `rotational-dynamics`: added `// ---- Section ----`
+  banner comments in `create()` (previously the only one of the two
+  `M5` modules without them), and factored the `capSurf`/`boundary`
+  closures — previously defined identically twice, once each in
+  `update()` and `scalars()` — into shared top-level `capSurface`/
+  `capBoundary` functions, mirroring the `cubeFaces` sharing pattern
+  already used in the same file. No behavior change
+- [DONE] **UI-G2** **Gate:** `npm run typecheck && npm run lint &&
+npm run test:unit` (472 tests, incl. 4 new `camera/index.test.ts`
+  `setPaneOffset` cases) `&& npm run test:contract` (78 passed / 7
+  skipped, unchanged) `&& npm run build && npm run check:budget` all
+  clean; `npx playwright test` (25/25) green, including 3 new tests
+  covering UI-9/10/11 end to end in a real browser
+
 ## M6 — Authoring path (the extensibility gate)
 
 **Accept when:** a person who has never seen the codebase ships a

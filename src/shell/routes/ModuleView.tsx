@@ -21,7 +21,7 @@ import { loadModule, loadExplain } from '@/modules/registry';
 import { Viewport } from '@/scene/Viewport';
 import { ParamPanel } from '../params';
 import { LayerManager } from '../layers';
-import { Timeline } from '../timeline';
+import { Timeline, DEFAULT_MAX_T } from '../timeline';
 import { FixedStepAccumulator, SteppedScrubber, FIXED_DT } from '../timeline/driver';
 import { ReadoutTable } from '../readouts';
 import { TimeSeriesPlot } from '../plots/TimeSeriesPlot';
@@ -124,6 +124,7 @@ export function ModuleView(props: { moduleId: string }): React.ReactElement {
 function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   const { module } = props;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const panelRef = React.useRef<HTMLElement>(null);
   const viewportRef = React.useRef<Viewport | null>(null);
   const instanceRef = React.useRef<ModuleInstance | null>(null);
   const [mounted, setMounted] = React.useState(false);
@@ -137,6 +138,33 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   // user can see the un-occluded scene; purely a per-visit viewing
   // convenience, not persisted or URL-serialized.
   const [panelCollapsed, setPanelCollapsed] = React.useState(false);
+
+  // Recenter (ADR 0011/0012): the floating panel overlays the canvas's
+  // right side, so a symmetric camera frustum centers content under the
+  // panel, not in the visible pane. Shifts the rendered frame (a
+  // `Viewport.centerInVisibleArea` "lens shift", not a scene/target
+  // change) by how many pixels of the canvas's own right edge the panel
+  // currently occludes — 0 when collapsed, absent, or genuinely stacked
+  // below the canvas (the <640px layout), detected by actual geometry
+  // rather than a duplicated CSS breakpoint constant.
+  const centerInVisibleArea = React.useCallback(() => {
+    const viewport = viewportRef.current;
+    const canvas = canvasRef.current;
+    const panel = panelRef.current;
+    if (!viewport || !canvas) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    let occludedRightPx = 0;
+    if (panel) {
+      const panelRect = panel.getBoundingClientRect();
+      const verticallyOverlapping =
+        panelRect.top < canvasRect.bottom && panelRect.bottom > canvasRect.top;
+      if (verticallyOverlapping) {
+        occludedRightPx = Math.max(0, canvasRect.right - panelRect.left);
+      }
+    }
+    viewport.centerInVisibleArea(occludedRightPx);
+  }, []);
+
   const search = useHashSearch();
   const initialSearchRef = React.useRef(search);
   const defaultCamera = React.useMemo(() => defaultCameraFor(module), [module]);
@@ -218,17 +246,26 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     });
     viewportRef.current = viewport;
 
-    // 2D lock (ADR 0007, M3-31): orbit suppressed, pan/zoom stay live,
-    // driven entirely off the manifest — a 2D module author writes
-    // nothing. `dimensions: 'both'` is left unlocked here; a module
-    // that offers its own 2D/3D toggle (M4's vector-algebra) is
-    // flagship-specific behavior, not a shell-substrate concern. The
-    // global "Free rotation" setting (ADR 0011) can already be on when
-    // this module mounts, so honor it immediately rather than always
-    // locking and waiting for the live-prefs effect below to unlock.
-    if (module.manifest.dimensions === 2) {
-      viewport.camera.setLockedToPlane(!useAppStore.getState().ui.rotationReleased);
+    // Seed the camera from state.camera (the module's own defaultView,
+    // resolved by defaultCameraFor — or a decoded URL's bookmarked
+    // orientation) — a fresh Viewport otherwise starts at its own
+    // internal placeholder angle, never the module's declared preset.
+    viewport.camera.setState(useAppStore.getState().camera);
+
+    // Global 2D lock (ADR 0007, extended globally by ADR 0011): orbit
+    // suppressed and projection forced orthographic by default — pan/
+    // zoom stay live — regardless of the module's own `dimensions`
+    // (previously only `dimensions: 2` modules got this, which is why
+    // the "Free rotation" setting had no visible effect anywhere else).
+    // "Free rotation" in the settings menu (ui.rotationReleased) opts
+    // back into full orbit + the module's own declared projection for
+    // ANY module. Checked immediately at mount, not left to the
+    // live-prefs effect below, since the setting can already be on.
+    if (!useAppStore.getState().ui.rotationReleased) {
+      viewport.camera.setLockedToPlane(true);
+      viewport.camera.setProjection('ortho');
     }
+    centerInVisibleArea();
 
     // Draggable vector params (M3-6): the module never calls
     // ctx.draggable() itself (§10 — modules do no pointer/mouse code);
@@ -313,6 +350,14 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     return useAppStore.subscribe(apply);
   }, [mounted, module.layers]);
 
+  // Re-center whenever the panel's own occlusion changes (collapsed vs.
+  // expanded) — otherwise collapsing/expanding leaves the frame shifted
+  // for a pane that's no longer covered (or now is).
+  React.useEffect(() => {
+    if (!mounted) return;
+    centerInVisibleArea();
+  }, [mounted, panelCollapsed, centerInVisibleArea]);
+
   // Live prefs (M3-41/42, ADR 0011): up-axis, projector mode, the
   // reference grid, and free rotation can all change while a module is
   // already mounted (the settings menu is global, not per-route), so
@@ -339,24 +384,30 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
         lastShowGrid = s.prefs.showGrid;
         viewport.setGridVisible(s.prefs.showGrid);
       }
-      if (module.manifest.dimensions === 2 && s.ui.rotationReleased !== lastRotationReleased) {
+      if (s.ui.rotationReleased !== lastRotationReleased) {
         lastRotationReleased = s.ui.rotationReleased;
         if (s.ui.rotationReleased) {
+          // Restore full orbit AND the module's own natural projection
+          // (persp for a module that declared one) — applies to every
+          // module, not just `dimensions: 2` ones (ADR 0011).
           viewport.camera.setLockedToPlane(false);
+          viewport.camera.setProjection(defaultCamera.projection);
         } else {
-          // Re-lock: animate back to the module's own 2D view (its
-          // defaultView preset, or '+z' — the plane a 2D module is
-          // conventionally drawn on) via the same ~400ms eased
-          // transition camera presets use, THEN freeze rotation once
-          // the tween settles — locking immediately would freeze it
-          // mid-transition.
+          // Re-lock: animate back to the module's own default view (its
+          // defaultView preset, or '+z' if it declared none) via the
+          // same ~400ms eased transition camera presets use, THEN force
+          // orthographic and freeze rotation once the tween settles —
+          // locking immediately would freeze it mid-transition.
           const preset = module.defaultView?.preset ?? '+z';
           viewport.camera.goTo(preset, 400);
-          window.setTimeout(() => viewport.camera.setLockedToPlane(true), 420);
+          window.setTimeout(() => {
+            viewport.camera.setLockedToPlane(true);
+            viewport.camera.setProjection('ortho');
+          }, 420);
         }
       }
     });
-  }, [mounted, module]);
+  }, [mounted, module, defaultCamera]);
 
   // Time driving: parametric advances t directly; stepped drives a
   // fixed-timestep accumulator while playing, and reset()+chunked
@@ -399,17 +450,36 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
         programmaticRef.current = true;
         useAppStore.getState().patchTime({ t: progress.t });
       } else if (s.time.playing) {
+        // Clamp playback to the timeline's own [0, DEFAULT_MAX_T] bound
+        // and stop once a bound is reached — a bare `<input type="range"
+        // max={maxT}>` only clamps where the thumb is DRAWN, it never
+        // stops the underlying `t` (and thus playback) from growing past
+        // it, so without this the run never actually finished.
         if (module.manifest.timeModel === 'stepped') {
           const taken = accumulatorRef.current.advance(dt, s.time.speed, (fixedDt) =>
             instance?.step?.(fixedDt, moduleStateOf(s)),
           );
           if (taken > 0) {
+            const rawT = s.time.t + taken * stepDt;
             programmaticRef.current = true;
-            useAppStore.getState().patchTime({ t: s.time.t + taken * stepDt });
+            if (rawT >= DEFAULT_MAX_T) {
+              useAppStore.getState().patchTime({ t: DEFAULT_MAX_T, playing: false });
+            } else {
+              useAppStore.getState().patchTime({ t: rawT });
+            }
           }
         } else {
+          const rawT = s.time.t + dt * s.time.speed * s.time.direction;
           programmaticRef.current = true;
-          useAppStore.getState().patchTime({ t: s.time.t + dt * s.time.speed * s.time.direction });
+          if (rawT >= DEFAULT_MAX_T) {
+            useAppStore.getState().patchTime({ t: DEFAULT_MAX_T, playing: false });
+          } else if (s.time.direction === -1 && rawT <= 0) {
+            // Only reverse playback can reach the lower bound — forward
+            // playback starting at t=0 must not immediately stop itself.
+            useAppStore.getState().patchTime({ t: 0, playing: false });
+          } else {
+            useAppStore.getState().patchTime({ t: rawT });
+          }
         }
       }
       frameId = requestAnimationFrame(tick);
@@ -637,15 +707,17 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
             <button
               type="button"
               className="pv-view-controls__btn"
-              onClick={() =>
-                viewportRef.current?.camera.goTo(module.defaultView?.preset ?? 'iso', 400)
-              }
+              onClick={() => {
+                viewportRef.current?.camera.goTo(module.defaultView?.preset ?? 'iso', 400);
+                centerInVisibleArea();
+              }}
             >
               Recenter view
             </button>
           </div>
         )}
         <aside
+          ref={panelRef}
           className={
             panelCollapsed
               ? 'pv-module-view__panel pv-module-view__panel--collapsed'
@@ -709,6 +781,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
               playing={state.time.playing}
               speed={state.time.speed}
               direction={state.time.direction}
+              maxT={DEFAULT_MAX_T}
               onChange={(patch) => useAppStore.getState().patchTime(patch)}
             />
             <ReadoutTable defs={module.scalars} values={scalars} pinned={state.ui.presenterMode} />

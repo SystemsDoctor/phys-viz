@@ -104,4 +104,45 @@ describe('createCameraController', () => {
   it('dispose does not throw', () => {
     expect(() => controller.dispose()).not.toThrow();
   });
+
+  // ADR 0012: "Recenter" shifts the rendered frame so content centers in
+  // the VISIBLE pane (canvas minus the overlay panel), not the full
+  // canvas — via THREE's setViewOffset "lens shift" rather than moving
+  // the camera/target.
+  describe('setPaneOffset (ADR 0012)', () => {
+    it('applies a view offset of half the occluded width, centered on the active camera', () => {
+      controller.resize(1000, 600);
+      controller.setPaneOffset(1000, 600, 340);
+      const view = (controller.object as THREE.OrthographicCamera).view;
+      expect(view?.enabled).toBe(true);
+      expect(view?.offsetX).toBeCloseTo(170, 6); // 340 / 2
+      expect(view?.offsetY).toBe(0);
+      expect(view?.fullWidth).toBe(1000);
+      expect(view?.fullHeight).toBe(600);
+    });
+
+    it('a zero or negative occluded width clears any existing offset', () => {
+      controller.resize(1000, 600);
+      controller.setPaneOffset(1000, 600, 340);
+      controller.setPaneOffset(1000, 600, 0);
+      const view = (controller.object as THREE.OrthographicCamera).view;
+      expect(view?.enabled).toBe(false);
+    });
+
+    it('applies to both projections, so switching after the fact stays centered', () => {
+      controller.resize(1000, 600);
+      controller.setPaneOffset(1000, 600, 340);
+      controller.setProjection('persp');
+      const perspView = (controller.object as THREE.PerspectiveCamera).view;
+      expect(perspView?.enabled).toBe(true);
+      expect(perspView?.offsetX).toBeCloseTo(170, 6);
+    });
+
+    it('notifies onChange listeners (so Viewport.renderOnDemand marks a frame dirty)', () => {
+      let calls = 0;
+      controller.onChange(() => calls++);
+      controller.setPaneOffset(1000, 600, 340);
+      expect(calls).toBeGreaterThan(0);
+    });
+  });
 });

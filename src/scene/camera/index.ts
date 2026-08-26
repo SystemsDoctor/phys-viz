@@ -15,8 +15,13 @@
  *   "iso" are defined relative to the abstract up axis (a canonical
  *   Y-up frame, remapped into whichever axis is actually up), not a
  *   hardcoded world axis — see `toCanonical`/`fromCanonical` below.
- * - `dimensions: 2` modules lock orbit but keep pan/zoom (ADR 0007) via
- *   `setLockedToPlane`.
+ * - Orbit lock (ADR 0007) via `setLockedToPlane`: pan/zoom stay live,
+ *   only rotation is suppressed. Originally scoped to `dimensions: 2`
+ *   modules only; ADR 0012 makes it the GLOBAL default for every
+ *   module (paired with forcing orthographic projection), driven by
+ *   the settings menu's "Free rotation" toggle rather than the
+ *   module's own declared dimensionality — `ModuleView` is what
+ *   actually applies this, this file just provides the mechanism.
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -50,6 +55,18 @@ export interface CameraController {
   setUpAxis(axis: UpAxis, animate?: boolean): void;
   getUpAxis(): UpAxis;
   setLockedToPlane(locked: boolean): void;
+  /**
+   * Shifts the rendered frame so a point on the camera's forward axis
+   * (the orbit target, by construction) appears `occludedRightPx` fewer
+   * pixels from the canvas's own right edge than a symmetric frustum
+   * would center it — i.e. centered within the VISIBLE region when a
+   * `occludedRightPx`-wide panel overlays the canvas's right side,
+   * rather than the full canvas. Pass 0 to clear the shift. Uses
+   * `THREE.Camera.setViewOffset` (an asymmetric-frustum "lens shift"),
+   * not a scene/target change, so it composes with any orbit/pan/zoom
+   * that follows. `width`/`height` are the canvas's own CSS pixel size.
+   */
+  setPaneOffset(width: number, height: number, occludedRightPx: number): void;
   getState(): CameraState;
   setState(state: CameraState): void;
   /** Internal-only: the currently active camera, for Viewport's render/pick use. */
@@ -300,6 +317,18 @@ export function createCameraController(options: CameraControllerOptions): Camera
 
     getUpAxis() {
       return upAxis;
+    },
+
+    setPaneOffset(w, h, occludedRightPx) {
+      if (occludedRightPx <= 0 || w <= 0 || h <= 0) {
+        perspCamera.clearViewOffset();
+        orthoCamera.clearViewOffset();
+      } else {
+        const offsetX = occludedRightPx / 2;
+        perspCamera.setViewOffset(w, h, offsetX, 0, w, h);
+        orthoCamera.setViewOffset(w, h, offsetX, 0, w, h);
+      }
+      notifyChange();
     },
 
     setLockedToPlane(locked) {

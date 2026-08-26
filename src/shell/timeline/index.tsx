@@ -35,9 +35,19 @@ export interface TimelineProps {
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
+/**
+ * Shared with `ModuleView`'s own play/step-driving loop — that loop is
+ * what must actually stop playback at this bound, not just this
+ * component's slider (a bare `<input type="range" max={maxT}>` clamps
+ * where the thumb is drawn but never stops the underlying value from
+ * growing past it, so without ModuleView also clamping, `t` — and
+ * playback — ran forever past the slider's visible end).
+ */
+export const DEFAULT_MAX_T = 20;
+
 export function Timeline(props: TimelineProps): React.ReactElement | null {
   const { timeModel, t, playing, speed, direction, onChange } = props;
-  const maxT = props.maxT ?? 20;
+  const maxT = props.maxT ?? DEFAULT_MAX_T;
   const stepSize = props.stepSize ?? 0.1;
 
   if (timeModel === 'static') return null;

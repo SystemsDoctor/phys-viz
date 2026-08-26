@@ -6,6 +6,10 @@ Date: 2026-08-26
 
 Accepted
 
+Amended by [ADR 0012](0012-global-2d-lock-recenter-offset-playback-clamp.md):
+"Free rotation" turned out to need to apply globally, not just to
+`dimensions: 2` modules — see that ADR for the corrected scope.
+
 ## Context
 
 With three real modules shipped (`vector-algebra`, `rotational-dynamics`,

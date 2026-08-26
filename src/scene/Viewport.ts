@@ -186,6 +186,20 @@ export class Viewport {
     return [dir.x, dir.y, dir.z];
   }
 
+  /**
+   * Shifts the rendered frame so content stays centered within the
+   * VISIBLE region of the canvas when the floating control panel
+   * overlays its right side (ADR 0011/0012), rather than the full
+   * canvas — `occludedRightPx` is how many pixels of the canvas's own
+   * right edge the panel currently covers (0 when collapsed or absent).
+   * Uses the canvas's current CSS pixel size, so call this again after
+   * a resize if the shift needs to stay accurate.
+   */
+  centerInVisibleArea(occludedRightPx: number): void {
+    this.camera.setPaneOffset(this.width, this.height, occludedRightPx);
+    this.requestRender();
+  }
+
   /** Global reference-grid toggle (ADR 0011, §9 settings menu). */
   setGridVisible(visible: boolean): void {
     this.gridHandle.visible(visible);

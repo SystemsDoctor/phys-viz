@@ -20,6 +20,16 @@ const manifestModules = import.meta.glob<{ default: ModuleManifest }>('./[a-z]*/
 // initial bundle never grows as the library does.
 const implModules = import.meta.glob<{ default: PhysicsModule }>('./[a-z]*/index.ts');
 
+// explain.md: lazily loaded as raw text, same reasoning as implModules
+// — the explain panel content (§9) must not bloat the initial bundle.
+// Optional per module (`readonly`/no-explain modules exist, e.g. during
+// early development), so loadExplain resolves to null rather than
+// throwing when a module has none.
+const explainModules = import.meta.glob<string>('./[a-z]*/explain.md', {
+  query: '?raw',
+  import: 'default',
+});
+
 export const manifests: ModuleManifest[] = Object.values(manifestModules)
   .map((m) => m.default)
   .sort((a, b) => a.title.localeCompare(b.title));
@@ -28,4 +38,10 @@ export async function loadModule(id: string): Promise<PhysicsModule> {
   const entry = Object.entries(implModules).find(([path]) => path === `./${id}/index.ts`);
   if (!entry) throw new Error(`Unknown module: ${id}`);
   return (await entry[1]()).default;
+}
+
+export async function loadExplain(id: string): Promise<string | null> {
+  const entry = Object.entries(explainModules).find(([path]) => path === `./${id}/explain.md`);
+  if (!entry) return null;
+  return await entry[1]();
 }

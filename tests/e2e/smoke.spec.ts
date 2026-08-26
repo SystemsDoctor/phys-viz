@@ -80,6 +80,15 @@ test('a real module route (vector-algebra) renders through the full ModuleView s
   await expect(page.getByText('Sum a + b')).toBeVisible();
 
   await page.waitForTimeout(1000);
+
+  // explain.md (§9, ADR 0002) is a separate lazily-loaded chunk (a
+  // second network fetch after the module chunk itself), so it can
+  // still be in flight when the params/layers above have already
+  // rendered — give it its own wait rather than asserting immediately.
+  await expect(page.getByRole('heading', { name: 'What am I looking at?' })).toBeVisible();
+  // one inline $...$ in "What should I notice?" plus the two $$...$$ equations
+  await expect(page.locator('.pv-explain .katex')).toHaveCount(3);
+
   expect(errors).toEqual([]);
 });
 

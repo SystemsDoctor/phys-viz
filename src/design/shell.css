@@ -134,10 +134,35 @@ body {
 
 .pv-module-view__panel {
   width: 320px;
+  /* Without this, the canvas's `flex: 1` (flex-basis: 0%, flex-grow: 1)
+     out-competes this panel's default flex-shrink: 1 and squeezes it
+     down to near nothing well before the canvas itself runs out of
+     room to give — this panel needs to hold its 320px and let the
+     canvas absorb the rest. */
+  flex-shrink: 0;
   overflow-y: auto;
   padding: var(--space-3);
   border-left: 1px solid var(--rule);
   background: var(--surf-1);
+}
+
+.pv-explain {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-0);
+}
+
+.pv-explain h2,
+.pv-explain h3 {
+  font-size: 14px;
+  margin: var(--space-3) 0 var(--space-1) 0;
+}
+
+.pv-explain__error {
+  color: var(--q-accel);
 }
 
 .pv-module-error {

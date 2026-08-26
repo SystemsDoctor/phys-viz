@@ -3,8 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { Router } from 'wouter';
 import { ModuleView } from './ModuleView';
 
-const { loadModuleMock } = vi.hoisted(() => ({ loadModuleMock: vi.fn() }));
-vi.mock('@/modules/registry', () => ({ loadModule: loadModuleMock }));
+const { loadModuleMock, loadExplainMock } = vi.hoisted(() => ({
+  loadModuleMock: vi.fn(),
+  loadExplainMock: vi.fn().mockResolvedValue(null),
+}));
+vi.mock('@/modules/registry', () => ({ loadModule: loadModuleMock, loadExplain: loadExplainMock }));
 
 function renderModuleView(moduleId: string): ReturnType<typeof render> {
   return render(

@@ -17,7 +17,7 @@
 import React from 'react';
 import { Link } from 'wouter';
 import type { PhysicsModule, ModuleInstance, ModuleState } from '@/modules/types';
-import { loadModule } from '@/modules/registry';
+import { loadModule, loadExplain } from '@/modules/registry';
 import { Viewport } from '@/scene/Viewport';
 import { ParamPanel } from '../params';
 import { LayerManager } from '../layers';
@@ -25,6 +25,7 @@ import { Timeline } from '../timeline';
 import { FixedStepAccumulator, SteppedScrubber, FIXED_DT } from '../timeline/driver';
 import { ReadoutTable } from '../readouts';
 import { TimeSeriesPlot } from '../plots/TimeSeriesPlot';
+import { ExplainPanel } from '../explain';
 import { ModuleErrorBoundary } from '../errors';
 import { useAppStore, paramDefaults, DEFAULT_APP_STATE } from '../state/store';
 import type { AppState, ParamValue } from '../state/store';
@@ -152,6 +153,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   const [scalars, setScalars] = React.useState<Record<string, number>>({});
   const [series, setSeries] = React.useState<{ x: number; y: number }[]>([]);
   const [migrationNotice, setMigrationNotice] = React.useState<string | null>(null);
+  const [explainSource, setExplainSource] = React.useState<string | null>(null);
   const search = useHashSearch();
   const initialSearchRef = React.useRef(search);
   const defaultCamera = React.useMemo(() => defaultCameraFor(module), [module]);
@@ -195,6 +197,20 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     });
     setSeeded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [module]);
+
+  // explain.md (§9) is optional and loaded lazily — its content never
+  // pulls into the initial bundle (registry.ts's explainModules glob is
+  // not `eager`).
+  React.useEffect(() => {
+    let cancelled = false;
+    setExplainSource(null);
+    loadExplain(module.manifest.id).then((source) => {
+      if (!cancelled) setExplainSource(source);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [module]);
 
   // Construct the Viewport + module instance once; dispose on unmount.
@@ -484,6 +500,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
               yLabel={module.scalars.find((s) => s.plottable)?.label ?? ''}
             />
           )}
+          {explainSource && <ExplainPanel source={explainSource} />}
         </aside>
       </div>
       {externalError && (

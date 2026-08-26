@@ -15,8 +15,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run --exclude tests/contract/** --exclude tests/e2e/**",
-    "test:coverage": "vitest run --exclude tests/contract/** --exclude tests/e2e/** --coverage",
+    "test:unit": "vitest run --exclude \"tests/contract/**\" --exclude \"tests/e2e/**\"",
+    "test:coverage": "vitest run --exclude \"tests/contract/**\" --exclude \"tests/e2e/**\" --coverage",
     "test:contract": "vitest run tests/contract",
     "test:e2e": "playwright test",
     "new:module": "node scripts/new-module.mjs"

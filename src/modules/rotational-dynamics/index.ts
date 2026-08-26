@@ -135,7 +135,11 @@ const module: PhysicsModule = {
       position: [0, 0, 0],
       color: ctx.palette.construction,
     });
-    const paCmAxis = ctx.path({ group: gParallelAxis, color: ctx.palette.construction, points: [] });
+    const paCmAxis = ctx.path({
+      group: gParallelAxis,
+      color: ctx.palette.construction,
+      points: [],
+    });
     const paOffsetAxis = ctx.path({
       group: gParallelAxis,
       color: ctx.palette.angular,
@@ -227,7 +231,12 @@ const module: PhysicsModule = {
       startAngle: 0,
       endAngle: 4.71238898,
     });
-    const axisTrace = ctx.path({ group: gPrecession, color: ctx.palette.energy, points: [], persistence: 200 });
+    const axisTrace = ctx.path({
+      group: gPrecession,
+      color: ctx.palette.energy,
+      points: [],
+      persistence: 200,
+    });
 
     // ---- Rolling: instantaneous axis & cycloid trace ----
     const rollWheel = ctx.body({
@@ -250,7 +259,12 @@ const module: PhysicsModule = {
       from: ORIGIN,
       to: ORIGIN,
     });
-    const rimTrace = ctx.path({ group: gRolling, color: ctx.palette.angular, points: [], persistence: 200 });
+    const rimTrace = ctx.path({
+      group: gRolling,
+      color: ctx.palette.angular,
+      points: [],
+      persistence: 200,
+    });
 
     // ---- Dzhanibekov effect (tumbling) — the one genuinely stepped panel ----
     const tumblingBox = ctx.body({
@@ -341,12 +355,17 @@ const module: PhysicsModule = {
         amBox.set({ scale: mut3(boxSize) });
         omegaArrow.set({ from: ORIGIN, to: omega });
         lArrow.set({ from: ORIGIN, to: L });
-        lOmegaAngleArc.set({ from: norm(omega) > 1e-9 ? omega : X_HAT, to: norm(L) > 1e-9 ? L : X_HAT, radius: 1.0 });
+        lOmegaAngleArc.set({
+          from: norm(omega) > 1e-9 ? omega : X_HAT,
+          to: norm(L) > 1e-9 ? L : X_HAT,
+          radius: 1.0,
+        });
 
         // Inertia ellipsoid
         const eig = eigenSymmetric3(boxI);
         let basis = fromColumns3(eig.vectors[0], eig.vectors[1], eig.vectors[2]);
-        if (determinantMat3(basis) < 0) basis = fromColumns3(eig.vectors[0], eig.vectors[1], negate(eig.vectors[2]));
+        if (determinantMat3(basis) < 0)
+          basis = fromColumns3(eig.vectors[0], eig.vectors[1], negate(eig.vectors[2]));
         const principalQ = fromMatrix(basis);
         const ELLIPSOID_SCALE = 1.4; // display-only normalization, not physical
         ellBox.set({ scale: mut3(boxSize) });
@@ -386,7 +405,7 @@ const module: PhysicsModule = {
         const precessionRadius = topArmLength * Math.sin(topTiltAngle);
         precessionArc.set({ radius: Math.max(0.05, precessionRadius) });
         const TRACE_POINTS = 60;
-        const traceDt = 2 * Math.PI / Math.abs(precessionRate) / 30;
+        const traceDt = (2 * Math.PI) / Math.abs(precessionRate) / 30;
         const tracePts: [number, number, number][] = [];
         for (let i = TRACE_POINTS - 1; i >= 0; i--) {
           const ti = s.t - i * traceDt;
@@ -413,7 +432,10 @@ const module: PhysicsModule = {
           const c = add(scale(rollDir, v * ti), scale(upVec, rollRadius));
           const rim = add(
             c,
-            add(scale(rollDir, rollRadius * Math.sin(rollOmega * ti)), scale(upVec, -rollRadius * Math.cos(rollOmega * ti))),
+            add(
+              scale(rollDir, rollRadius * Math.sin(rollOmega * ti)),
+              scale(upVec, -rollRadius * Math.cos(rollOmega * ti)),
+            ),
           );
           rollPts.push(mut3(rim));
         }

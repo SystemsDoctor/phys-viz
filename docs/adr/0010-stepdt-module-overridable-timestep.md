@@ -45,7 +45,7 @@ yet.
   `?? FIXED_DT` resolves to exactly the prior hardcoded value. This is
   why bumping `MODULE_CONTRACT_VERSION` here is still consistent with
   §20's M5 acceptance criterion, "shipping both required zero breaking
-  changes to `types.ts`": *breaking* means an existing module stops
+  changes to `types.ts`": _breaking_ means an existing module stops
   compiling or changes behavior; an optional field a module can ignore
   does neither. The version bump is a paper-trail signal for future
   contract readers, not a claim that this change broke anything — worth

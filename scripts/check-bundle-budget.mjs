@@ -72,7 +72,9 @@ if (entryGzip > INITIAL_BUDGET_BYTES) {
 for (const key of entry.imports ?? []) {
   const chunk = manifest[key];
   if (!chunk) continue;
-  console.log(`  vendor chunk ${chunk.name ?? key} (${chunk.file}): ${fmtKB(gzipSize(chunk.file))} gzipped`);
+  console.log(
+    `  vendor chunk ${chunk.name ?? key} (${chunk.file}): ${fmtKB(gzipSize(chunk.file))} gzipped`,
+  );
 }
 
 // --- Per-module chunk budget + the O(1)-in-module-count check (X-4).

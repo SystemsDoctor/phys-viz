@@ -25,7 +25,15 @@
 import type { PhysicsModule, ModuleState } from '../types';
 import type { SceneContext } from '@/scene/SceneContext';
 import { compileExpr, isExprError } from '@/kernel/expr';
-import { grad, div, curl, lineIntegral, surfaceFlux, volumeIntegral, surfacePartials } from '@/kernel/calculus';
+import {
+  grad,
+  div,
+  curl,
+  lineIntegral,
+  surfaceFlux,
+  volumeIntegral,
+  surfacePartials,
+} from '@/kernel/calculus';
 import type { VectorField } from '@/kernel/calculus';
 import { add, cross, dot, scale, norm, normalize } from '@/kernel/math';
 import type { Vec3 as V3 } from '@/kernel/math';
@@ -108,8 +116,17 @@ const module: PhysicsModule = {
       from: [0, 0, 0],
       to: [0, 0, 0],
     });
-    const probeTangentPath = ctx.path({ group: gProbeGrad, color: ctx.palette.construction, points: [] });
-    const probePoint = ctx.point({ group: gProbeGrad, position: [0, 0, 0], color: ctx.palette.field, sizePx: 8 });
+    const probeTangentPath = ctx.path({
+      group: gProbeGrad,
+      color: ctx.palette.construction,
+      points: [],
+    });
+    const probePoint = ctx.point({
+      group: gProbeGrad,
+      position: [0, 0, 0],
+      color: ctx.palette.field,
+      sizePx: 8,
+    });
 
     const gradFieldGlyph = ctx.field({
       group: gGradField,
@@ -170,13 +187,21 @@ const module: PhysicsModule = {
       vRange: [0, 1],
       resolution: [24, 24],
     });
-    const fluxCapBoundary = ctx.path({ group: gFluxCap, color: ctx.palette.construction, points: [] });
+    const fluxCapBoundary = ctx.path({
+      group: gFluxCap,
+      color: ctx.palette.construction,
+      points: [],
+    });
 
     return {
       update(s: ModuleState) {
         const domain = s.params.domain as number;
         const f2 = buildScalarField2D(s.params.f as string);
-        const F = buildVectorField(s.params.Fx as string, s.params.Fy as string, s.params.Fz as string);
+        const F = buildVectorField(
+          s.params.Fx as string,
+          s.params.Fy as string,
+          s.params.Fz as string,
+        );
 
         // Heightmap: banded colorField IS the level-curve mechanism —
         // no separate contour-tracing algorithm needed.
@@ -210,10 +235,12 @@ const module: PhysicsModule = {
         const probePos: V3 = [px, py, probeZ];
         const gradMag = Math.hypot(g[0], g[1]);
         probeGradArrow.set({ from: probePos, to: add(probePos, [g[0], g[1], 0]) });
-        const tangentDir: V3 =
-          gradMag > 1e-9 ? [-g[1] / gradMag, g[0] / gradMag, 0] : [1, 0, 0];
+        const tangentDir: V3 = gradMag > 1e-9 ? [-g[1] / gradMag, g[0] / gradMag, 0] : [1, 0, 0];
         probeTangentPath.set({
-          points: [mut3(add(probePos, scale(tangentDir, -0.6))), mut3(add(probePos, scale(tangentDir, 0.6)))],
+          points: [
+            mut3(add(probePos, scale(tangentDir, -0.6))),
+            mut3(add(probePos, scale(tangentDir, 0.6))),
+          ],
         });
         probePoint.set({ position: mut3(probePos) });
 
@@ -258,7 +285,12 @@ const module: PhysicsModule = {
         curlAxisArrow.set({ from: curlProbe, to: add(curlProbe, curlVec) });
         const curlAxis: V3 = curlMag > 1e-9 ? normalize(curlVec) : [0, 0, 1];
         const phase = (s.t * SPIN_GAIN * curlMag) % (2 * Math.PI);
-        curlSpinArc.set({ center: mut3(curlProbe), axis: mut3(curlAxis), startAngle: phase, endAngle: phase + 1.5 * Math.PI });
+        curlSpinArc.set({
+          center: mut3(curlProbe),
+          axis: mut3(curlAxis),
+          startAngle: phase,
+          endAngle: phase + 1.5 * Math.PI,
+        });
 
         // Flux through a continuously user-shaped surface (capDepth=0 is
         // a flat disk; the fixed boundary circle never moves).
@@ -278,13 +310,18 @@ const module: PhysicsModule = {
         fluxCapSurface.set({ parametric: (u, v) => mut3(capSurf(u, v)) });
         const BOUNDARY_SEGMENTS = 48;
         const boundaryPts: [number, number, number][] = [];
-        for (let i = 0; i <= BOUNDARY_SEGMENTS; i++) boundaryPts.push(mut3(boundary(i / BOUNDARY_SEGMENTS)));
+        for (let i = 0; i <= BOUNDARY_SEGMENTS; i++)
+          boundaryPts.push(mut3(boundary(i / BOUNDARY_SEGMENTS)));
         fluxCapBoundary.set({ points: boundaryPts });
       },
 
       scalars(s: ModuleState) {
         const f2 = buildScalarField2D(s.params.f as string);
-        const F = buildVectorField(s.params.Fx as string, s.params.Fy as string, s.params.Fz as string);
+        const F = buildVectorField(
+          s.params.Fx as string,
+          s.params.Fy as string,
+          s.params.Fz as string,
+        );
         // Rounded defensively: a hand-edited/decoded URL could carry a
         // non-integer n, and every quadrature call below sizes an array
         // by n (or n*n) — never trust it to already be a whole number.
@@ -307,8 +344,16 @@ const module: PhysicsModule = {
         const divVolumeIntegral = volumeIntegral(
           (p) => div(F, p),
           {
-            min: [boxCenter[0] - boxHalfSize, boxCenter[1] - boxHalfSize, boxCenter[2] - boxHalfSize],
-            max: [boxCenter[0] + boxHalfSize, boxCenter[1] + boxHalfSize, boxCenter[2] + boxHalfSize],
+            min: [
+              boxCenter[0] - boxHalfSize,
+              boxCenter[1] - boxHalfSize,
+              boxCenter[2] - boxHalfSize,
+            ],
+            max: [
+              boxCenter[0] + boxHalfSize,
+              boxCenter[1] + boxHalfSize,
+              boxCenter[2] + boxHalfSize,
+            ],
           },
           n,
         ).value;

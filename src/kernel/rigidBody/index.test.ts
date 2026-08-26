@@ -34,7 +34,12 @@ describe('quatDerivative', () => {
     const omega: [number, number, number] = [0, 0, 1];
     const dt = 1e-6;
     const d = quatDerivative(q0, omega);
-    const approx: Quat = [q0[0] + dt * d[0], q0[1] + dt * d[1], q0[2] + dt * d[2], q0[3] + dt * d[3]];
+    const approx: Quat = [
+      q0[0] + dt * d[0],
+      q0[1] + dt * d[1],
+      q0[2] + dt * d[2],
+      q0[3] + dt * d[3],
+    ];
     const exact = fromAxisAngle([0, 0, 1], dt);
     for (let i = 0; i < 4; i++) expect(approx[i]).toBeCloseTo(exact[i], 9);
   });

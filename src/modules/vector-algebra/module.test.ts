@@ -29,7 +29,14 @@ describe(module.manifest.id, () => {
   it('golden values: orthogonal unit vectors, a right-angle box', () => {
     const instance = module.create(fakeCtx);
     const s = instance.scalars({
-      params: { a: [1, 0, 0], b: [0, 1, 0], c: [0, 0, 1], sumStyle: 'tip', planar: false, basisAngle: 0 },
+      params: {
+        a: [1, 0, 0],
+        b: [0, 1, 0],
+        c: [0, 0, 1],
+        sumStyle: 'tip',
+        planar: false,
+        basisAngle: 0,
+      },
       layers: {},
       t: 0,
     });

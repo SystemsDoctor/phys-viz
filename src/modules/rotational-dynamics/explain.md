@@ -13,28 +13,28 @@ of action — and $|\vec\tau| = |\vec r||\vec F|\sin\theta = Fd$ either way
 you compute it.
 
 **Parallel axis**: the same box, two parallel axes. Moving the offset
-axis away from the center of mass only ever *increases* the moment of
+axis away from the center of mass only ever _increases_ the moment of
 inertia — $I$ about any axis is smallest through the center of mass.
 
 **L vs ω**: spin the box about one of its own edges (not a principal
 axis) and $\vec L$ visibly stops pointing along $\vec\omega$. This is
-why a wobbling object needs a *net torque* just to keep spinning at a
+why a wobbling object needs a _net torque_ just to keep spinning at a
 constant rate about an off-axis direction.
 
 **Inertia ellipsoid**: the three principal axes and the ellipsoid whose
 semi-axes are $\propto 1/\sqrt{I_i}$ — the long way through the ellipsoid
-is the axis the box is *easiest* to spin about.
+is the axis the box is _easiest_ to spin about.
 
 **Precession**: a fast top released tilted doesn't fall — it precesses
 around the vertical at a rate set by gravity fighting its own spin
 angular momentum, with a small nutation ripple layered on top.
 
-**Rolling**: the small point at the contact is the *instantaneous axis*
+**Rolling**: the small point at the contact is the _instantaneous axis_
 — it has zero velocity at that instant, even though the wheel's center
 is moving at $v = \omega R$. The traced curve through a marked rim point
 is a cycloid.
 
-**Dzhanibekov effect**: spin the box about its *intermediate*-inertia
+**Dzhanibekov effect**: spin the box about its _intermediate_-inertia
 axis (not the largest or smallest) and watch it tumble unpredictably —
 a torque-free rigid body's spin about the middle principal axis is
 unstable. This is the one panel with no closed form, so it's the one

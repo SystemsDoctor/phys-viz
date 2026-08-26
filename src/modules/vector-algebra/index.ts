@@ -11,16 +11,7 @@
  */
 import type { PhysicsModule, ModuleState } from '../types';
 import type { SceneContext } from '@/scene/SceneContext';
-import {
-  cross,
-  dot,
-  norm,
-  scale,
-  add,
-  normalize,
-  fromAxisAngle,
-  rotateVec3,
-} from '@/kernel/math';
+import { cross, dot, norm, scale, add, normalize, fromAxisAngle, rotateVec3 } from '@/kernel/math';
 import manifest from './manifest';
 import { params, layers, scalars } from './params';
 
@@ -198,9 +189,7 @@ const module: PhysicsModule = {
         cArrow.set({ from: ORIGIN, to: c });
 
         const style = s.params.sumStyle as string;
-        sArrow.set(
-          style === 'tip' ? { from: a, to: add(a, b) } : { from: ORIGIN, to: add(a, b) },
-        );
+        sArrow.set(style === 'tip' ? { from: a, to: add(a, b) } : { from: ORIGIN, to: add(a, b) });
 
         const bLenSq = dot(b, b);
         const proj = bLenSq > 0 ? scale(b, dot(a, b) / bLenSq) : ORIGIN;

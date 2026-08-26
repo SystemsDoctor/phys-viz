@@ -53,9 +53,7 @@ describe(module.manifest.id, () => {
   it('golden value: parallel-axis theorem, I_offset = I_cm + m d_perp^2', () => {
     const instance = module.create(fakeCtx);
     // box [1,1,1], mass 6: I_cm about z = (m/12)(a^2+b^2) = (6/12)(1+1) = 1
-    const s = instance.scalars(
-      stateWith({ boxSize: [1, 1, 1], boxMass: 6, paOffset: [2, 0, 0] }),
-    );
+    const s = instance.scalars(stateWith({ boxSize: [1, 1, 1], boxMass: 6, paOffset: [2, 0, 0] }));
     expect(s.parallelAxisI).toBeCloseTo(1 + 6 * 2 * 2, 10);
   });
 

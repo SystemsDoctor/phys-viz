@@ -22,7 +22,7 @@ is tangent to the level curve.
 **Shrinking-box divergence**: drag the box smaller and
 $\Phi/V$ (flux divided by volume) converges onto $\nabla\cdot\vec F$
 evaluated at the box's center — that convergence, not the formula
-alone, is *what divergence means*.
+alone, is _what divergence means_.
 
 **Divergence theorem**: the same box's total surface flux and the volume
 integral of its divergence agree to within quadrature error. With the
@@ -38,7 +38,7 @@ sits still wherever the field has no local rotation.
 
 **Flux through a user-shaped surface**: the boundary circle never
 moves — only `Cap depth` reshapes the surface stretched across it, from
-a flat disk to a deep bowl. Unlike the box, the cap is *trig*-
+a flat disk to a deep bowl. Unlike the box, the cap is _trig_-
 parametrized, so this is where raising $n$ actually earns its keep:
 watch `|circulation − curl flux|` visibly shrink as you raise the
 quadrature-points slider, converging on the same number regardless of

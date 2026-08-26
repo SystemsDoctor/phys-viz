@@ -5,13 +5,14 @@
  * Must NOT import a concrete module implementation directly — modules
  * are loaded through `@/modules/registry`'s `loadModule()`.
  *
- * Currently just the M0 throwaway: mounts src/scene/demoCube.ts's
- * rotatable cube onto a full-viewport canvas to satisfy the M0
- * acceptance criterion. TODO(M3): replace with hash routing (wouter),
- * the Zustand store (shell/state), and the real routes.
+ * Currently just the M2 throwaway: mounts src/scene/demoScene.ts (every
+ * glyph through the real SceneContext/Viewport) onto a full-viewport
+ * canvas to satisfy the M2 acceptance criterion. TODO(M3): replace with
+ * hash routing (wouter), the Zustand store (shell/state), and the real
+ * routes.
  */
 import React, { useEffect, useRef } from 'react';
-import { mountDemoCube } from '@/scene/demoCube';
+import { mountDemoScene } from '@/scene/demoScene';
 
 export function App(): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -19,7 +20,7 @@ export function App(): React.ReactElement {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    return mountDemoCube(canvas);
+    return mountDemoScene(canvas);
   }, []);
 
   return (

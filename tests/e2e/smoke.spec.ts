@@ -92,4 +92,24 @@ test('a real module route (vector-algebra) renders through the full ModuleView s
   expect(errors).toEqual([]);
 });
 
+test('keyboard map (§16): "?" opens the shortcut overlay, "1" toggles the first layer', async ({
+  page,
+}) => {
+  await page.goto('#/m/vector-algebra');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+
+  const sumCheckbox = page.getByRole('checkbox', { name: 'Sum a + b' });
+  await expect(sumCheckbox).not.toBeChecked();
+
+  await page.locator('body').press('1');
+  await expect(sumCheckbox).toBeChecked();
+
+  await page.locator('body').press('?');
+  await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+  await expect(page.getByText('Toggle layer N')).toBeVisible();
+
+  await page.locator('body').press('Escape');
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+});
+
 // TODO: for (const id of moduleIds) { test(`${id} renders without console errors`, ...) }

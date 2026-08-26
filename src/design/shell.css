@@ -165,6 +165,56 @@ body {
   color: var(--q-accel);
 }
 
+/* Presenter mode (§16): larger type, projector-like contrast, no
+   tooltips/hover states a projected audience can't see. Gallery chrome
+   (the back-link breadcrumb) is hidden via JSX, not CSS, since it's a
+   whole element, not a style. */
+.pv-presenter {
+  font-size: 1.5em;
+}
+
+.pv-presenter .pv-field__label,
+.pv-presenter .pv-layer-row,
+.pv-presenter .pv-timeline__t {
+  font-size: 1em; /* scale with the presenter root instead of the fixed px sizes those rules set */
+}
+
+.pv-presenter *:hover {
+  background: inherit !important;
+}
+
+.pv-keymap-overlay {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: var(--space-4);
+  background: var(--surf-1);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  font-size: 13px;
+}
+
+.pv-keymap-overlay table {
+  border-collapse: collapse;
+  margin-bottom: var(--space-3);
+}
+
+.pv-keymap-overlay td {
+  padding: var(--space-1) var(--space-3) var(--space-1) 0;
+}
+
+.pv-keymap-overlay__keys {
+  font-family: var(--font-mono);
+  color: var(--q-position);
+  white-space: nowrap;
+}
+
 .pv-module-error {
   padding: var(--space-4);
   color: var(--ink-0);

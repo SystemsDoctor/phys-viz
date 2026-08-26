@@ -27,6 +27,7 @@ import { ReadoutTable } from '../readouts';
 import { TimeSeriesPlot } from '../plots/TimeSeriesPlot';
 import { ExplainPanel } from '../explain';
 import { ModuleErrorBoundary } from '../errors';
+import { usePresenterKeymap, KeymapOverlay } from '../presenter';
 import { useAppStore, paramDefaults, DEFAULT_APP_STATE } from '../state/store';
 import type { AppState, ParamValue } from '../state/store';
 import { encodeState, decodeState } from '../state/urlCodec';
@@ -34,6 +35,7 @@ import { migrations } from '../state/migrations';
 import { useHashSearch, navigateHash } from './hashRouter';
 
 const URL_SYNC_DEBOUNCE_MS = 250; // §14 hardening note, applies to every field written on this path, not just camera
+const CAMERA_CYCLE = ['iso', '+x', '+y', '+z'] as const; // V key (§16)
 
 function defaultCameraFor(module: PhysicsModule): AppState['camera'] {
   const preset = module.defaultView?.preset ?? 'iso';
@@ -454,15 +456,59 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     };
   }, [mounted]);
 
+  // Keyboard map (§16). Presenter mode's visual side is a CSS class
+  // below, driven by ui.presenterMode; this only wires the keys.
+  const cameraCycleIndexRef = React.useRef(0);
+  const keymapHandlers = React.useMemo<Record<string, () => void>>(() => {
+    const handlers: Record<string, () => void> = {
+      ' ': () =>
+        useAppStore.getState().patchTime({ playing: !useAppStore.getState().time.playing }),
+      ArrowRight: () =>
+        useAppStore.getState().patchTime({ t: useAppStore.getState().time.t + 0.1 }),
+      ArrowLeft: () =>
+        useAppStore.getState().patchTime({ t: Math.max(0, useAppStore.getState().time.t - 0.1) }),
+      'Shift+ArrowRight': () =>
+        useAppStore.getState().patchTime({ t: useAppStore.getState().time.t + 1 }),
+      'Shift+ArrowLeft': () =>
+        useAppStore.getState().patchTime({ t: Math.max(0, useAppStore.getState().time.t - 1) }),
+      r: () =>
+        useAppStore.getState().reset({
+          params: paramDefaults(module.params),
+          layers: Object.fromEntries(module.layers.map((l) => [l.key, l.default])),
+        }),
+      p: () =>
+        useAppStore.getState().patchUi({ presenterMode: !useAppStore.getState().ui.presenterMode }),
+      f: () => {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else document.documentElement.requestFullscreen();
+      },
+      c: () => navigator.clipboard?.writeText(window.location.href),
+      v: () => {
+        cameraCycleIndexRef.current = (cameraCycleIndexRef.current + 1) % CAMERA_CYCLE.length;
+        viewportRef.current?.camera.goTo(CAMERA_CYCLE[cameraCycleIndexRef.current]);
+      },
+    };
+    module.layers.slice(0, 9).forEach((layer, i) => {
+      handlers[String(i + 1)] = () =>
+        useAppStore
+          .getState()
+          .setLayer(layer.key, !(useAppStore.getState().layers[layer.key] ?? layer.default));
+    });
+    return handlers;
+  }, [module]);
+  usePresenterKeymap(keymapHandlers);
+
   const state = useAppStore();
 
   if (!seeded) return <div className="pv-loading">Loading…</div>;
 
   return (
-    <div className="pv-module-view">
-      <p className="pv-module-view__back">
-        <Link to="/">&larr; Gallery</Link> / {module.manifest.title}
-      </p>
+    <div className={state.ui.presenterMode ? 'pv-module-view pv-presenter' : 'pv-module-view'}>
+      {!state.ui.presenterMode && (
+        <p className="pv-module-view__back">
+          <Link to="/">&larr; Gallery</Link> / {module.manifest.title}
+        </p>
+      )}
       {migrationNotice && (
         <p className="pv-module-view__notice" role="status">
           {migrationNotice}
@@ -470,6 +516,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       )}
       <div className="pv-module-view__layout">
         <canvas ref={canvasRef} className="pv-viewport-canvas" />
+        <KeymapOverlay />
         <aside className="pv-module-view__panel">
           <ParamPanel
             defs={module.params}
@@ -492,7 +539,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
             direction={state.time.direction}
             onChange={(patch) => useAppStore.getState().patchTime(patch)}
           />
-          <ReadoutTable defs={module.scalars} values={scalars} />
+          <ReadoutTable defs={module.scalars} values={scalars} pinned={state.ui.presenterMode} />
           {series.length > 1 && module.scalars.find((s) => s.plottable) && (
             <TimeSeriesPlot
               series={series}

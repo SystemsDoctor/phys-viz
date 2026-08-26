@@ -5,6 +5,18 @@
  * since this is the one global stylesheet for all of src/shell/.
  */
 
+/* Without this, `width: 100%` on any padded/bordered element (every
+   text-like input in this file) renders wider than its container by
+   exactly its padding+border — content-box is the CSS default, and
+   nothing here was overriding it. Caught via a real 18px overflow at
+   320px width (M3-35): VectorPad's inputs alone accounted for it, but
+   the bug applied to every input/select/textarea in the shell. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);
@@ -16,6 +28,45 @@ body {
 :focus-visible {
   outline: 2px solid var(--q-position);
   outline-offset: 2px;
+}
+
+.pv-settings {
+  position: fixed;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 50;
+}
+
+.pv-settings__trigger {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: var(--surf-1);
+  color: var(--ink-0);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.pv-settings__menu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  min-width: 200px;
+  padding: var(--space-3);
+  background: var(--surf-1);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.pv-settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 13px;
+  margin-bottom: var(--space-2);
 }
 
 .pv-loading,
@@ -124,6 +175,27 @@ body {
   flex: 1;
   display: flex;
   min-height: 0;
+}
+
+/* §18's manual checklist explicitly asserts 320px width, so the shell
+   has to support it (M3-35) before any module does. A fixed 320px side
+   panel plus a canvas simply doesn't fit a 320px viewport — stack them
+   instead below a breakpoint comfortably above phone width. */
+@media (max-width: 640px) {
+  .pv-module-view__layout {
+    flex-direction: column;
+  }
+  .pv-viewport-canvas {
+    flex: 0 0 45vh;
+  }
+  .pv-module-view__panel {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--rule);
+  }
+  .pv-gallery__filters {
+    flex-wrap: wrap;
+  }
 }
 
 .pv-viewport-canvas {
@@ -422,6 +494,19 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+.pv-release-rotation {
+  width: 100%;
+  margin-bottom: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--surf-1);
+  color: var(--ink-0);
+  cursor: pointer;
 }
 
 .pv-timeline__btn {

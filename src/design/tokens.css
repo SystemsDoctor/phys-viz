@@ -91,11 +91,14 @@
   --motion-layer: 150ms;
 }
 
+/* Dark mode exists for students on laptops; the projector default
+   stays light. Follows the OS preference by default; the settings
+   menu's theme toggle (M3-41) overrides it via `data-theme` on <html>
+   — `:not([data-theme="light"])` lets the OS-preference block yield to
+   an explicit "light" choice, and the plain attribute selector below
+   lets an explicit "dark" choice win even when the OS prefers light. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    /* Dark mode exists for students on laptops; the projector default
-       stays light. TODO(M3): tune against §15's guidance and test on an
-       actual panel, not just in DevTools. */
+  :root:not([data-theme='light']) {
     --surf-0: #14171c;
     --surf-1: #1b1f26;
     --surf-2: #232833;
@@ -104,6 +107,16 @@
     --ink-1: #b7bfcc;
     --ink-2: #838c9c;
   }
+}
+
+:root[data-theme='dark'] {
+  --surf-0: #14171c;
+  --surf-1: #1b1f26;
+  --surf-2: #232833;
+  --rule: #363c47;
+  --ink-0: #eef1f6;
+  --ink-1: #b7bfcc;
+  --ink-2: #838c9c;
 }
 
 @media (prefers-reduced-motion: reduce) {

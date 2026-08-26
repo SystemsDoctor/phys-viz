@@ -1,15 +1,40 @@
 /**
  * Projector mode override (ARCHITECTURE.md §15). One class on <html>
- * (`html.projector-mode`). Raises contrast, thickens lines ~1.6x,
- * increases label size, disables subtle transparency.
+ * (`html.projector-mode`), toggled by the settings menu's projector
+ * checkbox (M3-41) via `prefs.projector`. Raises contrast, thickens
+ * lines ~1.6x, increases label size, disables subtle transparency.
+ *
+ * The 3D scene's own line-weight/opacity adjustments are a SEPARATE
+ * mechanism (Viewport.setProjectorMode, driven by the same
+ * prefs.projector, via scene/theme's getProjectorAdjustments) — this
+ * file is the chrome/UI half of the same toggle.
  *
  * Test on an actual projector before Milestone 4 ships — a palette that
  * sings on a laptop can vanish on a 4000-lumen projector in a bright
  * room.
- *
- * TODO(M2/M3): fill in the overrides once glyphs and chrome exist to
- * theme.
  */
 html.projector-mode {
-  --rule: #8a8f99;
+  --rule: #6b7280;
+  --ink-1: #12161d;
+  --ink-2: #4a5260;
+}
+
+html.projector-mode body {
+  font-size: 1.15em;
+}
+
+html.projector-mode .pv-field,
+html.projector-mode .pv-layer-row,
+html.projector-mode .pv-timeline__btn,
+html.projector-mode .pv-readouts {
+  border-width: 1.6px;
+}
+
+/* Subtle transparency reads as "barely there" on a bright, washed-out
+   projected image — disable it everywhere it's used for polish rather
+   than for a deliberate glyph-layering effect the scene itself owns. */
+html.projector-mode .pv-gallery__card,
+html.projector-mode .pv-settings__menu,
+html.projector-mode .pv-keymap-overlay {
+  box-shadow: none;
 }

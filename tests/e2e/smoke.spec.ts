@@ -112,4 +112,41 @@ test('keyboard map (§16): "?" opens the shortcut overlay, "1" toggles the first
   await expect(page.getByRole('dialog')).not.toBeVisible();
 });
 
+test('settings menu (M3-41/42): up-axis choice persists across reload via localStorage', async ({
+  page,
+}) => {
+  await page.goto('#/m/vector-algebra');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+
+  await page.getByLabel('Display settings').click();
+  await page.getByLabel('Up axis').selectOption('z');
+  await expect(page.getByLabel('Up axis')).toHaveValue('z');
+
+  await page.reload();
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+  await page.getByLabel('Display settings').click();
+  await expect(page.getByLabel('Up axis')).toHaveValue('z');
+
+  // Projector mode toggles html.projector-mode (design/projector.css) —
+  // a pre-existing stub file this batch filled in, easy to silently
+  // leave unwired since it's a separate file from shell.css.
+  await expect(page.locator('html')).not.toHaveClass(/projector-mode/);
+  await page.getByRole('checkbox', { name: 'Projector mode' }).check();
+  await expect(page.locator('html')).toHaveClass(/projector-mode/);
+});
+
+test('320px layout (§18 manual checklist, M3-35): module route stacks instead of overflowing', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto('#/m/vector-algebra');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+  await expect(page.getByLabel('Vector a x')).toBeVisible();
+
+  const hasHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  );
+  expect(hasHorizontalOverflow).toBe(false);
+});
+
 // TODO: for (const id of moduleIds) { test(`${id} renders without console errors`, ...) }

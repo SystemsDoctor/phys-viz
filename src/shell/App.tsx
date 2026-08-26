@@ -19,6 +19,9 @@ import { ModuleView } from './routes/ModuleView';
 import { About } from './routes/About';
 import { useHashLocation } from './routes/hashRouter';
 import { mountDemoScene } from '@/scene/demoScene';
+import { SettingsMenu } from './settings';
+import { useAppStore } from './state/store';
+import { loadPrefs } from './state/prefsStorage';
 
 /**
  * M2's throwaway "exercise every glyph" scene (ARCHITECTURE.md §20 M2)
@@ -44,8 +47,23 @@ function DemoSceneDevRoute(): React.ReactElement {
 }
 
 export function App(): React.ReactElement {
+  // Load persisted display prefs once, before anything else reads
+  // them (a module mount's own store.hydrate() preserves whatever
+  // prefs are already in the store — see store.ts — so this has to
+  // land first).
+  useEffect(() => {
+    useAppStore.setState({ prefs: loadPrefs() });
+  }, []);
+
+  const prefs = useAppStore((s) => s.prefs);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', prefs.theme);
+    document.documentElement.classList.toggle('projector-mode', prefs.projector);
+  }, [prefs.theme, prefs.projector]);
+
   return (
     <Router hook={useHashLocation}>
+      <SettingsMenu />
       <Switch>
         <Route path="/" component={Gallery} />
         <Route path="/about" component={About} />

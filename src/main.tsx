@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from '@/shell/App';
 import '@/design/tokens.css';
 import '@/design/shell.css';
+import '@/design/projector.css';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('main.tsx: #root not found in index.html');

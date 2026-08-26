@@ -33,6 +33,7 @@ import type { AppState, ParamValue } from '../state/store';
 import { encodeState, decodeState } from '../state/urlCodec';
 import { migrations } from '../state/migrations';
 import { useHashSearch, navigateHash } from './hashRouter';
+import { formatQuantity, DIMENSIONLESS } from '@/kernel/units';
 
 const URL_SYNC_DEBOUNCE_MS = 250; // §14 hardening note, applies to every field written on this path, not just camera
 const CAMERA_CYCLE = ['iso', '+x', '+y', '+z'] as const; // V key (§16)
@@ -156,6 +157,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   const [series, setSeries] = React.useState<{ x: number; y: number }[]>([]);
   const [migrationNotice, setMigrationNotice] = React.useState<string | null>(null);
   const [explainSource, setExplainSource] = React.useState<string | null>(null);
+  const [rotationReleased, setRotationReleased] = React.useState(false);
   const search = useHashSearch();
   const initialSearchRef = React.useRef(search);
   const defaultCamera = React.useMemo(() => defaultCameraFor(module), [module]);
@@ -235,6 +237,14 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       reducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
     });
     viewportRef.current = viewport;
+
+    // 2D lock (ADR 0007, M3-31): orbit suppressed, pan/zoom stay live,
+    // driven entirely off the manifest — a 2D module author writes
+    // nothing. `dimensions: 'both'` is left unlocked here; a module
+    // that offers its own 2D/3D toggle (M4's vector-algebra) is
+    // flagship-specific behavior, not a shell-substrate concern.
+    if (module.manifest.dimensions === 2) viewport.camera.setLockedToPlane(true);
+
     // Draggable vector params (M3-6): the module never calls
     // ctx.draggable() itself (§10 — modules do no pointer/mouse code);
     // the shell registers a pick target on the module's behalf for
@@ -317,6 +327,28 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     apply(useAppStore.getState());
     return useAppStore.subscribe(apply);
   }, [mounted, module.layers]);
+
+  // Live prefs (M3-41/42): up-axis and projector mode can change while
+  // a module is already mounted (the settings menu is global, not
+  // per-route), so the already-constructed Viewport needs to react —
+  // these aren't ViewportOptions set once at construction time.
+  React.useEffect(() => {
+    if (!mounted) return;
+    let lastUpAxis = useAppStore.getState().prefs.upAxis;
+    let lastProjector = useAppStore.getState().prefs.projector;
+    return useAppStore.subscribe((s) => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      if (s.prefs.upAxis !== lastUpAxis) {
+        lastUpAxis = s.prefs.upAxis;
+        viewport.camera.setUpAxis(s.prefs.upAxis, true);
+      }
+      if (s.prefs.projector !== lastProjector) {
+        lastProjector = s.prefs.projector;
+        viewport.setProjectorMode(s.prefs.projector);
+      }
+    });
+  }, [mounted]);
 
   // Time driving: parametric advances t directly; stepped drives a
   // fixed-timestep accumulator while playing, and reset()+chunked
@@ -500,6 +532,19 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
 
   const state = useAppStore();
 
+  // Canvas aria-label (§16): a text description of the current scene
+  // for a screen reader, regenerated from the module's own declared
+  // scalars — no per-module phrasing template (C-2 flags where the
+  // phrasing comes from as an open question; this is the generic
+  // fallback every module gets without writing anything).
+  const canvasLabel = module.scalars
+    .filter((s) => s.readout !== false)
+    .map(
+      (s) =>
+        `${s.label}: ${formatQuantity({ value: scalars[s.key] ?? NaN, dim: s.unit ?? DIMENSIONLESS }).trim()}`,
+    )
+    .join(', ');
+
   if (!seeded) return <div className="pv-loading">Loading…</div>;
 
   return (
@@ -515,9 +560,41 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
         </p>
       )}
       <div className="pv-module-view__layout">
-        <canvas ref={canvasRef} className="pv-viewport-canvas" />
+        <canvas
+          ref={canvasRef}
+          className="pv-viewport-canvas"
+          role="img"
+          aria-label={canvasLabel || module.manifest.title}
+        />
         <KeymapOverlay />
         <aside className="pv-module-view__panel">
+          {module.manifest.dimensions === 2 && (
+            <button
+              type="button"
+              className="pv-release-rotation"
+              onClick={() => {
+                const camera = viewportRef.current?.camera;
+                if (!camera) return;
+                if (rotationReleased) {
+                  // Re-lock: animate back to the module's own 2D view
+                  // (its defaultView preset, or '+z' — the plane a 2D
+                  // module is conventionally drawn on) via the same
+                  // ~400ms eased transition camera presets use, THEN
+                  // freeze rotation once the tween settles — locking
+                  // immediately would freeze it mid-transition.
+                  const preset = module.defaultView?.preset ?? '+z';
+                  camera.goTo(preset, 400);
+                  window.setTimeout(() => camera.setLockedToPlane(true), 420);
+                  setRotationReleased(false);
+                } else {
+                  camera.setLockedToPlane(false);
+                  setRotationReleased(true);
+                }
+              }}
+            >
+              {rotationReleased ? 'Re-lock rotation' : 'Release rotation'}
+            </button>
+          )}
           <ParamPanel
             defs={module.params}
             values={state.params}

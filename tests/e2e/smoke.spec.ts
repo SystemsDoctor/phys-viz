@@ -175,6 +175,19 @@ test('M3-G gate: control-showcase renders a complete usable UI with zero module 
   await expect(page.getByText('Predict', { exact: true })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Predicted magnitude' })).toBeVisible();
 
+  // Predict mode (M3-27): entering it freezes t at 0 and hides the
+  // reveal-tagged layer behind its own button; clicking that button is
+  // the "commit" step.
+  await page.getByRole('button', { name: 'Predict, then reveal' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Predicted magnitude' })).not.toBeVisible();
+  await expect(page.getByRole('button', { name: /Reveal: Predicted magnitude/ })).toBeVisible();
+  await page.locator('body').press(' '); // Space (play) must not advance time while predicting
+  await page.waitForTimeout(500);
+  await expect(page.locator('.pv-timeline__t')).toHaveText('0.00s');
+  await page.getByRole('button', { name: /Reveal: Predicted magnitude/ }).click();
+  await expect(page.getByRole('checkbox', { name: 'Predicted magnitude' })).toBeVisible();
+  await page.getByRole('button', { name: 'Exit predict mode' }).click();
+
   // Both plot types (M3-15/16), from a module that declares nothing
   // about plots itself. TimeSeriesPlot only renders once >1 point has
   // accumulated, which needs time actually advancing (playing defaults

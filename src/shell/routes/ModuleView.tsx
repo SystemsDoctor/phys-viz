@@ -346,6 +346,16 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       const s = useAppStore.getState();
       const instance = instanceRef.current;
 
+      // Predict mode (§9, M3-27): freeze time at t=0 until the student
+      // commits — no scrub, no play, no stepped fast-forward, while
+      // active. LayerManager already gates individual reveal-tagged
+      // layers behind their own "Reveal" button; this is the other
+      // half of the same feature.
+      if (s.ui.predictMode) {
+        frameId = requestAnimationFrame(tick);
+        return;
+      }
+
       if (scrubberRef.current.inProgress) {
         const progress = scrubberRef.current.tick((fixedDt) =>
           instance?.step?.(fixedDt, moduleStateOf(s)),
@@ -607,6 +617,19 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
             values={state.params}
             onChange={(key, value) => useAppStore.getState().setParam(key, value as ParamValue)}
           />
+          {module.layers.some((l) => l.reveal) && (
+            <button
+              type="button"
+              className="pv-release-rotation"
+              onClick={() => {
+                const entering = !useAppStore.getState().ui.predictMode;
+                useAppStore.getState().patchUi({ predictMode: entering });
+                if (entering) useAppStore.getState().patchTime({ t: 0, playing: false });
+              }}
+            >
+              {state.ui.predictMode ? 'Exit predict mode' : 'Predict, then reveal'}
+            </button>
+          )}
           {module.layers.length > 0 && (
             <LayerManager
               defs={module.layers}

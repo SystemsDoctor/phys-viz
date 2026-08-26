@@ -17,3 +17,4 @@ export * as units from './units';
 export * as expr from './expr';
 export * as random from './random';
 export * as inertia from './inertia';
+export * as rigidBody from './rigidBody';

@@ -17,6 +17,21 @@
  * fields on the returned object — so the returned type is exactly
  * `Handle<P>`, with no excess properties to corrupt the mirror-type
  * comparison.
+ *
+ * `set()` snapshots props via `sanitizeForRecording`, not the native
+ * `structuredClone` — `surface`/`field` props (`parametric`,
+ * `colorField`, `sample`) are functions by design (both glyphs'
+ * own doc comments anticipate a fresh closure passed to `set()` every
+ * call, e.g. a time-varying field), and `structuredClone` throws on a
+ * function value. It also wouldn't help determinism/idempotence
+ * comparisons anyway: two structurally-identical closures created on
+ * separate `update()` calls are different object references, so a
+ * literal clone would still fail `toEqual` even once cloning stopped
+ * throwing. `sanitizeForRecording` clones ordinary data and replaces
+ * every function with the same stable placeholder, so those assertions
+ * compare the DATA a module computed, not incidental closure identity —
+ * first surfaced by M5's fields-gradients, the first module to run
+ * `surface`/`field` glyphs through the real contract suite.
  */
 import type { SceneContext, UpAxis } from '@/scene/SceneContext';
 import type { Handle } from '@/scene/glyphs/Handle';
@@ -55,6 +70,18 @@ export interface MockSceneContextOptions {
   up?: UpAxis;
 }
 
+/** Deep-clones plain data; replaces every function with a stable placeholder (see the file-level doc comment). */
+function sanitizeForRecording(value: unknown): unknown {
+  if (typeof value === 'function') return '[[Function]]';
+  if (Array.isArray(value)) return value.map(sanitizeForRecording);
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, v] of Object.entries(value)) out[key] = sanitizeForRecording(v);
+    return out;
+  }
+  return value;
+}
+
 export function createMockSceneContext(
   options?: MockSceneContextOptions,
 ): SceneContext & MockSceneContextTestSurface {
@@ -70,7 +97,7 @@ export function createMockSceneContext(
     return {
       set(props: Partial<P>) {
         if (disposed) throw new Error(`${kind}#${id}: set() called after dispose()`);
-        recordedSets.push({ kind, handleId: id, props: structuredClone(props) });
+        recordedSets.push({ kind, handleId: id, props: sanitizeForRecording(props) });
       },
       visible(show: boolean) {
         if (disposed) throw new Error(`${kind}#${id}: visible() called after dispose()`);

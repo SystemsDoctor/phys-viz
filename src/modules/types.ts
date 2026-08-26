@@ -18,8 +18,12 @@ import type { SceneContext } from '@/scene/SceneContext';
  * per-module marker against this number today — a bump is a signal to
  * manually sweep `src/modules/*` for the break, not something CI checks
  * for you yet.
+ *
+ * Bumped 1 -> 2 for `ModuleManifest.stepDt` (see ADR 0010) — an additive
+ * optional field, so no existing module needed a change; the bump is a
+ * paper-trail signal, not a claim that anything broke.
  */
-export const MODULE_CONTRACT_VERSION = 1;
+export const MODULE_CONTRACT_VERSION = 2;
 
 /** How a module relates to time. Prefer 'parametric' over 'stepped'. */
 export type TimeModel =
@@ -55,6 +59,12 @@ export interface ModuleManifest {
   schemaVersion: number;
   /** Course level, for filtering the gallery. */
   level: 'algebra-based' | 'calculus-based' | 'upper-division';
+  /**
+   * Fixed integration timestep in seconds for a `stepped` module's
+   * `step()`/`reset()` (default 1/240s if omitted). Meaningless for
+   * `static`/`parametric` models. See ARCHITECTURE.md §12, ADR 0010.
+   */
+  stepDt?: number;
 }
 
 /* ---------- Parameters: declared as data, rendered by the shell ---------- */

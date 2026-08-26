@@ -1,9 +1,198 @@
 import type { ParamDef, LayerDef, ScalarDef } from '../types';
 
-// TODO(M5): heightmap with level curves, gradient perpendicularity,
-// directional-derivative slider, shrinking-box divergence, draggable
-// curl paddlewheel, flux through a user-shaped surface, Stokes and
-// divergence theorems as two converging numbers. See ARCHITECTURE.md §20.
-export const params: ParamDef[] = [];
-export const layers: LayerDef[] = [];
-export const scalars: ScalarDef[] = [];
+export const params: ParamDef[] = [
+  // Scalar heightmap f(x,y)
+  {
+    kind: 'expression',
+    key: 'f',
+    urlKey: 'f',
+    label: 'f(x, y)',
+    symbol: 'f(x,y)',
+    vars: ['x', 'y'],
+    default: 'sin(x) * cos(y)',
+    group: 'Heightmap',
+  },
+  {
+    kind: 'number',
+    key: 'domain',
+    urlKey: 'dom',
+    label: 'Domain half-extent',
+    default: 3,
+    min: 1,
+    max: 5,
+    step: 0.5,
+    group: 'Heightmap',
+  },
+  {
+    kind: 'number',
+    key: 'px',
+    urlKey: 'px',
+    label: 'Probe x',
+    default: 1.2,
+    min: -3,
+    max: 3,
+    step: 0.1,
+    group: 'Heightmap',
+  },
+  {
+    kind: 'number',
+    key: 'py',
+    urlKey: 'py',
+    label: 'Probe y',
+    default: -0.8,
+    min: -3,
+    max: 3,
+    step: 0.1,
+    group: 'Heightmap',
+  },
+  {
+    kind: 'angle',
+    key: 'theta',
+    urlKey: 'th',
+    label: 'Direction û',
+    symbol: '\\theta',
+    default: 0.4,
+    group: 'Heightmap',
+  },
+
+  // Vector field F(x,y,z) — deliberately NOT grad(f): curl of a gradient
+  // is always zero, which would leave the curl paddlewheel dead.
+  {
+    kind: 'expression',
+    key: 'Fx',
+    urlKey: 'fx',
+    label: 'Fx(x, y, z)',
+    vars: ['x', 'y', 'z'],
+    default: 'x*x - y',
+    group: 'Vector field',
+  },
+  {
+    kind: 'expression',
+    key: 'Fy',
+    urlKey: 'fy',
+    label: 'Fy(x, y, z)',
+    vars: ['x', 'y', 'z'],
+    default: 'x + y*y',
+    group: 'Vector field',
+  },
+  {
+    kind: 'expression',
+    key: 'Fz',
+    urlKey: 'fz',
+    label: 'Fz(x, y, z)',
+    vars: ['x', 'y', 'z'],
+    default: 'z',
+    group: 'Vector field',
+  },
+  {
+    kind: 'number',
+    key: 'n',
+    urlKey: 'n',
+    label: 'Quadrature points',
+    default: 4,
+    min: 1,
+    max: 16,
+    step: 1,
+    group: 'Vector field',
+  },
+
+  // Shrinking-box divergence
+  {
+    kind: 'vector',
+    key: 'boxCenter',
+    urlKey: 'bxc',
+    label: 'Box center',
+    default: [1.4, 1.0, 0.6],
+    range: 3,
+    draggable: true,
+    group: 'Divergence',
+  },
+  {
+    kind: 'number',
+    key: 'boxHalfSize',
+    urlKey: 'bxs',
+    label: 'Box half-size',
+    default: 0.6,
+    min: 0.05,
+    max: 1.5,
+    step: 0.01,
+    logScale: true,
+    group: 'Divergence',
+  },
+
+  // Curl paddlewheel
+  {
+    kind: 'vector',
+    key: 'curlProbe',
+    urlKey: 'clp',
+    label: 'Curl probe',
+    default: [-1.4, -1.0, 0.6],
+    range: 3,
+    draggable: true,
+    group: 'Curl',
+  },
+
+  // Flux / Stokes — the "user-shaped surface"
+  {
+    kind: 'vector',
+    key: 'capCenter',
+    urlKey: 'cpc',
+    label: 'Cap center',
+    default: [-1.5, 1.5, 0.8],
+    range: 3,
+    draggable: true,
+    group: 'Flux & Stokes',
+  },
+  {
+    kind: 'number',
+    key: 'capRadius',
+    urlKey: 'cpr',
+    label: 'Cap boundary radius',
+    default: 1.1,
+    min: 0.3,
+    max: 2.5,
+    step: 0.1,
+    group: 'Flux & Stokes',
+  },
+  {
+    kind: 'number',
+    key: 'capDepth',
+    urlKey: 'cpd',
+    label: 'Cap depth (0 = flat disk)',
+    default: 0.8,
+    min: -1.5,
+    max: 1.5,
+    step: 0.05,
+    group: 'Flux & Stokes',
+  },
+];
+
+export const layers: LayerDef[] = [
+  { key: 'heightmap', urlKey: 'hm', label: 'Heightmap (banded level curves)', default: true },
+  { key: 'probeGradient', urlKey: 'pg', label: 'Gradient at the probe', default: true },
+  { key: 'gradientField', urlKey: 'gf', label: 'Gradient field (whole domain)', default: false },
+  { key: 'directionalDerivative', urlKey: 'dd', label: 'Directional derivative', default: false },
+  { key: 'divergenceBox', urlKey: 'db', label: 'Shrinking-box divergence', default: true },
+  { key: 'curlPaddlewheel', urlKey: 'cw', label: 'Curl paddlewheel', default: true },
+  { key: 'fluxCap', urlKey: 'fc', label: 'Flux through a user-shaped surface', default: true },
+];
+
+export const scalars: ScalarDef[] = [
+  { key: 'gradMag', label: '|∇f| at probe', symbol: '|\\nabla f|', readout: true },
+  { key: 'dirDeriv', label: 'Directional derivative', symbol: 'D_{\\hat u}f', readout: true, plottable: true },
+  { key: 'divAtBox', label: 'div F at box center', symbol: '\\nabla\\cdot\\vec F', readout: true },
+  { key: 'fluxThroughBox', label: 'Flux through box', readout: true },
+  {
+    key: 'fluxOverVolume',
+    label: 'Flux / volume',
+    symbol: '\\Phi/V',
+    readout: true,
+    plottable: true,
+  },
+  { key: 'divVolumeIntegral', label: '∫∫∫ div F dV', readout: true },
+  { key: 'divergenceGap', label: '|flux − ∫div F dV|', readout: true, plottable: true },
+  { key: 'curlMag', label: '|curl F| at probe', symbol: '|\\nabla\\times\\vec F|', readout: true },
+  { key: 'circulation', label: 'Circulation ∮F·dl', readout: true },
+  { key: 'curlFluxThroughCap', label: '∫∫ (curl F)·dA', readout: true },
+  { key: 'stokesGap', label: '|circulation − curl flux|', readout: true, plottable: true },
+];

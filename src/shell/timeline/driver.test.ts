@@ -111,3 +111,46 @@ describe('SteppedScrubber', () => {
     expect(scrubber.inProgress).toBe(false);
   });
 });
+
+describe('module-overridable dt (ADR 0010, stepDt)', () => {
+  it('FixedStepAccumulator honors a custom dt instead of FIXED_DT', () => {
+    // 1/64 is exactly representable in IEEE754 double (64 = 2^6), so
+    // accumulating it 64 times lands exactly on 1 with no float drift
+    // — unlike 1/60, which would land fractionally short.
+    const customDt = 1 / 64;
+    const acc = new FixedStepAccumulator(customDt);
+    const seen: number[] = [];
+    const taken = acc.advance(1, 1, (dt) => seen.push(dt));
+    expect(taken).toBe(64);
+    for (const dt of seen) expect(dt).toBe(customDt);
+  });
+
+  it('SteppedScrubber honors a custom dt for both step count and reported t', () => {
+    const customDt = 1 / 60;
+    const scrubber = new SteppedScrubber(customDt);
+    const targetT = 10 * customDt;
+    scrubber.begin(targetT, () => {});
+    let stepCalls = 0;
+    const progress = scrubber.tick(() => stepCalls++);
+    expect(stepCalls).toBe(10);
+    expect(progress.t).toBeCloseTo(targetT, 10);
+    expect(progress.finished).toBe(true);
+  });
+
+  it('SteppedScrubber still caps at MAX_FASTFORWARD_STEPS with a custom dt', () => {
+    const customDt = 1 / 60;
+    const scrubber = new SteppedScrubber(customDt);
+    const wayPastCap = (MAX_FASTFORWARD_STEPS + 5000) * customDt;
+    scrubber.begin(wayPastCap, () => {});
+    let stepCalls = 0;
+    while (scrubber.inProgress) scrubber.tick(() => stepCalls++);
+    expect(stepCalls).toBe(MAX_FASTFORWARD_STEPS);
+  });
+
+  it('omitting dt falls back to FIXED_DT (existing zero-arg behavior is unchanged)', () => {
+    const acc = new FixedStepAccumulator();
+    let calls = 0;
+    acc.advance(FIXED_DT, 1, () => calls++);
+    expect(calls).toBe(1);
+  });
+});

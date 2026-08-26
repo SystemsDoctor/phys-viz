@@ -330,8 +330,12 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   // fixed-timestep accumulator while playing, and reset()+chunked
   // fast-forward (SteppedScrubber) whenever t is set externally (scrub,
   // Timeline's step buttons, or the initial URL-decoded t).
-  const accumulatorRef = React.useRef(new FixedStepAccumulator());
-  const scrubberRef = React.useRef(new SteppedScrubber());
+  // A module may override the shell's default fixed timestep (ADR 0010,
+  // resolving contract gap C-1); resolved once here rather than re-read
+  // per frame, since manifest.stepDt never changes for a mounted module.
+  const stepDt = module.manifest.stepDt ?? FIXED_DT;
+  const accumulatorRef = React.useRef(new FixedStepAccumulator(stepDt));
+  const scrubberRef = React.useRef(new SteppedScrubber(stepDt));
   const lastTRef = React.useRef(useAppStore.getState().time.t);
   const programmaticRef = React.useRef(false);
 
@@ -369,7 +373,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
           );
           if (taken > 0) {
             programmaticRef.current = true;
-            useAppStore.getState().patchTime({ t: s.time.t + taken * FIXED_DT });
+            useAppStore.getState().patchTime({ t: s.time.t + taken * stepDt });
           }
         } else {
           programmaticRef.current = true;
@@ -380,7 +384,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     }
     frameId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameId);
-  }, [mounted, module, moduleStateOf]);
+  }, [mounted, module, moduleStateOf, stepDt]);
 
   // An externally-set t (scrub, step buttons, URL-decoded initial t)
   // triggers a stepped module's reset()+fast-forward. Playback's own

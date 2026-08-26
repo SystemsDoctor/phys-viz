@@ -29,6 +29,10 @@
  *  9. No NaN in any scalar across a sampling of the parameter space
  *     (100 quasi-random states).
  * 10. Every explain.md, if present, parses.
+ * 11. For `stepped` modules: `step()` and `reset()` are actually
+ *     implemented (M5-2/M5-8) — `ModuleInstance.step`/`reset` are
+ *     optional on the type for every timeModel, so a `stepped` module
+ *     that forgot them was previously unenforced.
  *
  * Assertions 4-7 and 9 run under BOTH up-axis settings (M4-10, ADR
  * 0009) — cheap leverage that catches a module which only half-reads
@@ -120,6 +124,16 @@ describe('module contract', () => {
           }
         }
       });
+
+      it.skipIf(manifest.timeModel !== 'stepped')(
+        'stepped modules implement step() and reset()',
+        async () => {
+          const module = await loadModule(manifest.id);
+          const instance = module.create(createMockSceneContext());
+          expect(typeof instance.step).toBe('function');
+          expect(typeof instance.reset).toBe('function');
+        },
+      );
 
       for (const up of UP_AXES) {
         describe(`up=${up}`, () => {

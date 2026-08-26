@@ -6,8 +6,9 @@
  * unit-testable without React or a real ModuleInstance.
  *
  * Two obligations §12 places on the SHELL, not the module:
- *  - Fixed timestep only (default 1/240s), accumulated — behaviour must
- *    be identical regardless of frame rate.
+ *  - Fixed timestep only (default 1/240s, module-overridable via
+ *    `manifest.stepDt` — ADR 0010), accumulated — behaviour must be
+ *    identical regardless of frame rate.
  *  - Scrubbing is reset() + fast-forward, capped at 20,000 steps, and
  *    the fast-forward loop must be CHUNKED across animation frames
  *    rather than blocking — a naive `for` loop calling an expensive
@@ -29,13 +30,16 @@ const MAX_STEPS_PER_FRAME = 240;
 export class FixedStepAccumulator {
   private acc = 0;
 
-  /** Advances by `frameDt` seconds at `speed`x; calls `step(FIXED_DT)` once per whole fixed step consumed. Returns the number of steps taken (for tests/telemetry). */
+  /** `dt` defaults to FIXED_DT; pass a module's `manifest.stepDt` override (ADR 0010) to use a different fixed step. */
+  constructor(private readonly dt: number = FIXED_DT) {}
+
+  /** Advances by `frameDt` seconds at `speed`x; calls `step(dt)` once per whole fixed step consumed. Returns the number of steps taken (for tests/telemetry). */
   advance(frameDt: number, speed: number, step: (dt: number) => void): number {
     this.acc += frameDt * speed;
     let taken = 0;
-    while (this.acc >= FIXED_DT && taken < MAX_STEPS_PER_FRAME) {
-      step(FIXED_DT);
-      this.acc -= FIXED_DT;
+    while (this.acc >= this.dt && taken < MAX_STEPS_PER_FRAME) {
+      step(this.dt);
+      this.acc -= this.dt;
       taken++;
     }
     return taken;
@@ -70,11 +74,14 @@ export class SteppedScrubber {
   private capped = false;
   private active = false;
 
+  /** `dt` defaults to FIXED_DT; pass a module's `manifest.stepDt` override (ADR 0010) to use a different fixed step. */
+  constructor(private readonly dt: number = FIXED_DT) {}
+
   /** Starts a new scrub toward `targetT`, calling `reset()` immediately. */
   begin(targetT: number, reset: () => void): void {
     reset();
     this.stepsDone = 0;
-    const wanted = Math.max(0, Math.round(targetT / FIXED_DT));
+    const wanted = Math.max(0, Math.round(targetT / this.dt));
     this.capped = wanted > MAX_FASTFORWARD_STEPS;
     this.targetSteps = Math.min(wanted, MAX_FASTFORWARD_STEPS);
     this.active = this.stepsDone < this.targetSteps;
@@ -89,13 +96,13 @@ export class SteppedScrubber {
     const remaining = this.targetSteps - this.stepsDone;
     const n = Math.min(remaining, MAX_STEPS_PER_FRAME);
     for (let i = 0; i < n; i++) {
-      step(FIXED_DT);
+      step(this.dt);
       this.stepsDone++;
     }
     if (this.stepsDone >= this.targetSteps) this.active = false;
     return {
       stepsDone: this.stepsDone,
-      t: this.stepsDone * FIXED_DT,
+      t: this.stepsDone * this.dt,
       finished: !this.active,
       capped: this.capped,
     };

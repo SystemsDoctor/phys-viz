@@ -20,6 +20,10 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
+    // Emits dist/.vite/manifest.json (source file -> chunk, with static
+    // vs. dynamic imports distinguished) — what scripts/check-bundle-budget.mjs
+    // reads to enforce the §17 bundle budgets (X-3/X-4).
+    manifest: true,
     rollupOptions: {
       output: {
         manualChunks: {

@@ -5,21 +5,56 @@
  * non-blank render, assert no console errors, toggle each layer once,
  * navigate away, assert WebGL context count did not grow.
  *
- * TODO(M4-8): implement the per-module sweep properly (dynamic module
- * ids, layer toggling, context-count-on-navigate-away). `demo scene
- * renders...` below is M2-19's acceptance evidence — it still targets
- * `/_dev/demo-scene` (an unlisted route App.tsx keeps mounted
- * specifically so this measurement stays valid now that `/` is the
- * real gallery, not the throwaway scene), using Playwright's real
+ * `demo scene renders...` below is M2-19's acceptance evidence — it
+ * still targets `/_dev/demo-scene` (an unlisted route App.tsx keeps
+ * mounted specifically so this measurement stays valid now that `/` is
+ * the real gallery, not the throwaway scene), using Playwright's real
  * (compositing) browser — the in-app preview pane used elsewhere in
  * this project's dev workflow does not composite frames at all, so it
  * cannot answer this question.
+ *
+ * The per-module sweep at the bottom of this file (M4-8) reads module
+ * ids off the filesystem (mirroring `registry.ts`'s own manifest glob,
+ * one lowercase-named folder per module) rather than importing the
+ * registry itself — `import.meta.glob` is a Vite build-time construct
+ * the Playwright/Node test runner can't execute — so the sweep never
+ * needs a per-module edit as the library grows.
  */
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
+const modulesDir = path.resolve(dirname, '../../src/modules');
+const moduleIds = fs
+  .readdirSync(modulesDir)
+  .filter((name) => /^[a-z]/.test(name))
+  .filter((name) => fs.existsSync(path.join(modulesDir, name, 'manifest.ts')));
 
 test('gallery loads', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveTitle(/PhysViz/i);
+});
+
+test('gallery TTI (§17 budget): first module card is interactive well within 1.5s of navigation start', async ({
+  page,
+}) => {
+  // A literal Lighthouse TTI trace isn't scriptable here; this measures
+  // the same thing Lighthouse's TTI is a proxy for — how long after
+  // navigation starts until the page has something a user can actually
+  // click — via the Navigation Timing API plus a real DOM assertion,
+  // against a production preview build (not `npm run dev`).
+  await page.goto('/');
+  const firstCard = page.locator('.pv-gallery__card').first();
+  await expect(firstCard).toBeVisible();
+
+  const domInteractiveMs = await page.evaluate(() => {
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    return nav.domInteractive - nav.startTime;
+  });
+  console.log(`[perf] gallery domInteractive: ${domInteractiveMs.toFixed(0)} ms`);
+  expect(domInteractiveMs).toBeLessThan(1500);
 });
 
 test('demo scene renders every glyph with no console errors', async ({ page }) => {
@@ -86,11 +121,151 @@ test('a real module route (vector-algebra) renders through the full ModuleView s
   // still be in flight when the params/layers above have already
   // rendered — give it its own wait rather than asserting immediately.
   await expect(page.getByRole('heading', { name: 'What am I looking at?' })).toBeVisible();
-  // one inline $...$ in "What should I notice?" plus the two $$...$$ equations
-  await expect(page.locator('.pv-explain .katex')).toHaveCount(3);
+  // every inline $...$ and $$...$$ span across the expanded M4 explain.md
+  await expect(page.locator('.pv-explain .katex')).toHaveCount(20);
 
   expect(errors).toEqual([]);
 });
+
+/**
+ * M4-5: every demonstration state must be reachable in <= 3 clicks from
+ * a bookmarked link, and each state's own URL must itself be a valid
+ * bookmark (reload reproduces it exactly). "Open the module" from the
+ * gallery counts as click 1 in the budget below.
+ */
+const DEMONSTRATION_STATES: {
+  name: string;
+  clicksFromGallery: number;
+  reach: (page: import('@playwright/test').Page) => Promise<void>;
+  confirm: (page: import('@playwright/test').Page) => Promise<void>;
+}[] = [
+  {
+    name: 'sum (head-to-tail)',
+    clicksFromGallery: 2, // open module, check "Sum"
+    reach: async (page) => {
+      await page.getByRole('checkbox', { name: 'Sum a + b' }).check();
+    },
+    confirm: async (page) => {
+      await expect(page.getByRole('checkbox', { name: 'Sum a + b' })).toBeChecked();
+    },
+  },
+  {
+    name: 'sum (parallelogram)',
+    clicksFromGallery: 3, // open module, check "Sum", select "Parallelogram"
+    reach: async (page) => {
+      await page.getByRole('checkbox', { name: 'Sum a + b' }).check();
+      await page.getByLabel('Sum construction').selectOption('para');
+    },
+    confirm: async (page) => {
+      await expect(page.getByLabel('Sum construction')).toHaveValue('para');
+    },
+  },
+  {
+    name: 'component decomposition on a rotated basis',
+    clicksFromGallery: 2, // open module, check "Components on rotated basis"
+    reach: async (page) => {
+      await page.getByRole('checkbox', { name: 'Components on rotated basis' }).check();
+    },
+    confirm: async (page) => {
+      await expect(
+        page.getByRole('checkbox', { name: 'Components on rotated basis' }),
+      ).toBeChecked();
+    },
+  },
+  {
+    name: 'direction cosines',
+    clicksFromGallery: 2,
+    reach: async (page) => {
+      await page.getByRole('checkbox', { name: 'Direction cosines of a' }).check();
+    },
+    confirm: async (page) => {
+      await expect(page.getByRole('checkbox', { name: 'Direction cosines of a' })).toBeChecked();
+    },
+  },
+  {
+    name: 'projection of a on b',
+    clicksFromGallery: 2,
+    reach: async (page) => {
+      await page.getByRole('checkbox', { name: 'Projection of a on b' }).check();
+    },
+    confirm: async (page) => {
+      await expect(page.getByRole('checkbox', { name: 'Projection of a on b' })).toBeChecked();
+    },
+  },
+  {
+    name: 'cross product with right-hand-rule curl',
+    clicksFromGallery: 2,
+    reach: async (page) => {
+      await page.getByRole('checkbox', { name: 'Cross product a × b' }).check();
+    },
+    confirm: async (page) => {
+      await expect(page.getByRole('checkbox', { name: 'Cross product a × b' })).toBeChecked();
+    },
+  },
+  {
+    name: 'parallelogram area',
+    clicksFromGallery: 2,
+    reach: async (page) => {
+      await page.getByRole('checkbox', { name: 'Parallelogram area' }).check();
+    },
+    confirm: async (page) => {
+      await expect(page.getByRole('checkbox', { name: 'Parallelogram area' })).toBeChecked();
+    },
+  },
+  {
+    name: 'scalar triple product (parallelepiped)',
+    clicksFromGallery: 2,
+    reach: async (page) => {
+      await page
+        .getByRole('checkbox', { name: 'Scalar triple product (parallelepiped)' })
+        .check();
+    },
+    confirm: async (page) => {
+      await expect(
+        page.getByRole('checkbox', { name: 'Scalar triple product (parallelepiped)' }),
+      ).toBeChecked();
+    },
+  },
+  {
+    name: '2D restriction applied to the cross product',
+    clicksFromGallery: 3, // open module, check "Cross product", check "Restrict to xy-plane"
+    reach: async (page) => {
+      await page.getByRole('checkbox', { name: 'Cross product a × b' }).check();
+      await page.getByRole('checkbox', { name: 'Restrict to xy-plane (2D)' }).check();
+    },
+    confirm: async (page) => {
+      await expect(page.getByRole('checkbox', { name: 'Cross product a × b' })).toBeChecked();
+      await expect(
+        page.getByRole('checkbox', { name: 'Restrict to xy-plane (2D)' }),
+      ).toBeChecked();
+    },
+  },
+];
+
+for (const state of DEMONSTRATION_STATES) {
+  test(`M4-5 demonstration state "${state.name}" is <= 3 clicks from the gallery and bookmarkable`, async ({
+    page,
+  }) => {
+    expect(state.clicksFromGallery).toBeLessThanOrEqual(3);
+
+    // Click 1: open the module from the gallery.
+    await page.goto('/');
+    await page.getByRole('link', { name: /Vector Algebra/ }).click();
+    await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+
+    // Remaining clicks: reach the demonstration state.
+    await state.reach(page);
+    await state.confirm(page);
+
+    // The resulting URL must itself be a valid bookmark: reloading it
+    // directly (no clicks at all) must reproduce the exact same state.
+    await page.waitForTimeout(400); // state->URL sync is debounced (M3-23)
+    const url = page.url();
+    await page.goto(url);
+    await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+    await state.confirm(page);
+  });
+}
 
 test('keyboard map (§16): "?" opens the shortcut overlay, "1" toggles the first layer', async ({
   page,
@@ -215,4 +390,48 @@ test('M3-G gate: control-showcase renders a complete usable UI with zero module 
   expect(errors).toEqual([]);
 });
 
-// TODO: for (const id of moduleIds) { test(`${id} renders without console errors`, ...) }
+for (const id of moduleIds) {
+  test(`${id}: renders, no console errors, every layer toggles, disposes its WebGL context on navigate-away`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
+    page.on('pageerror', (err) => errors.push(err.message));
+
+    await page.goto('#/m/' + id);
+    const canvas = page.locator('canvas.pv-viewport-canvas');
+    await expect(canvas).toBeVisible();
+    await page.waitForTimeout(1000);
+
+    const nonBlank = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          requestAnimationFrame(() => {
+            const c = document.querySelector('canvas.pv-viewport-canvas') as HTMLCanvasElement;
+            const blank = document.createElement('canvas');
+            blank.width = c.width;
+            blank.height = c.height;
+            resolve(c.toDataURL() !== blank.toDataURL());
+          });
+        }),
+    );
+    expect(nonBlank).toBe(true);
+
+    // Toggle every declared layer once — auto-generated UI, no
+    // module-specific selector needed.
+    const layerCheckboxes = page.locator('.pv-layer-manager input[type="checkbox"]');
+    const layerCount = await layerCheckboxes.count();
+    for (let i = 0; i < layerCount; i++) {
+      await layerCheckboxes.nth(i).click();
+    }
+
+    expect(errors).toEqual([]);
+
+    // Navigate away and confirm disposal left no leaked canvas/WebGL
+    // context behind (§18, M2-20's disposal discipline).
+    await page.goto('#/');
+    await expect(page.locator('canvas')).toHaveCount(0);
+  });
+}

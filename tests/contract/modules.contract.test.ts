@@ -6,8 +6,7 @@
  * must pass to merge — no module-specific test code is required to get
  * this coverage.
  *
- * TODO(M1-M3): implement each assertion as the substrate it depends on
- * (MockSceneContext, urlCodec) lands. Checklist, verbatim from §18:
+ * Checklist, verbatim from §18:
  *
  *  1. Manifest is well-formed; id matches its folder name.
  *  2. urlKeys are unique within the module and <= 4 characters.
@@ -30,14 +29,23 @@
  *  9. No NaN in any scalar across a sampling of the parameter space
  *     (100 quasi-random states).
  * 10. Every explain.md, if present, parses.
+ *
+ * Assertions 4-7 and 9 run under BOTH up-axis settings (M4-10, ADR
+ * 0009) — cheap leverage that catches a module which only half-reads
+ * `ctx.up`, since idempotence/determinism/disposal/NaN-freedom must all
+ * hold regardless of which axis is "up".
  */
 import { describe, it, expect } from 'vitest';
-import { manifests, loadModule } from '@/modules/registry';
+import { manifests, loadModule, loadExplain } from '@/modules/registry';
 import { encodeState, decodeState } from '@/shell/state/urlCodec';
 import { paramDefaults } from '@/shell/state/store';
 import { createRng, nextRange } from '@/kernel/random';
-import type { ParamDef } from '@/modules/types';
+import { createMockSceneContext } from '@/modules/testing/MockSceneContext';
+import { parseExplain } from '@/shell/explain';
+import type { ParamDef, ModuleState, PhysicsModule } from '@/modules/types';
+import type { UpAxis } from '@/scene/SceneContext';
 import type { ParamValue } from '@/shell/state/store';
+import type { RecordedSet } from '@/modules/testing/MockSceneContext';
 
 /**
  * A random but valid value per ParamDef kind, seeded (not Math.random)
@@ -66,6 +74,29 @@ function randomParamValue(def: ParamDef, rng: () => number): ParamValue {
   }
 }
 
+function defaultLayers(module: PhysicsModule): Record<string, boolean> {
+  return Object.fromEntries(module.layers.map((l) => [l.key, l.default]));
+}
+
+function stateAt(module: PhysicsModule, t: number): ModuleState {
+  return { params: paramDefaults(module.params), layers: defaultLayers(module), t };
+}
+
+/** Keep only the last recorded `set()` per handle — the final scene state a run settles on. */
+function lastSetPerHandle(sets: readonly RecordedSet[]): Map<number, RecordedSet> {
+  const out = new Map<number, RecordedSet>();
+  for (const s of sets) out.set(s.handleId, s);
+  return out;
+}
+
+function collectNumbers(value: unknown, out: number[]): void {
+  if (typeof value === 'number') out.push(value);
+  else if (Array.isArray(value)) value.forEach((v) => collectNumbers(v, out));
+  else if (value && typeof value === 'object') Object.values(value).forEach((v) => collectNumbers(v, out));
+}
+
+const UP_AXES: readonly UpAxis[] = ['y', 'z'];
+
 describe('module contract', () => {
   for (const manifest of manifests) {
     describe(manifest.id, () => {
@@ -73,14 +104,137 @@ describe('module contract', () => {
         expect(manifest.id).toMatch(/^[a-z][a-z0-9-]*$/);
       });
 
-      it.todo('urlKeys are unique and <= 4 characters');
-      it.todo('every numeric param default lies within [min, max]');
-      it.todo('create -> update(defaults) -> dispose leaves zero undisposed handles');
-      it.todo('update is idempotent regardless of history');
-      it.todo('update(A) is deterministic when called twice in a row');
-      it.todo('scalars() is pure');
-      it.todo('scalars(A) is deterministic when called twice in a row');
-      it.todo('parametric modules: update({t}) is independent of history');
+      it('declares urlKeys that are unique and <= 4 characters', async () => {
+        const module = await loadModule(manifest.id);
+        const keys = module.params.map((p) => p.urlKey);
+        expect(new Set(keys).size).toBe(keys.length);
+        for (const k of keys) expect(k.length).toBeLessThanOrEqual(4);
+      });
+
+      it('every numeric param default lies within [min, max]', async () => {
+        const module = await loadModule(manifest.id);
+        for (const p of module.params) {
+          if (p.kind === 'number') {
+            expect(p.default).toBeGreaterThanOrEqual(p.min);
+            expect(p.default).toBeLessThanOrEqual(p.max);
+          }
+        }
+      });
+
+      for (const up of UP_AXES) {
+        describe(`up=${up}`, () => {
+          it('create -> update(defaults) -> dispose leaves zero undisposed handles', async () => {
+            const module = await loadModule(manifest.id);
+            const ctx = createMockSceneContext({ up });
+            const instance = module.create(ctx);
+            instance.update(stateAt(module, 0));
+            instance.dispose();
+            expect(ctx.stats.disposed).toBe(ctx.stats.created);
+          });
+
+          it('update is idempotent regardless of history', async () => {
+            const module = await loadModule(manifest.id);
+            const a = stateAt(module, 0);
+            const b: ModuleState = { ...a, t: 1 };
+
+            const ctxDirect = createMockSceneContext({ up });
+            const direct = module.create(ctxDirect);
+            direct.update(a);
+            const directFinal = lastSetPerHandle(ctxDirect.recordedSets);
+
+            const ctxHistory = createMockSceneContext({ up });
+            const withHistory = module.create(ctxHistory);
+            withHistory.update(a);
+            withHistory.update(b);
+            withHistory.update(a);
+            const historyFinal = lastSetPerHandle(ctxHistory.recordedSets);
+
+            expect(historyFinal).toEqual(directFinal);
+          });
+
+          it('update(A) is deterministic when called twice in a row', async () => {
+            const module = await loadModule(manifest.id);
+            const a = stateAt(module, 0);
+            const ctx = createMockSceneContext({ up });
+            const instance = module.create(ctx);
+
+            instance.update(a);
+            const first = ctx.recordedSets;
+            ctx.resetRecording();
+            instance.update(a);
+            const second = ctx.recordedSets;
+
+            expect(second).toEqual(first);
+          });
+
+          it('scalars() is pure', async () => {
+            const module = await loadModule(manifest.id);
+            const a = stateAt(module, 0);
+            const ctx = createMockSceneContext({ up });
+            const instance = module.create(ctx);
+            instance.update(a);
+            ctx.resetRecording();
+            const before = ctx.stats.created;
+
+            instance.scalars(a);
+
+            expect(ctx.recordedSets.length).toBe(0);
+            expect(ctx.stats.created).toBe(before);
+          });
+
+          it('scalars(A) is deterministic when called twice in a row', async () => {
+            const module = await loadModule(manifest.id);
+            const a = stateAt(module, 0);
+            const ctx = createMockSceneContext({ up });
+            const instance = module.create(ctx);
+            instance.update(a);
+
+            expect(instance.scalars(a)).toEqual(instance.scalars(a));
+          });
+
+          it.skipIf(manifest.timeModel !== 'parametric')(
+            'parametric modules: update({t}) is independent of history',
+            async () => {
+              const module = await loadModule(manifest.id);
+
+              const ctxFresh = createMockSceneContext({ up });
+              const fresh = module.create(ctxFresh);
+              fresh.update(stateAt(module, 5));
+              const freshFinal = lastSetPerHandle(ctxFresh.recordedSets);
+
+              const ctxSeq = createMockSceneContext({ up });
+              const seq = module.create(ctxSeq);
+              seq.update(stateAt(module, 0));
+              seq.update(stateAt(module, 5));
+              const seqFinal = lastSetPerHandle(ctxSeq.recordedSets);
+
+              expect(seqFinal).toEqual(freshFinal);
+            },
+          );
+
+          it('no NaN across a sampling of the parameter space', async () => {
+            const module = await loadModule(manifest.id);
+            const seed = manifest.id.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0);
+            const rng = createRng(seed);
+            const ctx = createMockSceneContext({ up });
+            const instance = module.create(ctx);
+            const layers = defaultLayers(module);
+
+            for (let i = 0; i < 100; i++) {
+              const params: Record<string, ParamValue> = {};
+              for (const p of module.params) params[p.key] = randomParamValue(p, rng);
+              const t = nextRange(rng, 0, 20);
+              const state: ModuleState = { params, layers, t };
+
+              instance.update(state);
+              const numbers: number[] = [];
+              collectNumbers(instance.scalars(state), numbers);
+              for (const n of numbers) expect(Number.isNaN(n)).toBe(false);
+            }
+            instance.dispose();
+          });
+        });
+      }
 
       it('URL round-trip: encode(defaults) -> decode deep-equals defaults', async () => {
         const module = await loadModule(manifest.id);
@@ -90,13 +244,13 @@ describe('module contract', () => {
           layers: module.layers,
         };
         const defaults = paramDefaults(module.params);
-        const defaultLayers = Object.fromEntries(module.layers.map((l) => [l.key, l.default]));
+        const defLayers = defaultLayers(module);
 
         const encoded = encodeState(
           {
             moduleId: module.manifest.id,
             params: defaults,
-            layers: defaultLayers,
+            layers: defLayers,
             time: { t: 0, playing: false, speed: 1, direction: 1 },
             camera: decodeState('', codecCtx).camera!,
             ui: { presenterMode: false, predictMode: false, panelsOpen: [] },
@@ -106,7 +260,7 @@ describe('module contract', () => {
         );
         const decoded = decodeState(encoded, codecCtx);
         expect(decoded.params).toEqual(defaults);
-        expect(decoded.layers).toEqual(defaultLayers);
+        expect(decoded.layers).toEqual(defLayers);
       });
 
       it('URL round-trip: encode(randomized) -> decode deep-equals the randomized state', async () => {
@@ -145,8 +299,11 @@ describe('module contract', () => {
         expect(decoded.time?.t).toBe(t);
       });
 
-      it.todo('no NaN across a sampling of the parameter space');
-      it.todo('explain.md, if present, parses');
+      it('explain.md, if present, parses', async () => {
+        const source = await loadExplain(manifest.id);
+        if (source === null) return;
+        expect(parseExplain(source).ok).toBe(true);
+      });
     });
   }
 

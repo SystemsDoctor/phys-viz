@@ -1,11 +1,11 @@
 /**
- * Entry point. Mounts the shell. TODO(M0/M3): implement once App.tsx
- * (shell/App.tsx) is real.
+ * Entry point. Mounts the shell.
  */
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from '@/shell/App';
 import '@/design/tokens.css';
+import '@/design/shell.css';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('main.tsx: #root not found in index.html');

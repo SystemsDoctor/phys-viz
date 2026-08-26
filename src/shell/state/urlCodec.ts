@@ -180,7 +180,12 @@ export function encodeState(state: AppState, ctx: CodecContext): string {
   return `?z=${blob}`;
 }
 
-export function decodeState(search: string, ctx: CodecContext): Partial<AppState> {
+export interface DecodedState extends Partial<AppState> {
+  /** The `v=` the URL was actually encoded at — may be older than `ctx.schemaVersion`; the caller (ModuleView) is what runs migrations to bridge the gap. */
+  schemaVersion: number;
+}
+
+export function decodeState(search: string, ctx: CodecContext): DecodedState {
   const defaultCamera = ctx.defaultCamera ?? DEFAULT_CAMERA;
   const rawQuery = search.startsWith('?') ? search.slice(1) : search;
   let query = new URLSearchParams(rawQuery);
@@ -191,7 +196,10 @@ export function decodeState(search: string, ctx: CodecContext): Partial<AppState
     query = new URLSearchParams(decompressed ?? '');
   }
 
-  const out: Partial<AppState> = {};
+  const versionRaw = query.get('v');
+  const out: DecodedState = {
+    schemaVersion: versionRaw !== null ? Number(versionRaw) : ctx.schemaVersion,
+  };
 
   // Fully resolved, not just the URL delta: every declared param/layer
   // key is present (default-filled, then overridden from the URL), so

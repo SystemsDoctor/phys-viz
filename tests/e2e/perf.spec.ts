@@ -35,7 +35,12 @@ test.use({
 test('demo scene sustains a stable frame rate with no net per-frame heap growth', async ({
   page,
 }) => {
-  await page.goto('/');
+  // /_dev/demo-scene: an unlisted route App.tsx keeps mounted
+  // specifically so this M2-19 measurement stays valid now that `/` is
+  // the real gallery (M3), not the throwaway demo scene. Hash routing —
+  // no leading slash, so it joins onto baseURL's /phys-viz/ instead of
+  // replacing it.
+  await page.goto('#/_dev/demo-scene');
   await page.waitForSelector('canvas');
   // Let module loading, first layout, and JIT warm-up settle.
   await page.waitForTimeout(1000);

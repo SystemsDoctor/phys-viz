@@ -19,7 +19,7 @@
  * the renderer, the camera, the DOM overlay, and its own bookkeeping.
  */
 import * as THREE from 'three';
-import { raySphereIntersect } from '@/kernel/geometry';
+import { raySphereIntersect, rayPlaneIntersect } from '@/kernel/geometry';
 import { createCameraController } from './camera';
 import type { CameraController } from './camera';
 import { createSceneContext } from './createSceneContext';
@@ -47,6 +47,21 @@ interface MaterialBase {
   linewidth: number;
 }
 
+/** §15 "layer toggles fade in over ~150ms" — matches tokens.css's --motion-layer (also 0ms under prefers-reduced-motion, mirrored here via ViewportOptions.reducedMotion). */
+const FADE_IN_MS = 150;
+
+interface FadeMaterialState {
+  material: THREE.Material;
+  baseOpacity: number;
+  wasTransparent: boolean;
+}
+
+interface ActiveFade {
+  group: THREE.Object3D;
+  materials: FadeMaterialState[];
+  startMs: number | null;
+}
+
 export class Viewport {
   readonly ctx: SceneContext;
   readonly camera: CameraController;
@@ -61,6 +76,8 @@ export class Viewport {
   };
   private readonly materialBase = new WeakMap<THREE.Material, MaterialBase>();
   private readonly pickTargets = new Set<PickTarget>();
+  private readonly activeFades = new Map<string, ActiveFade>();
+  private readonly reducedMotion: boolean;
   private readonly overlayEl: HTMLDivElement;
   private readonly resizeObserver: ResizeObserver;
   private readonly cameraChangeUnsub: () => void;
@@ -83,6 +100,7 @@ export class Viewport {
     this.canvas = options.canvas;
     this.renderOnDemand = options.renderOnDemand ?? false;
     this.projectorModeOn = options.projectorMode ?? false;
+    this.reducedMotion = options.reducedMotion ?? false;
 
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -143,6 +161,13 @@ export class Viewport {
     this.dirty = true;
   }
 
+  /** The active camera's forward (viewing) direction — the natural plane normal for a screen-facing drag (`screenPointOnPlane`), so dragging a point doesn't fight an arbitrary world-axis plane. Shell-only (M3-6). */
+  cameraForward(): readonly [number, number, number] {
+    const dir = new THREE.Vector3();
+    this.camera.object.getWorldDirection(dir);
+    return [dir.x, dir.y, dir.z];
+  }
+
   setProjectorMode(on: boolean): void {
     this.projectorModeOn = on;
     for (const kind of ['line', 'fill'] as const) {
@@ -150,6 +175,105 @@ export class Viewport {
         this.applyProjectorToMaterial(material, kind);
     }
     this.requestRender();
+  }
+
+  /**
+   * Sets a NAMED group's visibility — the wiring `LayerManager` (§9)
+   * needs but `SceneContext`'s `GroupHandle` deliberately doesn't
+   * expose (it's `{id: string}` only; modules attach glyphs to a group,
+   * they never toggle one). Only the shell calls this, via the same
+   * group name a module passed to `ctx.group(name)`.
+   *
+   * Turning a group ON fades every descendant mesh/line's material
+   * opacity in over FADE_IN_MS (§15), skipped under reduced motion.
+   * Turning OFF is instant — §15 only asks for a fade-IN ("students see
+   * what appeared"), and fading out risks masking content the student
+   * just chose to hide with a lingering translucent ghost.
+   */
+  setGroupVisible(name: string, visible: boolean): void {
+    const group = this.resolveGroup({ id: name });
+
+    if (!visible) {
+      this.activeFades.delete(name);
+      group.visible = false;
+      this.requestRender();
+      return;
+    }
+
+    if (group.visible && !this.activeFades.has(name)) return; // already visible, nothing to do
+
+    group.visible = true;
+    if (this.reducedMotion) {
+      this.requestRender();
+      return;
+    }
+
+    const materials: FadeMaterialState[] = [];
+    const seen = new Set<THREE.Material>();
+    group.traverse((obj) => {
+      const withMaterial = obj as THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
+      const mats = Array.isArray(withMaterial.material)
+        ? withMaterial.material
+        : withMaterial.material
+          ? [withMaterial.material]
+          : [];
+      for (const m of mats) {
+        if (seen.has(m)) continue;
+        seen.add(m);
+        materials.push({ material: m, baseOpacity: m.opacity, wasTransparent: m.transparent });
+        m.transparent = true;
+        m.opacity = 0;
+      }
+    });
+    this.activeFades.set(name, { group, materials, startMs: null });
+    this.requestRender();
+  }
+
+  /** Advances every in-progress group fade by one frame; removes and restores materials for any that finished. Called once per rendered frame from `tick`. */
+  private advanceFades(nowMs: number): void {
+    if (this.activeFades.size === 0) return;
+    for (const [name, fade] of this.activeFades) {
+      if (fade.startMs === null) fade.startMs = nowMs;
+      const t = Math.min(1, (nowMs - fade.startMs) / FADE_IN_MS);
+      for (const m of fade.materials) m.material.opacity = m.baseOpacity * t;
+      if (t >= 1) {
+        for (const m of fade.materials) {
+          m.material.opacity = m.baseOpacity;
+          m.material.transparent = m.wasTransparent;
+        }
+        this.activeFades.delete(name);
+      }
+    }
+    this.requestRender();
+  }
+
+  /**
+   * Projects a screen point through the active camera onto a world
+   * plane, via `kernel/geometry`'s `rayPlaneIntersect` — the other half
+   * of M2-15's picking budget: `pick()` finds WHICH draggable target a
+   * pointer-down hit; this turns a subsequent pointer-move into a new
+   * 3D point on it. Shell-only (M3-6 owns all pointer handling); `x`/`y`
+   * are CSS pixels, canvas-relative, same convention as `pick()`.
+   */
+  screenPointOnPlane(
+    x: number,
+    y: number,
+    planePoint: readonly [number, number, number],
+    planeNormal: readonly [number, number, number],
+  ): readonly [number, number, number] | null {
+    this.pickScratchVec2.set((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pickScratchVec2, this.camera.object);
+    const origin: readonly [number, number, number] = [
+      this.raycaster.ray.origin.x,
+      this.raycaster.ray.origin.y,
+      this.raycaster.ray.origin.z,
+    ];
+    const direction: readonly [number, number, number] = [
+      this.raycaster.ray.direction.x,
+      this.raycaster.ray.direction.y,
+      this.raycaster.ray.direction.z,
+    ];
+    return rayPlaneIntersect(origin, direction, planePoint, planeNormal);
   }
 
   /** Ray-cast against every visible registered draggable target. `x`/`y` are CSS pixels, canvas-relative. */
@@ -270,6 +394,7 @@ export class Viewport {
 
   private readonly tick = (nowMs: number): void => {
     this.camera.update();
+    this.advanceFades(nowMs);
     const shouldRender = !this.renderOnDemand || this.dirty;
     if (shouldRender) {
       const dt = this.lastFrameTimeMs ? (nowMs - this.lastFrameTimeMs) / 1000 : 0;

@@ -3,10 +3,494 @@
  * `loadModule(id)`, mounts the Viewport, and renders the auto-generated
  * control panel, layer manager, timeline, plots, readouts, and explain
  * panel around it. Wrapped in ModuleErrorBoundary (§9, §16).
- * TODO(M3/M4): implement.
+ *
+ * Owns everything ARCHITECTURE.md §13 says the shell (not a module)
+ * must: the render loop subscribes to the Zustand store OUTSIDE React
+ * and calls `instance.update()` directly; React only re-renders the
+ * chrome (panels) around the canvas. Also owns: seeding state from the
+ * URL (+ running migrations when the URL's v= is older than the
+ * module's schemaVersion), syncing state back to the URL (debounced,
+ * always `replace` — see hashRouter.ts's history-discipline note),
+ * driving `stepped`/`parametric` time, group visibility per layer
+ * toggle, and drag-to-param wiring (M3-6) via Viewport's picking.
  */
 import React from 'react';
+import { Link } from 'wouter';
+import type { PhysicsModule, ModuleInstance, ModuleState } from '@/modules/types';
+import { loadModule } from '@/modules/registry';
+import { Viewport } from '@/scene/Viewport';
+import { ParamPanel } from '../params';
+import { LayerManager } from '../layers';
+import { Timeline } from '../timeline';
+import { FixedStepAccumulator, SteppedScrubber, FIXED_DT } from '../timeline/driver';
+import { ReadoutTable } from '../readouts';
+import { TimeSeriesPlot } from '../plots/TimeSeriesPlot';
+import { ModuleErrorBoundary } from '../errors';
+import { useAppStore, paramDefaults, DEFAULT_APP_STATE } from '../state/store';
+import type { AppState, ParamValue } from '../state/store';
+import { encodeState, decodeState } from '../state/urlCodec';
+import { migrations } from '../state/migrations';
+import { useHashSearch, navigateHash } from './hashRouter';
 
-export function ModuleView(_props: { moduleId: string }): React.ReactElement {
-  throw new Error('shell/routes/ModuleView: not implemented (see M3 in ARCHITECTURE.md §20)');
+const URL_SYNC_DEBOUNCE_MS = 250; // §14 hardening note, applies to every field written on this path, not just camera
+
+function defaultCameraFor(module: PhysicsModule): AppState['camera'] {
+  const preset = module.defaultView?.preset ?? 'iso';
+  const projection = module.defaultView?.projection ?? 'ortho';
+  // Mirrors urlCodec's own PRESETS table so a fresh mount's camera is
+  // recognized as "the default" (and so gets omitted from the URL)
+  // rather than immediately looking like a user-orbited state.
+  const DIRS: Record<string, { theta: number; phi: number }> = {
+    '+x': { theta: Math.PI / 2, phi: Math.PI / 2 },
+    '+y': { theta: 0, phi: 0 },
+    '+z': { theta: 0, phi: Math.PI / 2 },
+    iso: { theta: Math.PI / 4, phi: Math.acos(1 / Math.sqrt(3)) },
+  };
+  const dir = DIRS[preset] ?? DIRS.iso;
+  return { theta: dir.theta, phi: dir.phi, radius: 8, target: [0, 0, 0], projection };
+}
+
+/**
+ * Walks the migration chain from `fromVersion` to `toVersion`. Reports
+ * success/failure explicitly rather than via a reference-equality check
+ * against `raw` — a chain that succeeds for a few versions and then
+ * hits a missing step is still an INCOMPLETE migration and must fall
+ * back to defaults (§14), and reference equality alone can't tell that
+ * apart from a chain that succeeded completely (both produce a new
+ * object reference partway through).
+ */
+function runMigrations(
+  moduleId: string,
+  fromVersion: number,
+  toVersion: number,
+  raw: Record<string, unknown>,
+): { params: Record<string, unknown>; migrated: boolean } {
+  const table = migrations[moduleId];
+  let state = raw;
+  for (let v = fromVersion; v < toVersion; v++) {
+    const step = table?.[v];
+    if (!step) return { params: raw, migrated: false }; // can't bridge the gap — caller falls back to defaults with a notice, per §14
+    state = step(state);
+  }
+  return { params: state, migrated: true };
+}
+
+export function ModuleView(props: { moduleId: string }): React.ReactElement {
+  const { moduleId } = props;
+  const [phase, setPhase] = React.useState<'loading' | 'not-found' | 'load-error' | 'ready'>(
+    'loading',
+  );
+  const [module, setModule] = React.useState<PhysicsModule | null>(null);
+  const [loadError, setLoadError] = React.useState<Error | null>(null);
+  const [resetToken, setResetToken] = React.useState(0);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setPhase('loading');
+    setModule(null);
+    loadModule(moduleId)
+      .then((m) => {
+        if (cancelled) return;
+        setModule(m);
+        setPhase('ready');
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const err = e instanceof Error ? e : new Error(String(e));
+        if (err.message.startsWith('Unknown module')) setPhase('not-found');
+        else {
+          setLoadError(err);
+          setPhase('load-error');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [moduleId]);
+
+  if (phase === 'loading') return <div className="pv-loading">Loading…</div>;
+  if (phase === 'not-found')
+    return (
+      <div className="pv-not-found">
+        <p>
+          No module named &ldquo;{moduleId}&rdquo;. <Link to="/">Back to the gallery</Link>
+        </p>
+      </div>
+    );
+  if (phase === 'load-error')
+    return (
+      <div className="pv-not-found">
+        <p>
+          Couldn&apos;t load &ldquo;{moduleId}&rdquo;: {loadError?.message}.{' '}
+          <Link to="/">Back to the gallery</Link>
+        </p>
+      </div>
+    );
+  if (!module) return <></>; // unreachable given the phase checks above; keeps TS narrowing happy
+
+  return (
+    <ModuleErrorBoundary
+      moduleId={moduleId}
+      onReset={() => {
+        navigateHash(`/m/${moduleId}`, { replace: true });
+        setResetToken((k) => k + 1);
+      }}
+    >
+      <ModuleViewInner key={`${moduleId}-${resetToken}`} module={module} />
+    </ModuleErrorBoundary>
+  );
+}
+
+function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
+  const { module } = props;
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const viewportRef = React.useRef<Viewport | null>(null);
+  const instanceRef = React.useRef<ModuleInstance | null>(null);
+  const [mounted, setMounted] = React.useState(false);
+  const [seeded, setSeeded] = React.useState(false);
+  const [externalError, setExternalError] = React.useState<Error | null>(null);
+  const [scalars, setScalars] = React.useState<Record<string, number>>({});
+  const [series, setSeries] = React.useState<{ x: number; y: number }[]>([]);
+  const [migrationNotice, setMigrationNotice] = React.useState<string | null>(null);
+  const search = useHashSearch();
+  const initialSearchRef = React.useRef(search);
+  const defaultCamera = React.useMemo(() => defaultCameraFor(module), [module]);
+
+  // Seed the store once, from the URL (migrated if needed) merged onto
+  // this module's own param/layer defaults.
+  React.useEffect(() => {
+    const codecCtx = {
+      schemaVersion: module.manifest.schemaVersion,
+      params: module.params,
+      layers: module.layers,
+      defaultCamera,
+    };
+    const decoded = decodeState(initialSearchRef.current, codecCtx);
+    let params = decoded.params ?? paramDefaults(module.params);
+    if (decoded.schemaVersion < module.manifest.schemaVersion) {
+      const result = runMigrations(
+        module.manifest.id,
+        decoded.schemaVersion,
+        module.manifest.schemaVersion,
+        params,
+      );
+      if (result.migrated) {
+        params = result.params as typeof params;
+      } else {
+        // §14: an unmigratable link loads defaults with a non-blocking
+        // notice, never an error.
+        params = paramDefaults(module.params);
+        setMigrationNotice(
+          `This link was made for an older version of "${module.manifest.title}" and couldn't be fully updated — showing defaults instead.`,
+        );
+      }
+    }
+    useAppStore.getState().hydrate({
+      moduleId: module.manifest.id,
+      params,
+      layers: decoded.layers ?? {},
+      time: decoded.time ?? DEFAULT_APP_STATE.time,
+      camera: decoded.camera ?? defaultCamera,
+      ui: DEFAULT_APP_STATE.ui,
+    });
+    setSeeded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [module]);
+
+  // Construct the Viewport + module instance once; dispose on unmount.
+  // Gated on `seeded`: Viewport/glyph creation and the panels below all
+  // read store.getState().params, which must already hold real values
+  // (not DEFAULT_APP_STATE's {}) — otherwise a control like VectorPad
+  // indexes into an undefined value on its very first render, before
+  // ANY effect (including this one) has had a chance to run. Hit
+  // exactly this in a real browser (Playwright), invisible to the
+  // jsdom-mocked unit tests since they never render past the mocked
+  // loadModule() boundary.
+  React.useEffect(() => {
+    if (!seeded) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const viewport = new Viewport({
+      canvas,
+      upAxis: useAppStore.getState().prefs.upAxis,
+      projectorMode: useAppStore.getState().prefs.projector,
+      reducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+    });
+    viewportRef.current = viewport;
+    // Draggable vector params (M3-6): the module never calls
+    // ctx.draggable() itself (§10 — modules do no pointer/mouse code);
+    // the shell registers a pick target on the module's behalf for
+    // every `draggable: true` vector param, using the SAME ctx the
+    // module's own glyphs attach to, so the pick target and the drawn
+    // arrow it belongs to move together automatically.
+    const draggableHandles = module.params
+      .filter(
+        (p): p is typeof p & { kind: 'vector'; draggable: true } =>
+          p.kind === 'vector' && p.draggable === true,
+      )
+      .map((p) =>
+        viewport.ctx.draggable({
+          paramKey: p.key,
+          getPoint: () => useAppStore.getState().params[p.key] as [number, number, number],
+        }),
+      );
+
+    try {
+      instanceRef.current = module.create(viewport.ctx);
+    } catch (e) {
+      setExternalError(e instanceof Error ? e : new Error(String(e)));
+    }
+    setMounted(true);
+
+    return () => {
+      for (const h of draggableHandles) h.dispose();
+      instanceRef.current?.dispose();
+      instanceRef.current = null;
+      viewport.dispose();
+      viewportRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [module, seeded]);
+
+  const moduleStateOf = React.useCallback(
+    (s: AppState): ModuleState => ({ params: s.params, layers: s.layers, t: s.time.t }),
+    [],
+  );
+
+  const runUpdate = React.useCallback(
+    (s: AppState) => {
+      const instance = instanceRef.current;
+      if (!instance) return;
+      try {
+        instance.update(moduleStateOf(s));
+        const values = instance.scalars(moduleStateOf(s));
+        setScalars(values);
+        const plottableKey = module.scalars.find((sc) => sc.plottable)?.key;
+        if (plottableKey && module.manifest.timeModel !== 'static') {
+          setSeries((prev) => {
+            const next = [...prev, { x: s.time.t, y: values[plottableKey] }];
+            return next.length > 500 ? next.slice(next.length - 500) : next;
+          });
+        }
+      } catch (e) {
+        setExternalError(e instanceof Error ? e : new Error(String(e)));
+      }
+    },
+    [module, moduleStateOf],
+  );
+
+  // Drive instance.update() from the store, OUTSIDE React (§13) — this
+  // subscription, not a render, is what keeps the scene in sync.
+  React.useEffect(() => {
+    if (!mounted) return;
+    runUpdate(useAppStore.getState());
+    return useAppStore.subscribe((s) => runUpdate(s));
+  }, [mounted, runUpdate]);
+
+  // Layer visibility -> scene groups.
+  React.useEffect(() => {
+    if (!mounted) return;
+    const apply = (s: AppState): void => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      for (const def of module.layers)
+        viewport.setGroupVisible(def.key, s.layers[def.key] ?? def.default);
+    };
+    apply(useAppStore.getState());
+    return useAppStore.subscribe(apply);
+  }, [mounted, module.layers]);
+
+  // Time driving: parametric advances t directly; stepped drives a
+  // fixed-timestep accumulator while playing, and reset()+chunked
+  // fast-forward (SteppedScrubber) whenever t is set externally (scrub,
+  // Timeline's step buttons, or the initial URL-decoded t).
+  const accumulatorRef = React.useRef(new FixedStepAccumulator());
+  const scrubberRef = React.useRef(new SteppedScrubber());
+  const lastTRef = React.useRef(useAppStore.getState().time.t);
+  const programmaticRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!mounted || module.manifest.timeModel === 'static') return;
+    let frameId = 0;
+    let lastMs = 0;
+
+    function tick(nowMs: number): void {
+      const dt = lastMs ? (nowMs - lastMs) / 1000 : 0;
+      lastMs = nowMs;
+      const s = useAppStore.getState();
+      const instance = instanceRef.current;
+
+      if (scrubberRef.current.inProgress) {
+        const progress = scrubberRef.current.tick((fixedDt) =>
+          instance?.step?.(fixedDt, moduleStateOf(s)),
+        );
+        programmaticRef.current = true;
+        useAppStore.getState().patchTime({ t: progress.t });
+      } else if (s.time.playing) {
+        if (module.manifest.timeModel === 'stepped') {
+          const taken = accumulatorRef.current.advance(dt, s.time.speed, (fixedDt) =>
+            instance?.step?.(fixedDt, moduleStateOf(s)),
+          );
+          if (taken > 0) {
+            programmaticRef.current = true;
+            useAppStore.getState().patchTime({ t: s.time.t + taken * FIXED_DT });
+          }
+        } else {
+          programmaticRef.current = true;
+          useAppStore.getState().patchTime({ t: s.time.t + dt * s.time.speed * s.time.direction });
+        }
+      }
+      frameId = requestAnimationFrame(tick);
+    }
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [mounted, module, moduleStateOf]);
+
+  // An externally-set t (scrub, step buttons, URL-decoded initial t)
+  // triggers a stepped module's reset()+fast-forward. Playback's own
+  // programmatic t writes above are excluded via `programmaticRef`.
+  React.useEffect(() => {
+    if (!mounted || module.manifest.timeModel !== 'stepped') return;
+    return useAppStore.subscribe((s) => {
+      if (programmaticRef.current) {
+        programmaticRef.current = false;
+        lastTRef.current = s.time.t;
+        return;
+      }
+      if (s.time.t === lastTRef.current) return;
+      lastTRef.current = s.time.t;
+      const instance = instanceRef.current;
+      if (!instance?.reset) return;
+      scrubberRef.current.begin(s.time.t, () => instance.reset?.(moduleStateOf(s)));
+    });
+  }, [mounted, module, moduleStateOf]);
+
+  // State -> URL, debounced, always `replace` (see hashRouter.ts).
+  React.useEffect(() => {
+    if (!mounted) return;
+    let timeoutId = 0;
+    const codecCtx = {
+      schemaVersion: module.manifest.schemaVersion,
+      params: module.params,
+      layers: module.layers,
+      defaultCamera,
+    };
+    return useAppStore.subscribe((s) => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        navigateHash(`/m/${module.manifest.id}${encodeState(s, codecCtx)}`, { replace: true });
+      }, URL_SYNC_DEBOUNCE_MS);
+    });
+  }, [mounted, module, defaultCamera]);
+
+  // Drag-to-param (M3-6): all pointer handling lives here, never in a
+  // module. pointerdown ray-casts against every registered draggable
+  // target (Viewport.pick); a hit starts a drag that projects
+  // subsequent pointer moves onto the camera-facing plane through the
+  // dragged point's current value (Viewport.screenPointOnPlane) — the
+  // usual "drag a point across the screen" plane choice, avoiding any
+  // depth ambiguity a world-axis-aligned plane would have.
+  React.useEffect(() => {
+    if (!mounted) return;
+    const canvas = canvasRef.current;
+    const viewport = viewportRef.current;
+    if (!canvas || !viewport) return;
+
+    let dragging: { paramKey: string; planeNormal: readonly [number, number, number] } | null =
+      null;
+
+    function toCanvasPx(e: PointerEvent): [number, number] {
+      const rect = canvas!.getBoundingClientRect();
+      return [e.clientX - rect.left, e.clientY - rect.top];
+    }
+
+    function onPointerDown(e: PointerEvent): void {
+      const [x, y] = toCanvasPx(e);
+      const hit = viewport!.pick(x, y);
+      if (!hit) return;
+      canvas!.setPointerCapture(e.pointerId);
+      dragging = { paramKey: hit.paramKey, planeNormal: viewport!.cameraForward() };
+    }
+
+    function onPointerMove(e: PointerEvent): void {
+      if (!dragging) return;
+      const [x, y] = toCanvasPx(e);
+      const current = useAppStore.getState().params[dragging.paramKey] as
+        [number, number, number] | undefined;
+      if (!current) return;
+      const point = viewport!.screenPointOnPlane(x, y, current, dragging.planeNormal);
+      if (point) useAppStore.getState().setParam(dragging.paramKey, [point[0], point[1], point[2]]);
+    }
+
+    function onPointerUp(): void {
+      dragging = null;
+    }
+
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerUp);
+    return () => {
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('pointercancel', onPointerUp);
+    };
+  }, [mounted]);
+
+  const state = useAppStore();
+
+  if (!seeded) return <div className="pv-loading">Loading…</div>;
+
+  return (
+    <div className="pv-module-view">
+      <p className="pv-module-view__back">
+        <Link to="/">&larr; Gallery</Link> / {module.manifest.title}
+      </p>
+      {migrationNotice && (
+        <p className="pv-module-view__notice" role="status">
+          {migrationNotice}
+        </p>
+      )}
+      <div className="pv-module-view__layout">
+        <canvas ref={canvasRef} className="pv-viewport-canvas" />
+        <aside className="pv-module-view__panel">
+          <ParamPanel
+            defs={module.params}
+            values={state.params}
+            onChange={(key, value) => useAppStore.getState().setParam(key, value as ParamValue)}
+          />
+          {module.layers.length > 0 && (
+            <LayerManager
+              defs={module.layers}
+              values={state.layers}
+              predictMode={state.ui.predictMode}
+              onChange={(key, value) => useAppStore.getState().setLayer(key, value)}
+            />
+          )}
+          <Timeline
+            timeModel={module.manifest.timeModel}
+            t={state.time.t}
+            playing={state.time.playing}
+            speed={state.time.speed}
+            direction={state.time.direction}
+            onChange={(patch) => useAppStore.getState().patchTime(patch)}
+          />
+          <ReadoutTable defs={module.scalars} values={scalars} />
+          {series.length > 1 && module.scalars.find((s) => s.plottable) && (
+            <TimeSeriesPlot
+              series={series}
+              xLabel="t"
+              yLabel={module.scalars.find((s) => s.plottable)?.label ?? ''}
+            />
+          )}
+        </aside>
+      </div>
+      {externalError && (
+        <p className="pv-module-view__error" role="alert">
+          {externalError.message}
+        </p>
+      )}
+    </div>
+  );
 }

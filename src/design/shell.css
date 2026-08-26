@@ -18,6 +18,138 @@ body {
   outline-offset: 2px;
 }
 
+.pv-loading,
+.pv-not-found {
+  padding: var(--space-4);
+  font-size: 14px;
+  color: var(--ink-1);
+}
+
+.pv-gallery {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.pv-gallery__filters {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.pv-gallery__filters input,
+.pv-gallery__filters select {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--surf-1);
+  color: var(--ink-0);
+}
+
+.pv-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.pv-gallery__card {
+  display: block;
+  padding: var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--surf-1);
+  color: var(--ink-0);
+  text-decoration: none;
+}
+
+.pv-gallery__card:hover {
+  border-color: var(--q-position);
+}
+
+.pv-gallery__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.pv-gallery__category,
+.pv-gallery__tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--surf-2);
+  color: var(--ink-1);
+}
+
+.pv-about {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-4);
+  line-height: 1.6;
+}
+
+.pv-module-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.pv-module-view__back {
+  padding: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.pv-module-view__notice {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surf-2);
+  color: var(--ink-1);
+  font-size: 13px;
+}
+
+.pv-module-view__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--q-accel);
+  color: white;
+  font-size: 13px;
+}
+
+.pv-module-view__layout {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.pv-viewport-canvas {
+  flex: 1;
+  display: block;
+  background: var(--surf-2);
+}
+
+.pv-module-view__panel {
+  width: 320px;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border-left: 1px solid var(--rule);
+  background: var(--surf-1);
+}
+
+.pv-module-error {
+  padding: var(--space-4);
+  color: var(--ink-0);
+}
+
+.pv-module-error__message {
+  font-family: var(--font-mono);
+  color: var(--q-accel);
+}
+
 .pv-param-group {
   border: none;
   margin: 0 0 var(--space-3) 0;

@@ -135,6 +135,13 @@ describe('encodeState / decodeState round-trip', () => {
     expect(decoded.params?.f).toBe(longExpr);
   });
 
+  it('decode reports the v= a URL was actually encoded at, for migration detection', () => {
+    expect(decodeState('?v=1', ctx).schemaVersion).toBe(1);
+    expect(decodeState('?v=3&n=2', ctx).schemaVersion).toBe(3);
+    // v= is always present per §14, but an absent/malformed one falls back to the current schema.
+    expect(decodeState('', ctx).schemaVersion).toBe(ctx.schemaVersion);
+  });
+
   it('decodeState handles a raw hash with a leading "?" or without it identically', () => {
     const encoded = encodeState(baseState({ params: { ...baseState().params, n: 3 } }), ctx);
     const withoutQ = encoded.slice(1);

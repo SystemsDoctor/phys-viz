@@ -167,6 +167,59 @@ body {
   white-space: pre;
 }
 
+.pv-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.pv-timeline__transport {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pv-timeline__btn {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--surf-1);
+  color: var(--ink-0);
+  cursor: pointer;
+}
+
+.pv-timeline__btn:disabled {
+  color: var(--ink-2);
+  cursor: not-allowed;
+}
+
+.pv-timeline__speed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12px;
+  color: var(--ink-1);
+  margin-left: auto;
+}
+
+.pv-timeline__scrub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pv-timeline__t {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ink-1);
+  min-width: 4.5em;
+  text-align: right;
+}
+
 .pv-angle-dial {
   display: flex;
   align-items: center;

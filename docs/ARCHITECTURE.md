@@ -267,6 +267,8 @@ The only place `three` appears. Everything here exists to be used by many module
 
 Owns the canvas, `WebGLRenderer`, resize observer, and the single `requestAnimationFrame` loop. Exactly one render loop for the whole app. Supports `renderOnDemand` mode: when time is paused and no parameter is changing, stop rendering entirely (battery, and it keeps fans quiet in a quiet lecture hall).
 
+Also owns the **reference grid** (ADR 0011): a single axes/graticule glyph built via the same `createAxes` factory `ctx.axes()` exposes, attached to the scene root independent of any module group, toggled globally by `Viewport.setGridVisible(visible)` from the settings menu's `prefs.showGrid` (§9). A module does **not** need to build its own grid for this — `ctx.axes()` remains available, but only for a module-specific extent/behavior that genuinely differs from the global default.
+
 ### `camera/`
 
 - Orbit / pan / zoom, wrapping `OrbitControls`.
@@ -274,7 +276,7 @@ Owns the canvas, `WebGLRenderer`, resize observer, and the single `requestAnimat
 - Preset views: `+X`, `+Y`, `+Z`, isometric, and "fit to content", each animated over ~400 ms with an ease so students keep their spatial bearings. Instant camera cuts are disorienting.
 - Camera state is part of serialized state (§14) so a bookmarked demo restores the viewing angle.
 - **`y` is up by default** (ADR 0009), matching three.js and putting a 2D module's xy-plane straight on screen with `x` right and `y` up. The up axis is user-switchable to `z` from the global settings menu (§9); the camera up vector, the presets, and the "iso" orientation all follow it, and switching reorients through the same ~400 ms eased transition rather than cutting. Both conventions are right-handed (ADR 0008). Modules with a notion of _vertical_ read `ctx.up` rather than hardcoding an axis.
-- **`dimensions: 2` modules get this same orthographic camera, locked to the plane** — there is no second 2D renderer (ADR 0007). Pan and zoom stay available; only orbit is suppressed. Each such module also gets a shell-provided **"release rotation"** toggle so a student can tip the scene and see that the 2D diagram is a slice of a 3D situation, and re-locking returns to the exact original view.
+- **`dimensions: 2` modules get this same orthographic camera, locked to the plane** — there is no second 2D renderer (ADR 0007). Pan and zoom stay available; only orbit is suppressed. A global **"Free rotation"** toggle in the settings menu (§9, ADR 0011) — not a per-module button — unlocks orbit so a student can tip the scene and see that the 2D diagram is a slice of a 3D situation; re-locking returns to the exact original view via the same eased tween. It's a no-op on any module that isn't 2D-locked.
 
 ### `glyphs/`
 
@@ -297,7 +299,7 @@ Each glyph is a factory returning a **handle** with `set(props)`, `visible(bool)
 
 ### `annotate/`
 
-- `label({ latex, anchor, offset })` — KaTeX rendered once to an HTML element, positioned by projecting the anchor each frame. HTML overlay rather than texture: crisp at any zoom, selectable, and accessible to screen readers.
+- `label({ latex, anchor, offset })` — KaTeX rendered once to an HTML element, positioned by projecting the anchor each frame. HTML overlay rather than texture: crisp at any zoom, selectable, and accessible to screen readers. A glyph that embeds a label (`arrow`/`arc`/`curvedArrow`/`dimensionLine`) passes its own root `Object3D` as `createLabel`'s `attachTo` — the label hides itself whenever that root or any ancestor group is invisible, since the DOM overlay it renders into sits outside the three.js scene graph and isn't skipped by group-level visibility on its own (ADR 0011).
 - Dimension lines, projection drop-lines (dashed), and leader lines.
 
 ### `theme/`
@@ -312,13 +314,21 @@ Ray-cast against registered draggable handles. Modules declare a param as `dragg
 
 ## 9. Layer 2 — Shell
 
+### Module view layout
+
+The canvas is full-bleed (fills the entire viewport below the breadcrumb bar); the control panel is a pinned-width floating overlay on top of it, not a layout column (ADR 0011). Resizing the browser window changes only how much of the canvas the panel covers, never the canvas's own extent — `Viewport`'s `ResizeObserver` tracks the canvas element's CSS size directly, so this needed no scene-layer change. The panel has its own collapse toggle so a student can see the un-occluded scene, and a "Recenter view" button (reusing the existing `camera.goTo(defaultView.preset, …)` tween) restores the default framing after a manual orbit/pan/zoom. Below 640px this falls back to the pre-existing stacked layout (§18's 320px manual check) — a floating panel wide enough to be usable would cover most of a phone-width screen.
+
 ### Auto-generated controls
 
 The shell reads a module's `ParamDef[]` and renders the control panel. **A module author writes zero UI code.** Adding a new _kind_ of control (e.g. a 2D angle dial) is a shell change that every module can then use.
 
+**Panel ordering (ADR 0011): selection before detail.** "What do I want to visualize" is the first decision a user makes, so the panel renders: (1) always-visible params (`forLayer` unset — base quantities relevant no matter what's checked), (2) the layer manager itself, (3) one `<details>` disclosure per currently-checked layer, holding only the `ParamDef`s tagged `forLayer: '<that layer's key>'`. A `ParamDef` tagged `forLayer` never appears in the always-visible list — only inside its owning layer's disclosure, and only while that layer is checked.
+
 ### Layer manager
 
 Renders the module's `LayerDef[]` as a checklist, grouped. This is the "click a toggle to add the cross product" interaction from the original brief, and it is generic.
+
+**Checkboxes vs. radios (ADR 0011).** Independent checkboxes are the default — use them when a module's demonstrations are meant to combine (e.g. a cross product and the parallelogram area it bounds). When several layers are visually or physically incompatible when shown together (several unrelated rigid-body panels sharing one 3D scene, say), tag them with the same `LayerDef.exclusiveGroup` string instead: the layer manager renders that cluster as a mutually-exclusive radio set, so checking one automatically unchecks its siblings. If a module needs several _different_ incompatible clusters, give each its own `exclusiveGroup` value. If exclusivity still isn't enough to keep a module intelligible, that's a signal to split it into smaller, more focused modules (§21) — not to keep adding UI machinery to one.
 
 ### Timeline
 
@@ -326,7 +336,7 @@ Play / pause / step / scrub / speed / **reverse**. Behaviour depends on the modu
 
 ### Settings menu
 
-One global, app-level settings menu — not attached to the viewport or to a panel — holding the display preferences that would otherwise scatter: the **up-axis toggle** (`y`/`z`, ADR 0009), theme, and projector mode. These are viewer preferences, so they persist locally across sessions, and they are serialized into the URL only when they differ from the default (§14).
+One global, app-level settings menu — not attached to the viewport or to a panel — holding the display preferences that would otherwise scatter: the **up-axis toggle** (`y`/`z`, ADR 0009), theme, projector mode, the **reference grid** toggle, and **free rotation** (both ADR 0011). Up-axis/theme/projector/grid are viewer preferences persisted locally across sessions and serialized into the URL only when they differ from the default (§14); free rotation is deliberately transient (not persisted or URL-serialized, same as presenter/predict mode) and is a no-op on any module that isn't 2D-locked (ADR 0007). The menu itself never touches a `Viewport`/camera directly — it only writes store values that `ModuleView`'s own effects react to, the same pattern already used for up-axis/projector.
 
 ### Plot panel
 
@@ -396,6 +406,8 @@ export interface ModuleManifest {
   schemaVersion: number;
   /** Course level, for filtering the gallery. */
   level: 'algebra-based' | 'calculus-based' | 'upper-division';
+  /** Fixed integration timestep in seconds for a 'stepped' module (default 1/240s). ADR 0010. */
+  stepDt?: number;
 }
 
 /* ---------- Parameters: declared as data, rendered by the shell ---------- */
@@ -408,6 +420,13 @@ interface ParamBase {
   label: string;
   /** Optional accordion grouping in the control panel. */
   group?: string;
+  /**
+   * References a LayerDef.key this param only matters for (ADR 0011).
+   * When set, the shell nests this control under that layer's own
+   * disclosure — shown only while the layer is checked — instead of
+   * the always-visible top section.
+   */
+  forLayer?: string;
   /** KaTeX shown next to the label, e.g. '\\vec{a}'. */
   symbol?: string;
   help?: string;
@@ -441,6 +460,13 @@ export interface LayerDef {
   label: string;
   default: boolean;
   group?: string;
+  /**
+   * Layers sharing the same exclusiveGroup render as a mutually-
+   * exclusive radio set instead of independent checkboxes (ADR 0011).
+   * Use when a module's demonstrations conflict visually/physically
+   * when shown together; leave unset when they're meant to combine.
+   */
+  exclusiveGroup?: string;
   /** Hidden until revealed in predict mode. */
   reveal?: boolean;
 }

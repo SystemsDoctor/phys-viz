@@ -216,9 +216,7 @@ const DEMONSTRATION_STATES: {
     name: 'scalar triple product (parallelepiped)',
     clicksFromGallery: 2,
     reach: async (page) => {
-      await page
-        .getByRole('checkbox', { name: 'Scalar triple product (parallelepiped)' })
-        .check();
+      await page.getByRole('checkbox', { name: 'Scalar triple product (parallelepiped)' }).check();
     },
     confirm: async (page) => {
       await expect(
@@ -235,9 +233,7 @@ const DEMONSTRATION_STATES: {
     },
     confirm: async (page) => {
       await expect(page.getByRole('checkbox', { name: 'Cross product a × b' })).toBeChecked();
-      await expect(
-        page.getByRole('checkbox', { name: 'Restrict to xy-plane (2D)' }),
-      ).toBeChecked();
+      await expect(page.getByRole('checkbox', { name: 'Restrict to xy-plane (2D)' })).toBeChecked();
     },
   },
 ];
@@ -371,9 +367,17 @@ test('M3-G gate: control-showcase renders a complete usable UI with zero module 
   await page.waitForTimeout(1500);
   await expect(page.locator('.pv-plot')).toHaveCount(2);
 
-  // 2D lock (ADR 0007, M3-31): dimensions: 2 suppresses orbit — the
-  // release-rotation toggle should be present, starting as "Release".
-  await expect(page.getByRole('button', { name: 'Release rotation' })).toBeVisible();
+  // 2D lock (ADR 0007, M3-31) + ADR 0011: dimensions: 2 suppresses
+  // orbit; "Free rotation" now lives in the global settings menu
+  // (unchecked by default) rather than an in-panel button, and toggling
+  // it there is what unlocks orbit for this module.
+  await page.getByLabel('Display settings').click();
+  const freeRotation = page.getByRole('checkbox', { name: 'Free rotation' });
+  await expect(freeRotation).not.toBeChecked();
+  await freeRotation.check();
+  await expect(freeRotation).toBeChecked();
+  await freeRotation.uncheck();
+  await page.getByLabel('Display settings').click(); // close the menu
 
   // URL round-trip (M3-37): change a param, confirm the URL reflects
   // it (debounced ~250ms), reload, confirm the value survived.

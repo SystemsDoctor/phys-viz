@@ -27,6 +27,8 @@ import type { SceneContext, GroupHandle, UpAxis } from './SceneContext';
 import type { SubstrateHost, FrameInfo, PickTarget } from './internal/SubstrateHost';
 import { worldUnitsPerPixel } from './internal/screenSpace';
 import { getProjectorAdjustments } from './theme';
+import { createAxes } from './glyphs/axes';
+import type { AxesHandle } from './glyphs/axes';
 
 export interface ViewportOptions {
   canvas: HTMLCanvasElement;
@@ -34,6 +36,13 @@ export interface ViewportOptions {
   upAxis?: UpAxis;
   projectorMode?: boolean;
   reducedMotion?: boolean;
+  /**
+   * Reference grid (ADR 0011): shell/Viewport-owned, not module-authored
+   * — every module gets a toggleable grid for free, driven by the
+   * global settings menu (`prefs.showGrid`) rather than a per-module
+   * `LayerDef`. Default true, matching the previous de-facto behavior.
+   */
+  showGrid?: boolean;
 }
 
 export interface PickHit {
@@ -85,6 +94,7 @@ export class Viewport {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pickScratchVec3 = new THREE.Vector3();
   private readonly pickScratchVec2 = new THREE.Vector2();
+  private readonly gridHandle: AxesHandle;
 
   private readonly renderOnDemand: boolean;
   private dirty = true;
@@ -150,6 +160,14 @@ export class Viewport {
 
     this.ctx = createSceneContext(host);
 
+    // Reference grid (ADR 0011) — built directly via the same `createAxes`
+    // factory `ctx.axes()` exposes to modules, but attached to the scene
+    // root (no module `group`), so it's independent of any module's own
+    // layer toggles and visible/hidden purely off the global settings
+    // menu (`prefs.showGrid`, applied via setGridVisible below).
+    this.gridHandle = createAxes({ extent: 5 }, host);
+    this.gridHandle.visible(options.showGrid ?? true);
+
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
     this.resizeObserver.observe(this.canvas);
     this.handleResize();
@@ -166,6 +184,12 @@ export class Viewport {
     const dir = new THREE.Vector3();
     this.camera.object.getWorldDirection(dir);
     return [dir.x, dir.y, dir.z];
+  }
+
+  /** Global reference-grid toggle (ADR 0011, §9 settings menu). */
+  setGridVisible(visible: boolean): void {
+    this.gridHandle.visible(visible);
+    this.requestRender();
   }
 
   setProjectorMode(on: boolean): void {
@@ -318,6 +342,7 @@ export class Viewport {
     if (this.disposed) return;
     this.disposed = true;
     cancelAnimationFrame(this.frameId);
+    this.gridHandle.dispose();
     this.resizeObserver.disconnect();
     this.cameraChangeUnsub();
     this.camera.dispose();

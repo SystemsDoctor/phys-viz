@@ -23,9 +23,22 @@ export interface AppState {
     target: [number, number, number];
     projection: 'ortho' | 'persp';
   };
-  ui: { presenterMode: boolean; predictMode: boolean; panelsOpen: string[] };
+  ui: {
+    presenterMode: boolean;
+    predictMode: boolean;
+    panelsOpen: string[];
+    /**
+     * Global "free rotation" toggle (§9 settings menu, ADR 0011). Applies
+     * only to a module with `manifest.dimensions === 2` (ADR 0007's
+     * locked-ortho modules) — a no-op elsewhere. Deliberately transient,
+     * not persisted/URL-serialized: same shape as `presenterMode` /
+     * `predictMode`, a viewing convenience for the current visit rather
+     * than a bookmarkable demo state.
+     */
+    rotationReleased: boolean;
+  };
   /** Viewer display preferences (ADR 0009, §13) — persisted locally, not per-module. */
-  prefs: { upAxis: 'y' | 'z'; theme: 'light' | 'dark'; projector: boolean };
+  prefs: { upAxis: 'y' | 'z'; theme: 'light' | 'dark'; projector: boolean; showGrid: boolean };
 }
 
 export const DEFAULT_CAMERA: AppState['camera'] = {
@@ -42,12 +55,14 @@ export const DEFAULT_UI: AppState['ui'] = {
   presenterMode: false,
   predictMode: false,
   panelsOpen: [],
+  rotationReleased: false,
 };
 
 export const DEFAULT_PREFS: AppState['prefs'] = {
   upAxis: 'y',
   theme: 'light',
   projector: false,
+  showGrid: true,
 };
 
 export const DEFAULT_APP_STATE: AppState = {

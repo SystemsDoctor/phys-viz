@@ -171,51 +171,173 @@ body {
   font-size: 13px;
 }
 
+/* ADR 0011: the canvas is full-bleed and the control panel floats over
+   it as a pinned-width overlay, instead of the two-column flex layout
+   this replaced (canvas `flex:1` + panel `width:320px` — on a narrow
+   window the canvas got squeezed arbitrarily thin instead of the
+   window just cropping a fixed-size scene). Resizing the browser now
+   only changes how much of the canvas the overlay panel covers, never
+   the canvas's own extent — `Viewport`'s ResizeObserver already tracks
+   the canvas element's CSS size directly, so this needed no scene-layer
+   change. */
 .pv-module-view__layout {
   flex: 1;
-  display: flex;
+  position: relative;
   min-height: 0;
+  overflow: hidden;
+}
+
+.pv-viewport-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: var(--surf-2);
+}
+
+.pv-module-view__panel {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  bottom: var(--space-3);
+  width: 340px;
+  max-width: calc(100% - var(--space-3) * 2);
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surf-1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+}
+
+/* Room for the collapse toggle pinned in the panel's own top-right
+   corner, so it never overlaps the first control. */
+.pv-module-view__panel-body {
+  padding-right: 28px;
+}
+
+/* Collapsed via a class (not unmounted): keeps scroll position and any
+   open <details> intact for when the panel reopens, and lets the mobile
+   breakpoint below force it back open unconditionally regardless of
+   this state — a collapse toggle carried over from a wider window must
+   never strand a phone-width user with no visible way to reopen it. */
+.pv-module-view__panel-body--hidden {
+  display: none;
+}
+
+.pv-module-view__panel--collapsed {
+  bottom: auto;
+  width: auto;
+  max-width: none;
+  overflow: visible;
+  padding: var(--space-1);
+}
+
+.pv-module-view__panel-collapse {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--surf-2);
+  color: var(--ink-0);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pv-module-view__panel--collapsed .pv-module-view__panel-collapse {
+  position: static;
+}
+
+/* A small HUD cluster clear of both the overlay panel (right) and the
+   settings gear (top-right) — the concrete answer to "the user can
+   zoom, pan, and rotate with just the plotting pane": Recenter restores
+   the module's default framing after a manual orbit/pan/zoom. */
+.pv-view-controls {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 5;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.pv-view-controls__btn {
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--surf-1);
+  color: var(--ink-0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
 }
 
 /* §18's manual checklist explicitly asserts 320px width, so the shell
-   has to support it (M3-35) before any module does. A fixed 320px side
-   panel plus a canvas simply doesn't fit a 320px viewport — stack them
-   instead below a breakpoint comfortably above phone width. */
+   has to support it (M3-35) before any module does. The overlay model
+   above is the ≥640px behavior; below that, a floating panel wide
+   enough to be usable would cover most of a phone-width screen, so
+   fall back to the pre-existing stacked column instead. */
 @media (max-width: 640px) {
   .pv-module-view__layout {
+    display: flex;
     flex-direction: column;
+    overflow: visible;
   }
   .pv-viewport-canvas {
+    position: static;
     flex: 0 0 45vh;
+    width: auto;
+    height: auto;
+  }
+  .pv-view-controls {
+    position: static;
+    margin: var(--space-2) var(--space-3) 0;
   }
   .pv-module-view__panel {
+    position: static;
     width: 100%;
+    max-width: none;
     border-left: none;
     border-top: 1px solid var(--rule);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .pv-module-view__panel-collapse {
+    display: none;
+  }
+  .pv-module-view__panel-body,
+  .pv-module-view__panel-body--hidden {
+    display: block;
+    padding-right: 0;
   }
   .pv-gallery__filters {
     flex-wrap: wrap;
   }
 }
 
-.pv-viewport-canvas {
-  flex: 1;
-  display: block;
-  background: var(--surf-2);
+.pv-layer-details {
+  margin: 0 0 var(--space-3) 0;
 }
 
-.pv-module-view__panel {
-  width: 320px;
-  /* Without this, the canvas's `flex: 1` (flex-basis: 0%, flex-grow: 1)
-     out-competes this panel's default flex-shrink: 1 and squeezes it
-     down to near nothing well before the canvas itself runs out of
-     room to give — this panel needs to hold its 320px and let the
-     canvas absorb the rest. */
-  flex-shrink: 0;
-  overflow-y: auto;
-  padding: var(--space-3);
-  border-left: 1px solid var(--rule);
-  background: var(--surf-1);
+.pv-layer-details summary {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-1);
+  cursor: pointer;
+  padding: var(--space-1) 0;
+}
+
+.pv-layer-details .pv-param-group {
+  margin-top: var(--space-2);
 }
 
 .pv-explain {

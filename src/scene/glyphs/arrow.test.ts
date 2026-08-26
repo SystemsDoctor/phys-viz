@@ -84,4 +84,27 @@ describe('createArrow', () => {
     handle.dispose();
     expect(host.overlayEl.children.length).toBe(0);
   });
+
+  // ADR 0011: a label whose arrow is hidden by TOGGLING ITS GROUP (the
+  // path LayerManager/Viewport.setGroupVisible actually uses, not the
+  // handle's own .visible()) must hide too. Before this fix, the label
+  // — a DOM overlay outside the three.js scene graph — kept rendering
+  // forever once its arrow's group started hidden, e.g. vector-algebra's
+  // `c` (grouped under the 'triple' layer, off by default).
+  it('hides its label when an ancestor group is turned off (not just via handle.visible)', () => {
+    const host = createFakeHost();
+    const group = { id: 'triple' };
+    const handle = createArrow({ from: [0, 0, 0], to: [1, 0, 0], label: '\\vec{c}', group }, host);
+    // Simulate the shell hiding the group directly, the way
+    // Viewport.setGroupVisible does — never calling handle.visible().
+    (host.resolveGroup(group) as THREE.Group).visible = false;
+    host.fireFrame();
+    const el = host.overlayEl.children[0] as HTMLElement;
+    expect(el.style.display).toBe('none');
+
+    (host.resolveGroup(group) as THREE.Group).visible = true;
+    host.fireFrame();
+    expect(el.style.display).not.toBe('none');
+    handle.dispose();
+  });
 });

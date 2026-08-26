@@ -64,10 +64,23 @@ export const params: ParamDef[] = [
     default: false,
     group: 'Function',
   },
+  // ADR 0011 conformance example: only matters while the 'trace' layer
+  // is checked, so the shell nests it under that layer's own disclosure
+  // instead of the always-visible list.
+  {
+    kind: 'number',
+    key: 'traceSteps',
+    urlKey: 'trs',
+    label: 'Trace resolution',
+    default: 32,
+    min: 4,
+    max: 128,
+    step: 1,
+    forLayer: 'trace',
+  },
 ];
 
 export const layers: LayerDef[] = [
-  { key: 'grid', urlKey: 'gr', label: 'Reference grid', default: true, group: 'Display' },
   { key: 'trace', urlKey: 'tr', label: 'Angle trace', default: false, group: 'Display' },
   {
     key: 'answer',

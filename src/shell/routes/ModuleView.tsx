@@ -133,7 +133,10 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   const [series, setSeries] = React.useState<{ x: number; y: number }[]>([]);
   const [migrationNotice, setMigrationNotice] = React.useState<string | null>(null);
   const [explainSource, setExplainSource] = React.useState<string | null>(null);
-  const [rotationReleased, setRotationReleased] = React.useState(false);
+  // Layout (ADR 0011, §15): the overlay panel can be collapsed so the
+  // user can see the un-occluded scene; purely a per-visit viewing
+  // convenience, not persisted or URL-serialized.
+  const [panelCollapsed, setPanelCollapsed] = React.useState(false);
   const search = useHashSearch();
   const initialSearchRef = React.useRef(search);
   const defaultCamera = React.useMemo(() => defaultCameraFor(module), [module]);
@@ -210,6 +213,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       canvas,
       upAxis: useAppStore.getState().prefs.upAxis,
       projectorMode: useAppStore.getState().prefs.projector,
+      showGrid: useAppStore.getState().prefs.showGrid,
       reducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
     });
     viewportRef.current = viewport;
@@ -218,8 +222,13 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     // driven entirely off the manifest — a 2D module author writes
     // nothing. `dimensions: 'both'` is left unlocked here; a module
     // that offers its own 2D/3D toggle (M4's vector-algebra) is
-    // flagship-specific behavior, not a shell-substrate concern.
-    if (module.manifest.dimensions === 2) viewport.camera.setLockedToPlane(true);
+    // flagship-specific behavior, not a shell-substrate concern. The
+    // global "Free rotation" setting (ADR 0011) can already be on when
+    // this module mounts, so honor it immediately rather than always
+    // locking and waiting for the live-prefs effect below to unlock.
+    if (module.manifest.dimensions === 2) {
+      viewport.camera.setLockedToPlane(!useAppStore.getState().ui.rotationReleased);
+    }
 
     // Draggable vector params (M3-6): the module never calls
     // ctx.draggable() itself (§10 — modules do no pointer/mouse code);
@@ -304,14 +313,17 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     return useAppStore.subscribe(apply);
   }, [mounted, module.layers]);
 
-  // Live prefs (M3-41/42): up-axis and projector mode can change while
-  // a module is already mounted (the settings menu is global, not
-  // per-route), so the already-constructed Viewport needs to react —
-  // these aren't ViewportOptions set once at construction time.
+  // Live prefs (M3-41/42, ADR 0011): up-axis, projector mode, the
+  // reference grid, and free rotation can all change while a module is
+  // already mounted (the settings menu is global, not per-route), so
+  // the already-constructed Viewport needs to react — none of these are
+  // ViewportOptions fixed at construction time.
   React.useEffect(() => {
     if (!mounted) return;
     let lastUpAxis = useAppStore.getState().prefs.upAxis;
     let lastProjector = useAppStore.getState().prefs.projector;
+    let lastShowGrid = useAppStore.getState().prefs.showGrid;
+    let lastRotationReleased = useAppStore.getState().ui.rotationReleased;
     return useAppStore.subscribe((s) => {
       const viewport = viewportRef.current;
       if (!viewport) return;
@@ -323,8 +335,28 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
         lastProjector = s.prefs.projector;
         viewport.setProjectorMode(s.prefs.projector);
       }
+      if (s.prefs.showGrid !== lastShowGrid) {
+        lastShowGrid = s.prefs.showGrid;
+        viewport.setGridVisible(s.prefs.showGrid);
+      }
+      if (module.manifest.dimensions === 2 && s.ui.rotationReleased !== lastRotationReleased) {
+        lastRotationReleased = s.ui.rotationReleased;
+        if (s.ui.rotationReleased) {
+          viewport.camera.setLockedToPlane(false);
+        } else {
+          // Re-lock: animate back to the module's own 2D view (its
+          // defaultView preset, or '+z' — the plane a 2D module is
+          // conventionally drawn on) via the same ~400ms eased
+          // transition camera presets use, THEN freeze rotation once
+          // the tween settles — locking immediately would freeze it
+          // mid-transition.
+          const preset = module.defaultView?.preset ?? '+z';
+          viewport.camera.goTo(preset, 400);
+          window.setTimeout(() => viewport.camera.setLockedToPlane(true), 420);
+        }
+      }
     });
-  }, [mounted]);
+  }, [mounted, module]);
 
   // Time driving: parametric advances t directly; stepped drives a
   // fixed-timestep accumulator while playing, and reset()+chunked
@@ -566,6 +598,18 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   );
   const sweepScalar = module.scalars.find((s) => s.plottable);
 
+  // Panel reorganization (ADR 0011): a param tagged `forLayer` only
+  // matters once that layer is checked, so it's nested under that
+  // layer's own disclosure instead of sitting in the flat always-on
+  // list — "what do I want to visualize" (LayerManager) comes first,
+  // then each checked item's own numeric/display options.
+  const alwaysParams = module.params.filter((p) => p.forLayer === undefined);
+  const paramsByLayer = new Map(
+    module.layers.map((l) => [l.key, module.params.filter((p) => p.forLayer === l.key)]),
+  );
+  const setParamValue = (key: string, value: unknown): void =>
+    useAppStore.getState().setParam(key, value as ParamValue);
+
   if (!seeded) return <div className="pv-loading">Loading…</div>;
 
   return (
@@ -588,94 +632,112 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
           aria-label={canvasLabel || module.manifest.title}
         />
         <KeymapOverlay />
-        <aside className="pv-module-view__panel">
-          {module.manifest.dimensions === 2 && (
+        {!state.ui.presenterMode && (
+          <div className="pv-view-controls">
             <button
               type="button"
-              className="pv-release-rotation"
-              onClick={() => {
-                const camera = viewportRef.current?.camera;
-                if (!camera) return;
-                if (rotationReleased) {
-                  // Re-lock: animate back to the module's own 2D view
-                  // (its defaultView preset, or '+z' — the plane a 2D
-                  // module is conventionally drawn on) via the same
-                  // ~400ms eased transition camera presets use, THEN
-                  // freeze rotation once the tween settles — locking
-                  // immediately would freeze it mid-transition.
-                  const preset = module.defaultView?.preset ?? '+z';
-                  camera.goTo(preset, 400);
-                  window.setTimeout(() => camera.setLockedToPlane(true), 420);
-                  setRotationReleased(false);
-                } else {
-                  camera.setLockedToPlane(false);
-                  setRotationReleased(true);
-                }
-              }}
+              className="pv-view-controls__btn"
+              onClick={() =>
+                viewportRef.current?.camera.goTo(module.defaultView?.preset ?? 'iso', 400)
+              }
             >
-              {rotationReleased ? 'Re-lock rotation' : 'Release rotation'}
+              Recenter view
             </button>
-          )}
-          <ParamPanel
-            defs={module.params}
-            values={state.params}
-            onChange={(key, value) => useAppStore.getState().setParam(key, value as ParamValue)}
-          />
-          {module.layers.some((l) => l.reveal) && (
-            <button
-              type="button"
-              className="pv-release-rotation"
-              onClick={() => {
-                const entering = !useAppStore.getState().ui.predictMode;
-                useAppStore.getState().patchUi({ predictMode: entering });
-                if (entering) useAppStore.getState().patchTime({ t: 0, playing: false });
-              }}
-            >
-              {state.ui.predictMode ? 'Exit predict mode' : 'Predict, then reveal'}
-            </button>
-          )}
-          {module.layers.length > 0 && (
-            <LayerManager
-              defs={module.layers}
-              values={state.layers}
-              predictMode={state.ui.predictMode}
-              onChange={(key, value) => useAppStore.getState().setLayer(key, value)}
+          </div>
+        )}
+        <aside
+          className={
+            panelCollapsed
+              ? 'pv-module-view__panel pv-module-view__panel--collapsed'
+              : 'pv-module-view__panel'
+          }
+        >
+          <button
+            type="button"
+            className="pv-module-view__panel-collapse"
+            aria-expanded={!panelCollapsed}
+            aria-label={panelCollapsed ? 'Show panel' : 'Hide panel'}
+            onClick={() => setPanelCollapsed((v) => !v)}
+          >
+            {panelCollapsed ? '«' : '»'}
+          </button>
+          <div
+            className={
+              panelCollapsed
+                ? 'pv-module-view__panel-body pv-module-view__panel-body--hidden'
+                : 'pv-module-view__panel-body'
+            }
+          >
+            {alwaysParams.length > 0 && (
+              <ParamPanel defs={alwaysParams} values={state.params} onChange={setParamValue} />
+            )}
+            {module.layers.some((l) => l.reveal) && (
+              <button
+                type="button"
+                className="pv-release-rotation"
+                onClick={() => {
+                  const entering = !useAppStore.getState().ui.predictMode;
+                  useAppStore.getState().patchUi({ predictMode: entering });
+                  if (entering) useAppStore.getState().patchTime({ t: 0, playing: false });
+                }}
+              >
+                {state.ui.predictMode ? 'Exit predict mode' : 'Predict, then reveal'}
+              </button>
+            )}
+            {module.layers.length > 0 && (
+              <LayerManager
+                defs={module.layers}
+                values={state.layers}
+                predictMode={state.ui.predictMode}
+                onChange={(key, value) => useAppStore.getState().setLayer(key, value)}
+              />
+            )}
+            {module.layers.map((layer) => {
+              const active = state.layers[layer.key] ?? layer.default;
+              const params = paramsByLayer.get(layer.key) ?? [];
+              if (!active || params.length === 0) return null;
+              return (
+                <details key={layer.key} open className="pv-layer-details">
+                  <summary>{layer.label}</summary>
+                  <ParamPanel defs={params} values={state.params} onChange={setParamValue} />
+                </details>
+              );
+            })}
+            <Timeline
+              timeModel={module.manifest.timeModel}
+              t={state.time.t}
+              playing={state.time.playing}
+              speed={state.time.speed}
+              direction={state.time.direction}
+              onChange={(patch) => useAppStore.getState().patchTime(patch)}
             />
-          )}
-          <Timeline
-            timeModel={module.manifest.timeModel}
-            t={state.time.t}
-            playing={state.time.playing}
-            speed={state.time.speed}
-            direction={state.time.direction}
-            onChange={(patch) => useAppStore.getState().patchTime(patch)}
-          />
-          <ReadoutTable defs={module.scalars} values={scalars} pinned={state.ui.presenterMode} />
-          {series.length > 1 && module.scalars.find((s) => s.plottable) && (
-            <TimeSeriesPlot
-              series={series}
-              xLabel="t"
-              yLabel={module.scalars.find((s) => s.plottable)?.label ?? ''}
-            />
-          )}
-          {sweepParam && sweepScalar && (
-            <SweepPlot
-              sweepParam={sweepParam}
-              scalar={sweepScalar}
-              evaluate={(v) => {
-                const instance = instanceRef.current;
-                if (!instance) return 0;
-                const s = useAppStore.getState();
-                // scalars() is documented pure (§10) — safe to call with
-                // a one-off shadow state without touching the real one.
-                return instance.scalars({
-                  ...moduleStateOf(s),
-                  params: { ...s.params, [sweepParam.key]: v },
-                })[sweepScalar.key];
-              }}
-            />
-          )}
-          {explainSource && <ExplainPanel source={explainSource} />}
+            <ReadoutTable defs={module.scalars} values={scalars} pinned={state.ui.presenterMode} />
+            {series.length > 1 && module.scalars.find((s) => s.plottable) && (
+              <TimeSeriesPlot
+                series={series}
+                xLabel="t"
+                yLabel={module.scalars.find((s) => s.plottable)?.label ?? ''}
+              />
+            )}
+            {sweepParam && sweepScalar && (
+              <SweepPlot
+                sweepParam={sweepParam}
+                scalar={sweepScalar}
+                evaluate={(v) => {
+                  const instance = instanceRef.current;
+                  if (!instance) return 0;
+                  const s = useAppStore.getState();
+                  // scalars() is documented pure (§10) — safe to call with
+                  // a one-off shadow state without touching the real one.
+                  return instance.scalars({
+                    ...moduleStateOf(s),
+                    params: { ...s.params, [sweepParam.key]: v },
+                  })[sweepScalar.key];
+                }}
+              />
+            )}
+            {explainSource && <ExplainPanel source={explainSource} />}
+          </div>
         </aside>
       </div>
       {externalError && (

@@ -14,9 +14,40 @@
  * The ~150ms fade-in a toggle produces IN THE VIEWPORT (§15, M3-8) is
  * scene-layer work — Viewport.setGroupVisible animates it — this
  * component only fades in its own newly-revealed checklist rows.
+ *
+ * Layers sharing a `LayerDef.exclusiveGroup` (ADR 0011) render as a
+ * mutually-exclusive radio set instead of independent checkboxes — a
+ * module opts a cluster of visually/physically incompatible
+ * demonstrations into "pick one" without an all-or-nothing module-level
+ * flag. Every other layer keeps today's independent-checkbox behavior.
  */
 import React from 'react';
 import type { LayerDef } from '@/modules/types';
+
+interface LayerRenderGroup {
+  name: string | undefined;
+  exclusiveGroup: string | undefined;
+  defs: LayerDef[];
+}
+
+function groupLayers(defs: LayerDef[]): LayerRenderGroup[] {
+  const groups: LayerRenderGroup[] = [];
+  const byKey = new Map<string, LayerRenderGroup>();
+  for (const def of defs) {
+    // Exclusive layers group strictly by `exclusiveGroup` (one radio set
+    // per distinct value); every other layer keeps the pre-existing
+    // "bucket by `group`, undefined groups share one fieldset" behavior.
+    const bucketKey = def.exclusiveGroup ? `x:${def.exclusiveGroup}` : `g:${def.group ?? ''}`;
+    let group = byKey.get(bucketKey);
+    if (!group) {
+      group = { name: def.group, exclusiveGroup: def.exclusiveGroup, defs: [] };
+      byKey.set(bucketKey, group);
+      groups.push(group);
+    }
+    group.defs.push(def);
+  }
+  return groups;
+}
 
 export function LayerManager(props: {
   defs: LayerDef[];
@@ -38,22 +69,20 @@ export function LayerManager(props: {
     onChange(def.key, true);
   }
 
-  const groups: { name: string | undefined; defs: LayerDef[] }[] = [];
-  const byName = new Map<string | undefined, (typeof groups)[number]>();
-  for (const def of defs) {
-    let group = byName.get(def.group);
-    if (!group) {
-      group = { name: def.group, defs: [] };
-      byName.set(def.group, group);
-      groups.push(group);
-    }
-    group.defs.push(def);
+  function selectExclusive(def: LayerDef, siblings: LayerDef[]): void {
+    onChange(def.key, true);
+    for (const sibling of siblings) if (sibling.key !== def.key) onChange(sibling.key, false);
   }
+
+  const groups = groupLayers(defs);
 
   return (
     <div className="pv-layer-manager">
       {groups.map((group, i) => (
-        <fieldset key={group.name ?? `_ungrouped_${i}`} className="pv-param-group">
+        <fieldset
+          key={group.name ?? group.exclusiveGroup ?? `_ungrouped_${i}`}
+          className="pv-param-group"
+        >
           {group.name && <legend>{group.name}</legend>}
           {group.defs.map((def) => {
             const hidden = predictMode && def.reveal === true && !revealed.has(def.key);
@@ -76,10 +105,15 @@ export function LayerManager(props: {
                 className={justRevealed ? 'pv-layer-row pv-layer-row--fade-in' : 'pv-layer-row'}
               >
                 <input
-                  type="checkbox"
+                  type={group.exclusiveGroup ? 'radio' : 'checkbox'}
+                  name={group.exclusiveGroup}
                   className="pv-toggle__box"
                   checked={values[def.key] ?? def.default}
-                  onChange={(e) => onChange(def.key, e.target.checked)}
+                  onChange={(e) =>
+                    group.exclusiveGroup
+                      ? selectExclusive(def, group.defs)
+                      : onChange(def.key, e.target.checked)
+                  }
                 />
                 <span>{def.label}</span>
               </label>

@@ -12,8 +12,8 @@ describe('prefsStorage', () => {
   });
 
   it('round-trips a saved value', () => {
-    savePrefs({ upAxis: 'z', theme: 'dark', projector: true });
-    expect(loadPrefs()).toEqual({ upAxis: 'z', theme: 'dark', projector: true });
+    savePrefs({ upAxis: 'z', theme: 'dark', projector: true, showGrid: false });
+    expect(loadPrefs()).toEqual({ upAxis: 'z', theme: 'dark', projector: true, showGrid: false });
   });
 
   it('falls back to defaults for malformed stored JSON', () => {

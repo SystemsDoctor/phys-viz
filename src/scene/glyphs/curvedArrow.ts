@@ -111,7 +111,7 @@ export function createCurvedArrow(props: CurvedArrowProps, host: SubstrateHost):
       const midAngle = (p.startAngle + p.endAngle) / 2;
       pointAt(p.center, p.radius, midAngle, scratchPoint);
       const anchor: [number, number, number] = [scratchPoint.x, scratchPoint.y, scratchPoint.z];
-      if (!label) label = createLabel({ latex: p.label, anchor }, host);
+      if (!label) label = createLabel({ latex: p.label, anchor }, host, root);
       else label.set({ latex: p.label, anchor });
     } else if (label) {
       label.dispose();

@@ -18,6 +18,7 @@ export function loadPrefs(): AppState['prefs'] {
       upAxis: parsed.upAxis === 'z' ? 'z' : DEFAULT_PREFS.upAxis,
       theme: parsed.theme === 'dark' ? 'dark' : DEFAULT_PREFS.theme,
       projector: parsed.projector === true,
+      showGrid: parsed.showGrid === undefined ? DEFAULT_PREFS.showGrid : parsed.showGrid === true,
     };
   } catch {
     return DEFAULT_PREFS;

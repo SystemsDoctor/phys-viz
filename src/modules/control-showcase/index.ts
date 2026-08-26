@@ -15,7 +15,6 @@ const module: PhysicsModule = {
 
   create(ctx: SceneContext) {
     const gGeometry = ctx.group('geometry');
-    const gGrid = ctx.group('grid');
     const gTrace = ctx.group('trace');
     const gAnswer = ctx.group('answer');
 
@@ -47,8 +46,6 @@ const module: PhysicsModule = {
       sizePx: 16,
     });
 
-    const axes = ctx.axes({ group: gGrid, extent: 5 });
-
     const trace = ctx.path({ group: gTrace, color: ctx.palette.angular, points: [] });
 
     const answerBody = ctx.body({
@@ -76,13 +73,11 @@ const module: PhysicsModule = {
         highlight.set({ position: p });
         highlight.visible(on);
 
-        axes.visible(s.layers.grid ?? true);
-
         const traceOn = s.layers.trace ?? false;
         trace.visible(traceOn);
         if (traceOn) {
           const points: [number, number, number][] = [];
-          const steps = 32;
+          const steps = Math.max(4, Math.round(s.params.traceSteps as number));
           for (let i = 0; i <= steps; i++) {
             const a = (theta * i) / steps;
             points.push([Math.cos(a) * 2, Math.sin(a) * 2, 0]);
@@ -118,8 +113,8 @@ const module: PhysicsModule = {
       },
 
       dispose() {
-        [pArrow, anglePoint, angleArc, highlight, axes, trace, answerBody, answerLabel].forEach(
-          (h) => h.dispose(),
+        [pArrow, anglePoint, angleArc, highlight, trace, answerBody, answerLabel].forEach((h) =>
+          h.dispose(),
         );
       },
     };

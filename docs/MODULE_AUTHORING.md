@@ -41,12 +41,44 @@ every control kind currently available (number, vector, toggle, select,
 expression, angle). If you need a new kind, that is a `shell/controls`
 change, not a module hack.
 
+**Tie a param to the layer it belongs to.** If a `ParamDef` only matters
+once a particular `LayerDef` is checked (e.g. a "spin rate" number that
+does nothing until the "Precession" layer is on), set
+`forLayer: '<that LayerDef's key>'`. The shell nests it under that
+layer's own disclosure in the panel, shown only while the layer is
+checked, instead of cluttering the always-visible list. Leave `forLayer`
+unset for params that matter regardless of what's checked (the base
+vectors a module always draws, say).
+
+**Checkboxes vs. radios for layers.** Independent checkboxes (the
+default — no extra field needed) are right when a module's
+demonstrations are meant to combine, e.g. showing a cross product
+alongside the parallelogram area it bounds. When a cluster of layers is
+visually or physically incompatible when shown together — several
+unrelated rigid-body demonstrations sharing one 3D scene is the
+motivating case (`rotational-dynamics`) — give every layer in that
+cluster the same `LayerDef.exclusiveGroup` string; the layer manager
+renders them as a mutually-exclusive radio set instead. A module can mix
+both: some layers plain checkboxes, others grouped into one or more
+`exclusiveGroup`s. If exclusivity still leaves the result unintelligible,
+that's a sign to split the module into smaller, more focused ones (§21)
+rather than adding more UI machinery to one.
+
 ## 5. Implement `create()` and `update()` in `index.ts`
 
 - `create(ctx)` builds every scene handle **once**, via `ctx.arrow(...)`,
   `ctx.patch(...)`, etc. (see `src/scene/glyphs/` for the full set).
   Attach each handle to `ctx.group(layerKey)` so the shell's layer
   toggles work with zero `if` statements in your module.
+- Don't build your own reference grid with `ctx.axes()` — every module
+  already gets one for free, shell-owned and toggled globally from the
+  settings menu (§9, ADR 0011). `ctx.axes()` is still there if a module
+  genuinely needs a _different_ extent or behavior than the global grid,
+  but that's the exception now, not the default.
+- A glyph you attach a `label` to (via its own `label:` prop, e.g.
+  `ctx.arrow({ label: '\\vec{a}', ... })`) hides that label automatically
+  whenever the glyph's group is toggled off — no module code needed for
+  this either (ADR 0011).
 - `update(state)` only calls `.set(...)` on handles created in
   `create()`. It must be **idempotent**: the same `state` in always
   produces the same scene, regardless of what happened before. This is

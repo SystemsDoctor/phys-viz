@@ -55,6 +55,7 @@ export const params: ParamDef[] = [
     range: 3,
     draggable: true,
     group: 'Torque',
+    forLayer: 'torque',
   },
   {
     kind: 'vector',
@@ -66,6 +67,7 @@ export const params: ParamDef[] = [
     range: 3,
     draggable: true,
     group: 'Torque',
+    forLayer: 'torque',
   },
 
   // Parallel axis
@@ -79,6 +81,7 @@ export const params: ParamDef[] = [
     range: 3,
     draggable: true,
     group: 'Parallel axis',
+    forLayer: 'parallelAxis',
   },
 
   // L vs omega
@@ -92,6 +95,7 @@ export const params: ParamDef[] = [
     range: 2,
     draggable: true,
     group: 'Angular momentum',
+    forLayer: 'angularMomentum',
   },
 
   // Precession (fast top)
@@ -106,6 +110,7 @@ export const params: ParamDef[] = [
     max: 80,
     step: 1,
     group: 'Precession',
+    forLayer: 'precession',
   },
   {
     kind: 'angle',
@@ -117,6 +122,7 @@ export const params: ParamDef[] = [
     min: 0.09,
     max: 1.4,
     group: 'Precession',
+    forLayer: 'precession',
   },
   {
     kind: 'number',
@@ -130,6 +136,7 @@ export const params: ParamDef[] = [
     step: 0.1,
     unit: LENGTH,
     group: 'Precession',
+    forLayer: 'precession',
   },
   {
     kind: 'number',
@@ -142,6 +149,7 @@ export const params: ParamDef[] = [
     step: 0.05,
     unit: LENGTH,
     group: 'Precession',
+    forLayer: 'precession',
   },
   {
     kind: 'number',
@@ -154,6 +162,7 @@ export const params: ParamDef[] = [
     step: 0.1,
     unit: MASS,
     group: 'Precession',
+    forLayer: 'precession',
   },
 
   // Rolling
@@ -168,6 +177,7 @@ export const params: ParamDef[] = [
     step: 0.05,
     unit: LENGTH,
     group: 'Rolling',
+    forLayer: 'rolling',
   },
   {
     kind: 'number',
@@ -180,6 +190,7 @@ export const params: ParamDef[] = [
     max: 10,
     step: 0.1,
     group: 'Rolling',
+    forLayer: 'rolling',
   },
 
   // Dzhanibekov tumbling (the one genuinely `stepped` panel)
@@ -193,6 +204,7 @@ export const params: ParamDef[] = [
     max: 20,
     step: 0.5,
     group: 'Tumbling (stepped)',
+    forLayer: 'tumbling',
   },
   {
     kind: 'number',
@@ -205,21 +217,69 @@ export const params: ParamDef[] = [
     step: 0.001,
     logScale: true,
     group: 'Tumbling (stepped)',
+    forLayer: 'tumbling',
   },
 ];
 
+// All seven panels share one 3D scene but are independent, unrelated
+// demonstrations — checking more than one at once produces the "mass of
+// overlaid items that are unintelligible" failure mode (see ADR 0011),
+// so they render as a mutually-exclusive radio set (`exclusiveGroup`)
+// rather than independent checkboxes.
 export const layers: LayerDef[] = [
-  { key: 'torque', urlKey: 'trq', label: 'Torque = r × F', default: true },
-  { key: 'parallelAxis', urlKey: 'pax', label: 'Parallel-axis theorem', default: false },
-  { key: 'angularMomentum', urlKey: 'lw', label: 'L vs ω (non-parallel case)', default: false },
-  { key: 'inertiaEllipsoid', urlKey: 'ell', label: 'Inertia ellipsoid', default: false },
-  { key: 'precession', urlKey: 'prc', label: 'Precession & nutation (fast top)', default: false },
-  { key: 'rolling', urlKey: 'rol', label: 'Rolling: instantaneous axis & cycloid', default: false },
-  { key: 'tumbling', urlKey: 'tum', label: 'Dzhanibekov effect (tumbling)', default: false },
+  { key: 'torque', urlKey: 'trq', label: 'Torque = r × F', default: true, exclusiveGroup: 'panel' },
+  {
+    key: 'parallelAxis',
+    urlKey: 'pax',
+    label: 'Parallel-axis theorem',
+    default: false,
+    exclusiveGroup: 'panel',
+  },
+  {
+    key: 'angularMomentum',
+    urlKey: 'lw',
+    label: 'L vs ω (non-parallel case)',
+    default: false,
+    exclusiveGroup: 'panel',
+  },
+  {
+    key: 'inertiaEllipsoid',
+    urlKey: 'ell',
+    label: 'Inertia ellipsoid',
+    default: false,
+    exclusiveGroup: 'panel',
+  },
+  {
+    key: 'precession',
+    urlKey: 'prc',
+    label: 'Precession & nutation (fast top)',
+    default: false,
+    exclusiveGroup: 'panel',
+  },
+  {
+    key: 'rolling',
+    urlKey: 'rol',
+    label: 'Rolling: instantaneous axis & cycloid',
+    default: false,
+    exclusiveGroup: 'panel',
+  },
+  {
+    key: 'tumbling',
+    urlKey: 'tum',
+    label: 'Dzhanibekov effect (tumbling)',
+    default: false,
+    exclusiveGroup: 'panel',
+  },
 ];
 
 export const scalars: ScalarDef[] = [
-  { key: 'torqueMag', label: 'Torque magnitude', symbol: '|\\vec\\tau|', unit: TORQUE, readout: true },
+  {
+    key: 'torqueMag',
+    label: 'Torque magnitude',
+    symbol: '|\\vec\\tau|',
+    unit: TORQUE,
+    readout: true,
+  },
   { key: 'momentArm', label: 'Moment arm', symbol: 'd', unit: LENGTH, readout: true },
   {
     key: 'parallelAxisI',
@@ -228,11 +288,22 @@ export const scalars: ScalarDef[] = [
     unit: MOMENT_OF_INERTIA,
     readout: true,
   },
-  { key: 'angleLOmega', label: 'Angle between L and ω', symbol: '\\angle(L,\\omega)', readout: true },
+  {
+    key: 'angleLOmega',
+    label: 'Angle between L and ω',
+    symbol: '\\angle(L,\\omega)',
+    readout: true,
+  },
   { key: 'I1', label: 'Principal moment I₁', unit: MOMENT_OF_INERTIA, readout: true },
   { key: 'I2', label: 'Principal moment I₂', unit: MOMENT_OF_INERTIA, readout: true },
   { key: 'I3', label: 'Principal moment I₃', unit: MOMENT_OF_INERTIA, readout: true },
-  { key: 'precessionRate', label: 'Precession rate', symbol: '\\Omega', unit: ANGULAR_VELOCITY, readout: true },
+  {
+    key: 'precessionRate',
+    label: 'Precession rate',
+    symbol: '\\Omega',
+    unit: ANGULAR_VELOCITY,
+    readout: true,
+  },
   { key: 'rollingSpeed', label: 'Rolling speed', symbol: 'v', unit: VELOCITY, readout: true },
   {
     key: 'dzKineticEnergy',

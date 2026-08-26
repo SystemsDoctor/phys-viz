@@ -22,8 +22,14 @@ import type { SceneContext } from '@/scene/SceneContext';
  * Bumped 1 -> 2 for `ModuleManifest.stepDt` (see ADR 0010) — an additive
  * optional field, so no existing module needed a change; the bump is a
  * paper-trail signal, not a claim that anything broke.
+ *
+ * Bumped 2 -> 3 for `ParamBase.forLayer` and `LayerDef.exclusiveGroup`
+ * (see ADR 0011) — both additive/optional, same shape as `stepDt`: no
+ * existing module needed a change to keep working, the shell falls back
+ * to the pre-existing flat-list/independent-checkbox rendering when
+ * either is absent.
  */
-export const MODULE_CONTRACT_VERSION = 2;
+export const MODULE_CONTRACT_VERSION = 3;
 
 /** How a module relates to time. Prefer 'parametric' over 'stepped'. */
 export type TimeModel =
@@ -77,6 +83,15 @@ interface ParamBase {
   label: string;
   /** Optional accordion grouping in the control panel. */
   group?: string;
+  /**
+   * References a `LayerDef.key` this param only matters for (ADR 0011).
+   * When set, the shell nests this control under that layer's own
+   * disclosure — shown only while the layer is checked — instead of the
+   * always-visible top section. Omit for a param that's relevant
+   * regardless of which layers are on (e.g. the base vectors a module
+   * always draws).
+   */
+  forLayer?: string;
   /** KaTeX shown next to the label, e.g. '\\vec{a}'. */
   symbol?: string;
   help?: string;
@@ -114,6 +129,17 @@ export interface LayerDef {
   label: string;
   default: boolean;
   group?: string;
+  /**
+   * Layers sharing the same `exclusiveGroup` string render as a
+   * mutually-exclusive radio set instead of independent checkboxes —
+   * checking one unchecks every sibling in the same group (ADR 0011).
+   * Use this when a module's demonstrations visually or physically
+   * conflict when shown together (e.g. several unrelated rigid-body
+   * panels sharing one 3D scene); leave unset when they're meant to be
+   * combinable (e.g. a cross product and the parallelogram area it
+   * bounds).
+   */
+  exclusiveGroup?: string;
   /** Hidden until revealed in predict mode. */
   reveal?: boolean;
 }

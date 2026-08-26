@@ -81,7 +81,7 @@ export function createDimensionLine(
 
     const midpoint: Vec3 = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2];
     if (p.label) {
-      if (!label) label = createLabel({ latex: p.label, anchor: midpoint }, host);
+      if (!label) label = createLabel({ latex: p.label, anchor: midpoint }, host, line);
       else label.set({ latex: p.label, anchor: midpoint });
     } else if (label) {
       label.dispose();

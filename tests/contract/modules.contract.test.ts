@@ -96,7 +96,8 @@ function lastSetPerHandle(sets: readonly RecordedSet[]): Map<number, RecordedSet
 function collectNumbers(value: unknown, out: number[]): void {
   if (typeof value === 'number') out.push(value);
   else if (Array.isArray(value)) value.forEach((v) => collectNumbers(v, out));
-  else if (value && typeof value === 'object') Object.values(value).forEach((v) => collectNumbers(v, out));
+  else if (value && typeof value === 'object')
+    Object.values(value).forEach((v) => collectNumbers(v, out));
 }
 
 const UP_AXES: readonly UpAxis[] = ['y', 'z'];
@@ -228,7 +229,9 @@ describe('module contract', () => {
 
           it('no NaN across a sampling of the parameter space', async () => {
             const module = await loadModule(manifest.id);
-            const seed = manifest.id.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0);
+            const seed = manifest.id
+              .split('')
+              .reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0);
             const rng = createRng(seed);
             const ctx = createMockSceneContext({ up });
             const instance = module.create(ctx);
@@ -267,8 +270,13 @@ describe('module contract', () => {
             layers: defLayers,
             time: { t: 0, playing: false, speed: 1, direction: 1 },
             camera: decodeState('', codecCtx).camera!,
-            ui: { presenterMode: false, predictMode: false, panelsOpen: [] },
-            prefs: { upAxis: 'y', theme: 'light', projector: false },
+            ui: {
+              presenterMode: false,
+              predictMode: false,
+              panelsOpen: [],
+              rotationReleased: false,
+            },
+            prefs: { upAxis: 'y', theme: 'light', projector: false, showGrid: true },
           },
           codecCtx,
         );
@@ -304,8 +312,18 @@ describe('module contract', () => {
           layers,
           time: { t, playing: false, speed: 1, direction: 1 as const },
           camera: decodeState('', codecCtx).camera!,
-          ui: { presenterMode: false, predictMode: false, panelsOpen: [] },
-          prefs: { upAxis: 'y' as const, theme: 'light' as const, projector: false },
+          ui: {
+            presenterMode: false,
+            predictMode: false,
+            panelsOpen: [],
+            rotationReleased: false,
+          },
+          prefs: {
+            upAxis: 'y' as const,
+            theme: 'light' as const,
+            projector: false,
+            showGrid: true,
+          },
         };
         const decoded = decodeState(encodeState(state, codecCtx), codecCtx);
         expect(decoded.params).toEqual(params);

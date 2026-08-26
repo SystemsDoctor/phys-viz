@@ -96,7 +96,7 @@ export function createArc(props: ArcProps, host: SubstrateHost): ArcHandle {
         .multiplyScalar(Math.cos(midT) * p.radius * 1.15)
         .addScaledVector(scratchV, Math.sin(midT) * p.radius * 1.15);
       const anchor: [number, number, number] = [scratchPoint.x, scratchPoint.y, scratchPoint.z];
-      if (!label) label = createLabel({ latex: p.label, anchor }, host);
+      if (!label) label = createLabel({ latex: p.label, anchor }, host, root);
       else label.set({ latex: p.label, anchor });
     } else if (label) {
       label.dispose();

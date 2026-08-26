@@ -28,8 +28,25 @@ describe('SettingsMenu', () => {
   it('toggling projector mode patches the store', async () => {
     render(<SettingsMenu />);
     await userEvent.click(screen.getByLabelText('Display settings'));
-    const checkbox = screen.getByRole('checkbox');
-    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByLabelText('Projector mode'));
     expect(useAppStore.getState().prefs.projector).toBe(true);
+  });
+
+  it('toggling the reference grid patches and persists prefs (ADR 0011)', async () => {
+    render(<SettingsMenu />);
+    await userEvent.click(screen.getByLabelText('Display settings'));
+    await userEvent.click(screen.getByLabelText('Reference grid'));
+    expect(useAppStore.getState().prefs.showGrid).toBe(false);
+    expect(JSON.parse(window.localStorage.getItem('phys-viz:prefs')!).showGrid).toBe(false);
+  });
+
+  it('toggling free rotation patches transient ui state, not prefs (ADR 0011)', async () => {
+    render(<SettingsMenu />);
+    await userEvent.click(screen.getByLabelText('Display settings'));
+    await userEvent.click(screen.getByLabelText('Free rotation'));
+    expect(useAppStore.getState().ui.rotationReleased).toBe(true);
+    // rotationReleased is `ui` state, not a `prefs` field — toggling it
+    // never touches localStorage at all.
+    expect(window.localStorage.getItem('phys-viz:prefs')).toBeNull();
   });
 });

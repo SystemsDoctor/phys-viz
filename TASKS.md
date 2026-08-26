@@ -253,6 +253,109 @@ instanced glyphs, parametric surfaces, quadrature, and scalar colouring
 - [DONE] **M5-8** Resolved **C-1**. Added `stepDt?: number` to `ModuleManifest` (`src/modules/types.ts`), bumped `MODULE_CONTRACT_VERSION` 1 → 2 with a doc-comment explanation of why an additive field is still consistent with "zero breaking changes", gave `FixedStepAccumulator`/`SteppedScrubber` (`src/shell/timeline/driver.ts`) an optional constructor `dt` (default `FIXED_DT`, so every existing zero-arg call site is byte-identical), threaded `module.manifest.stepDt ?? FIXED_DT` through `ModuleView.tsx` once per mount, and recorded the decision as [`0010-stepdt-module-overridable-timestep.md`](docs/adr/0010-stepdt-module-overridable-timestep.md). Also added a new generic contract assertion (`stepped modules implement step() and reset()`) closing a related previously-silent gap — those hooks are optional on `ModuleInstance` for every `timeModel`, so a `stepped` module that forgot them was unenforced until now. `driver.test.ts` gained cases exercising both classes with a non-default `dt`; `rotational-dynamics` itself doesn't need to set `stepDt` (the 1/240s default is fine for its one stepped panel), so the override ships proven by driver-level tests, not by a shipped module depending on it yet
 - [DONE] **M5-G** **Gate met.** Zero breaking changes to `src/modules/types.ts` confirmed: `stepDt` is additive/optional (M5-8's ADR spells out why the version bump doesn't contradict this), and no existing `ParamDef`/`ScalarDef`/`ModuleManifest` field changed shape. `npm run typecheck && npm run lint && npm run test:unit` (463 tests) `&& npm run test:coverage` (99.54% kernel lines, `kernel/rigidBody` at 100%) `&& npm run test:contract` (78 passed / 7 skipped, both new modules green under both up-axes) `&& npm run build && npm run check:budget` all clean; `npx playwright test` (22/22) green, including both new modules picked up automatically by the M4-8 dynamic sweep. **M6 is unblocked** — its tasks below are flipped from `BLOCKED` to `READY` in this change
 
+## UI-1 — Shell UX cleanup (pre-M7 polish)
+
+A pre-authoring-gate cleanup pass over seven UX/architecture issues
+found once real modules (M4/M5) existed to expose them, fixed at the
+shell/scene layer per `AGENTS.md`'s own rule so every future module
+inherits the fixes for free. Full rationale in
+[`0011-shell-ux-cleanup.md`](docs/adr/0011-shell-ux-cleanup.md).
+
+- [DONE] **UI-1** Layout: `.pv-viewport-canvas` is now full-bleed
+  (`position: absolute; inset: 0`) inside a `position: relative`
+  `.pv-module-view__layout`; `.pv-module-view__panel` is a pinned-width
+  floating overlay instead of a flex column. `Viewport`'s existing
+  `ResizeObserver` already tracks the canvas element's own CSS size, so
+  this needed no scene-layer change. Added a panel collapse toggle
+  (CSS-class-driven, not unmounted, so scroll position/open `<details>`
+  survive) and a "Recenter view" button reusing the existing
+  `camera.goTo(defaultView.preset, 400)` tween. Below 640px the
+  pre-existing stacked layout (M3-35) is kept. Verified in a real
+  browser: canvas fills the full viewport at both 1920px and a narrowed
+  900px window (only the panel's coverage proportion changes, not the
+  canvas's own extent); collapse toggle and Recenter both confirmed
+  working via DOM inspection
+- [DONE] **UI-2** Global settings: "Free rotation" (was a per-panel
+  button, already shell-owned but only ever visible for `dimensions: 2`
+  modules) and a new "Reference grid" toggle both moved into
+  `SettingsMenu`. The grid is now genuinely shell/`Viewport`-owned (a
+  new `Viewport.setGridVisible`, backed by `prefs.showGrid`, persisted +
+  `gr=` URL key, same treatment as up-axis/theme/projector) rather than
+  module-authored — `control-showcase`'s own `ctx.axes()` grid glyph is
+  removed, along with its dead `s.layers.grid ?? true` read (no matching
+  `LayerDef` ever existed for it — a real latent unreachable-UI bug,
+  now moot). "Free rotation" is `ui.rotationReleased`, deliberately
+  **not** persisted/URL'd (same transient shape as presenter/predict
+  mode). Verified: `SettingsMenu` unit tests (3 new), Playwright's
+  M3-G gate spec exercises the settings-menu path end to end
+- [DONE] **UI-3** Label-visibility substrate fix (also closes UI-7's
+  concrete example): `createLabel(props, host, attachTo?)` gained an
+  optional `attachTo: THREE.Object3D` — the embedding glyph's own root —
+  and hides the DOM overlay whenever `attachTo` or any ancestor group is
+  invisible (`isVisibleInHierarchy`, new `src/scene/internal/
+visibility.ts`). Root cause: `Viewport.setGroupVisible` (the path
+  every layer checkbox uses) only ever toggled the three.js
+  `Object3D.visible` flag directly, never a handle's own `.visible()` —
+  so a label whose glyph was hidden by a _layer_ toggle kept rendering
+  forever. `arrow`/`arc`/`curvedArrow`/`dimensionLine` all updated to
+  pass their root. Verified: new `arrow.test.ts` case proving a label
+  hides when its group (not the handle) is toggled off via a fake host,
+  and Playwright's per-module layer-toggle sweep exercises it live
+- [DONE] **UI-4** Panel reorg: `ModuleView`'s panel body now renders
+  always-visible params, then `LayerManager` (layer picker), then one
+  `<details>` per currently-checked layer holding only its
+  `forLayer`-linked params, then Timeline/readouts/plots/Explain
+  (unchanged position at the bottom) — "what do I want to visualize"
+  before each choice's own numeric/display options. Verified live: on
+  `vector-algebra`, checking "Scalar triple product" opens exactly one
+  `<details>` containing only "Vector c"
+- [DONE] **UI-5** Checkbox-vs-radio strategy, decided per module rather
+  than blanket policy: `vector-algebra`/`fields-gradients` keep
+  independent checkboxes (their demonstrations are meant to combine, or
+  already coexist by design without visual conflict);
+  `rotational-dynamics`'s all-independent seven layers (the module
+  explicitly named as producing "a mass of overlaid items that are
+  unintelligible" when combined) now share `exclusiveGroup: 'panel'`,
+  rendering as a mutually-exclusive radio set — resolves the complaint
+  without needing to split the module. Verified live: checking "Rolling"
+  in `rotational-dynamics` automatically unchecks "Torque"; Playwright's
+  dynamic per-module layer-toggle sweep passes for all 4 modules
+  including the new radio rendering
+- [DONE] **UI-6** `VectorPad`'s per-axis inputs each keep a local text
+  buffer (authoritative while typing), committing upward only when it
+  parses to a finite number — fixes typing a bare `-`/trailing `.`/an
+  emptied field reverting to the last committed value mid-keystroke.
+  Verified live: typing `-3.5` into a vector component from `0` stays
+  `-3.5` at every keystroke and commits correctly to the URL
+- [DONE] **UI-7** General visual-bug pass: the vector `c` example given
+  (label outliving its hidden arrow) is the same root cause as UI-3,
+  fixed there. One additional bug found during verification —
+  `formatQuantity` (`kernel/units`) shows a misleading SI-prefix letter
+  for dimensionless readouts (e.g. `cosAlpha` renders "949 m" instead of
+  "0.949") — flagged as a separate follow-up task rather than folded
+  into this pass, since it's unrelated kernel/units formatting logic,
+  not a shell/scene visibility bug
+- [DONE] **UI-8** Contract addition backing UI-4/UI-5: `ParamBase.
+forLayer?: string` and `LayerDef.exclusiveGroup?: string`, both
+  additive/optional (same shape/precedent as `stepDt`, ADR 0010).
+  `MODULE_CONTRACT_VERSION` bumped 2 → 3. Recorded as
+  [`0011-shell-ux-cleanup.md`](docs/adr/0011-shell-ux-cleanup.md).
+  `vector-algebra`/`rotational-dynamics`/`fields-gradients` all adopt
+  `forLayer`; `control-showcase` gained one `forLayer` example
+  (`traceSteps`, nested under `trace`) so the fixture keeps exercising
+  it — `exclusiveGroup` is instead covered by `LayerManager`'s own new
+  unit tests plus `rotational-dynamics` as a real module, not by adding
+  a contrived pair to the fixture
+- [DONE] **UI-G** **Gate:** `npm run typecheck && npm run lint &&
+npm run test:unit` (468 tests, including 2 new `SettingsMenu` cases, 2
+  new `LayerManager` exclusiveGroup cases, and 1 new `arrow.test.ts`
+  label-visibility case) `&& npm run test:contract` (78 passed / 7
+  skipped, unchanged) `&& npm run build && npm run check:budget` all
+  clean; `npx playwright test` (22/22) green, including the updated
+  M3-G gate spec (settings-menu-driven Free Rotation check replacing the
+  removed in-panel button) and the dynamic per-module layer-toggle sweep
+  now exercising radio-button rendering for `rotational-dynamics`
+
 ## M6 — Authoring path (the extensibility gate)
 
 **Accept when:** a person who has never seen the codebase ships a

@@ -11,6 +11,7 @@ export const params: ParamDef[] = [
     vars: ['x', 'y'],
     default: 'sin(x) * cos(y)',
     group: 'Heightmap',
+    forLayer: 'heightmap',
   },
   {
     kind: 'number',
@@ -22,6 +23,7 @@ export const params: ParamDef[] = [
     max: 5,
     step: 0.5,
     group: 'Heightmap',
+    forLayer: 'heightmap',
   },
   {
     kind: 'number',
@@ -52,7 +54,7 @@ export const params: ParamDef[] = [
     label: 'Direction û',
     symbol: '\\theta',
     default: 0.4,
-    group: 'Heightmap',
+    forLayer: 'directionalDerivative',
   },
 
   // Vector field F(x,y,z) — deliberately NOT grad(f): curl of a gradient
@@ -105,7 +107,7 @@ export const params: ParamDef[] = [
     default: [1.4, 1.0, 0.6],
     range: 3,
     draggable: true,
-    group: 'Divergence',
+    forLayer: 'divergenceBox',
   },
   {
     kind: 'number',
@@ -117,7 +119,7 @@ export const params: ParamDef[] = [
     max: 1.5,
     step: 0.01,
     logScale: true,
-    group: 'Divergence',
+    forLayer: 'divergenceBox',
   },
 
   // Curl paddlewheel
@@ -129,7 +131,7 @@ export const params: ParamDef[] = [
     default: [-1.4, -1.0, 0.6],
     range: 3,
     draggable: true,
-    group: 'Curl',
+    forLayer: 'curlPaddlewheel',
   },
 
   // Flux / Stokes — the "user-shaped surface"
@@ -141,7 +143,7 @@ export const params: ParamDef[] = [
     default: [-1.5, 1.5, 0.8],
     range: 3,
     draggable: true,
-    group: 'Flux & Stokes',
+    forLayer: 'fluxCap',
   },
   {
     kind: 'number',
@@ -152,7 +154,7 @@ export const params: ParamDef[] = [
     min: 0.3,
     max: 2.5,
     step: 0.1,
-    group: 'Flux & Stokes',
+    forLayer: 'fluxCap',
   },
   {
     kind: 'number',
@@ -163,7 +165,7 @@ export const params: ParamDef[] = [
     min: -1.5,
     max: 1.5,
     step: 0.05,
-    group: 'Flux & Stokes',
+    forLayer: 'fluxCap',
   },
 ];
 
@@ -179,7 +181,13 @@ export const layers: LayerDef[] = [
 
 export const scalars: ScalarDef[] = [
   { key: 'gradMag', label: '|∇f| at probe', symbol: '|\\nabla f|', readout: true },
-  { key: 'dirDeriv', label: 'Directional derivative', symbol: 'D_{\\hat u}f', readout: true, plottable: true },
+  {
+    key: 'dirDeriv',
+    label: 'Directional derivative',
+    symbol: 'D_{\\hat u}f',
+    readout: true,
+    plottable: true,
+  },
   { key: 'divAtBox', label: 'div F at box center', symbol: '\\nabla\\cdot\\vec F', readout: true },
   { key: 'fluxThroughBox', label: 'Flux through box', readout: true },
   {

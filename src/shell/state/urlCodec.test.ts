@@ -119,10 +119,12 @@ describe('encodeState / decodeState round-trip', () => {
   });
 
   it('prefs round-trip and are omitted at default', () => {
-    expect(encodeState(baseState(), ctx)).not.toMatch(/up=|th=|pj=/);
-    const state = baseState({ prefs: { upAxis: 'z', theme: 'dark', projector: true } });
+    expect(encodeState(baseState(), ctx)).not.toMatch(/up=|th=|pj=|gr=/);
+    const state = baseState({
+      prefs: { upAxis: 'z', theme: 'dark', projector: true, showGrid: false },
+    });
     const decoded = decodeState(encodeState(state, ctx), ctx);
-    expect(decoded.prefs).toEqual({ upAxis: 'z', theme: 'dark', projector: true });
+    expect(decoded.prefs).toEqual({ upAxis: 'z', theme: 'dark', projector: true, showGrid: false });
   });
 
   it('falls back to a compressed ?z= blob past 1800 characters and still round-trips', () => {

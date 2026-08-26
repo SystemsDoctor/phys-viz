@@ -170,6 +170,8 @@ export function encodeState(state: AppState, ctx: CodecContext): string {
   if (state.prefs.upAxis !== DEFAULT_PREFS.upAxis) query.set('up', state.prefs.upAxis);
   if (state.prefs.theme !== DEFAULT_PREFS.theme) query.set('th', state.prefs.theme);
   if (state.prefs.projector !== DEFAULT_PREFS.projector) query.set('pj', '1');
+  if (state.prefs.showGrid !== DEFAULT_PREFS.showGrid)
+    query.set('gr', state.prefs.showGrid ? '1' : '0');
 
   const full = `?${query.toString()}`;
   if (full.length <= MAX_LENGTH) return full;
@@ -236,10 +238,12 @@ export function decodeState(search: string, ctx: CodecContext): DecodedState {
   const up = query.get('up');
   const th = query.get('th');
   const pj = query.get('pj');
+  const gr = query.get('gr');
   out.prefs = {
     upAxis: up === 'z' ? 'z' : DEFAULT_PREFS.upAxis,
     theme: th === 'dark' ? 'dark' : DEFAULT_PREFS.theme,
     projector: pj === '1',
+    showGrid: gr === null ? DEFAULT_PREFS.showGrid : gr === '1',
   };
 
   return out;

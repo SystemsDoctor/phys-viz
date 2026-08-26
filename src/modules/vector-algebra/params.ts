@@ -31,6 +31,10 @@ export const params: ParamDef[] = [
     range: 6,
     draggable: true,
     group: 'Triple product',
+    // Only ever drawn once the 'triple' layer is checked (index.ts
+    // attaches it to gTriple, hidden by default) — nest it under that
+    // layer's disclosure rather than the always-visible list (ADR 0011).
+    forLayer: 'triple',
   },
   {
     kind: 'select',
@@ -43,6 +47,7 @@ export const params: ParamDef[] = [
     ],
     default: 'tip',
     group: 'Addition',
+    forLayer: 'sum',
   },
   {
     kind: 'toggle',
@@ -60,13 +65,26 @@ export const params: ParamDef[] = [
     symbol: '\\phi',
     default: 0,
     group: 'Structure',
+    forLayer: 'comps',
   },
 ];
 
 export const layers: LayerDef[] = [
   { key: 'sum', urlKey: 'sum', label: 'Sum a + b', default: false, group: 'Addition' },
-  { key: 'comps', urlKey: 'cp', label: 'Components on rotated basis', default: false, group: 'Structure' },
-  { key: 'dircos', urlKey: 'dc', label: 'Direction cosines of a', default: false, group: 'Structure' },
+  {
+    key: 'comps',
+    urlKey: 'cp',
+    label: 'Components on rotated basis',
+    default: false,
+    group: 'Structure',
+  },
+  {
+    key: 'dircos',
+    urlKey: 'dc',
+    label: 'Direction cosines of a',
+    default: false,
+    group: 'Structure',
+  },
   { key: 'proj', urlKey: 'pr', label: 'Projection of a on b', default: false, group: 'Products' },
   { key: 'xprod', urlKey: 'xp', label: 'Cross product a × b', default: false, group: 'Products' },
   { key: 'xarea', urlKey: 'xa', label: 'Parallelogram area', default: false, group: 'Products' },

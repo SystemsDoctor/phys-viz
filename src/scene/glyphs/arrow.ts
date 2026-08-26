@@ -80,7 +80,7 @@ export function createArrow(props: ArrowProps, host: SubstrateHost): ArrowHandle
     tailHead.visible = !!p.doubleHead;
 
     if (p.label) {
-      if (!label) label = createLabel({ latex: p.label, anchor: p.to }, host);
+      if (!label) label = createLabel({ latex: p.label, anchor: p.to }, host, root);
       else label.set({ latex: p.label, anchor: p.to });
     } else if (label) {
       label.dispose();

@@ -25,13 +25,14 @@ import { Timeline } from '../timeline';
 import { FixedStepAccumulator, SteppedScrubber, FIXED_DT } from '../timeline/driver';
 import { ReadoutTable } from '../readouts';
 import { TimeSeriesPlot } from '../plots/TimeSeriesPlot';
+import { SweepPlot } from '../plots/SweepPlot';
 import { ExplainPanel } from '../explain';
 import { ModuleErrorBoundary } from '../errors';
 import { usePresenterKeymap, KeymapOverlay } from '../presenter';
 import { useAppStore, paramDefaults, DEFAULT_APP_STATE } from '../state/store';
 import type { AppState, ParamValue } from '../state/store';
 import { encodeState, decodeState } from '../state/urlCodec';
-import { migrations } from '../state/migrations';
+import { runMigrations } from '../state/migrations';
 import { useHashSearch, navigateHash } from './hashRouter';
 import { formatQuantity, DIMENSIONLESS } from '@/kernel/units';
 
@@ -52,31 +53,6 @@ function defaultCameraFor(module: PhysicsModule): AppState['camera'] {
   };
   const dir = DIRS[preset] ?? DIRS.iso;
   return { theta: dir.theta, phi: dir.phi, radius: 8, target: [0, 0, 0], projection };
-}
-
-/**
- * Walks the migration chain from `fromVersion` to `toVersion`. Reports
- * success/failure explicitly rather than via a reference-equality check
- * against `raw` — a chain that succeeds for a few versions and then
- * hits a missing step is still an INCOMPLETE migration and must fall
- * back to defaults (§14), and reference equality alone can't tell that
- * apart from a chain that succeeded completely (both produce a new
- * object reference partway through).
- */
-function runMigrations(
-  moduleId: string,
-  fromVersion: number,
-  toVersion: number,
-  raw: Record<string, unknown>,
-): { params: Record<string, unknown>; migrated: boolean } {
-  const table = migrations[moduleId];
-  let state = raw;
-  for (let v = fromVersion; v < toVersion; v++) {
-    const step = table?.[v];
-    if (!step) return { params: raw, migrated: false }; // can't bridge the gap — caller falls back to defaults with a notice, per §14
-    state = step(state);
-  }
-  return { params: state, migrated: true };
 }
 
 export function ModuleView(props: { moduleId: string }): React.ReactElement {
@@ -415,21 +391,38 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     });
   }, [mounted, module, moduleStateOf]);
 
-  // State -> URL, debounced, always `replace` (see hashRouter.ts).
+  // State -> URL, debounced, always `replace` (see hashRouter.ts). A
+  // PLAIN debounce (clearTimeout + reset on every change) starves
+  // forever under continuous churn — while time is playing, t changes
+  // every rAF frame and keeps resetting the SAME timer, so a param
+  // edit made mid-playback would never reach the URL either, not just
+  // t itself. A max-wait ceiling forces a sync periodically regardless
+  // of ongoing churn, same idea as lodash's debounce({maxWait}).
+  const MAX_WAIT_MS = 1000;
   React.useEffect(() => {
     if (!mounted) return;
     let timeoutId = 0;
+    let firstPendingAt: number | null = null;
     const codecCtx = {
       schemaVersion: module.manifest.schemaVersion,
       params: module.params,
       layers: module.layers,
       defaultCamera,
     };
-    return useAppStore.subscribe((s) => {
+    const flush = (s: AppState): void => {
       window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
-        navigateHash(`/m/${module.manifest.id}${encodeState(s, codecCtx)}`, { replace: true });
-      }, URL_SYNC_DEBOUNCE_MS);
+      firstPendingAt = null;
+      navigateHash(`/m/${module.manifest.id}${encodeState(s, codecCtx)}`, { replace: true });
+    };
+    return useAppStore.subscribe((s) => {
+      const now = Date.now();
+      if (firstPendingAt === null) firstPendingAt = now;
+      window.clearTimeout(timeoutId);
+      if (now - firstPendingAt >= MAX_WAIT_MS) {
+        flush(s);
+        return;
+      }
+      timeoutId = window.setTimeout(() => flush(s), URL_SYNC_DEBOUNCE_MS);
     });
   }, [mounted, module, defaultCamera]);
 
@@ -545,6 +538,20 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     )
     .join(', ');
 
+  // Sweep plot (M3-16): the shell's other generic plot type, wired
+  // against the first param with a numeric range and the first
+  // plottable scalar — no per-module declaration of "which param sweeps
+  // against which scalar" exists in the contract, so this is the
+  // generic default every module gets.
+  // SweepPlot needs a genuine numeric range — an 'angle' param is
+  // legitimately allowed to leave min/max unbounded (unlike 'number',
+  // where they're required), so this can't just filter on kind.
+  const sweepParam = module.params.find(
+    (p) =>
+      (p.kind === 'number' || p.kind === 'angle') && p.min !== undefined && p.max !== undefined,
+  );
+  const sweepScalar = module.scalars.find((s) => s.plottable);
+
   if (!seeded) return <div className="pv-loading">Loading…</div>;
 
   return (
@@ -622,6 +629,23 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
               series={series}
               xLabel="t"
               yLabel={module.scalars.find((s) => s.plottable)?.label ?? ''}
+            />
+          )}
+          {sweepParam && sweepScalar && (
+            <SweepPlot
+              sweepParam={sweepParam}
+              scalar={sweepScalar}
+              evaluate={(v) => {
+                const instance = instanceRef.current;
+                if (!instance) return 0;
+                const s = useAppStore.getState();
+                // scalars() is documented pure (§10) — safe to call with
+                // a one-off shadow state without touching the real one.
+                return instance.scalars({
+                  ...moduleStateOf(s),
+                  params: { ...s.params, [sweepParam.key]: v },
+                })[sweepScalar.key];
+              }}
             />
           )}
           {explainSource && <ExplainPanel source={explainSource} />}

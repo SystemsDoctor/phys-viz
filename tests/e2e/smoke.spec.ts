@@ -149,4 +149,57 @@ test('320px layout (§18 manual checklist, M3-35): module route stacks instead o
   expect(hasHorizontalOverflow).toBe(false);
 });
 
+test('M3-G gate: control-showcase renders a complete usable UI with zero module UI code, and the URL round-trips', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text());
+  });
+  page.on('pageerror', (err) => errors.push(err.message));
+
+  await page.goto('#/m/control-showcase');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+
+  // One of every ParamDef kind actually rendered as a real control.
+  await expect(page.getByLabel('Point p x')).toBeVisible(); // vector
+  await expect(page.getByRole('slider', { name: 'Angle' })).toBeVisible(); // angle dial
+  await expect(page.getByRole('slider', { name: /Stiffness k/ })).toBeVisible(); // logScale number
+  await expect(page.getByLabel('f(x)')).toBeVisible(); // expression
+  await expect(page.getByLabel('Display mode')).toBeVisible(); // select
+  await expect(page.getByRole('checkbox', { name: 'Highlight' })).toBeVisible(); // toggle
+
+  // Grouped layers + a reveal-gated one (predict mode's own toggle
+  // isn't on by default, so "Predicted magnitude" should render as a
+  // plain checkbox here, not a Reveal button).
+  await expect(page.getByText('Predict', { exact: true })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Predicted magnitude' })).toBeVisible();
+
+  // Both plot types (M3-15/16), from a module that declares nothing
+  // about plots itself. TimeSeriesPlot only renders once >1 point has
+  // accumulated, which needs time actually advancing (playing defaults
+  // to false) — press Space first.
+  await page.locator('body').press(' ');
+  await page.waitForTimeout(1500);
+  await expect(page.locator('.pv-plot')).toHaveCount(2);
+
+  // 2D lock (ADR 0007, M3-31): dimensions: 2 suppresses orbit — the
+  // release-rotation toggle should be present, starting as "Release".
+  await expect(page.getByRole('button', { name: 'Release rotation' })).toBeVisible();
+
+  // URL round-trip (M3-37): change a param, confirm the URL reflects
+  // it (debounced ~250ms), reload, confirm the value survived.
+  const kSlider = page.getByRole('slider', { name: /Stiffness k/ });
+  await kSlider.fill('0.8');
+  await page.waitForTimeout(400);
+  expect(page.url()).toContain('k=');
+
+  const urlBefore = page.url();
+  await page.reload();
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+  expect(page.url()).toBe(urlBefore);
+
+  expect(errors).toEqual([]);
+});
+
 // TODO: for (const id of moduleIds) { test(`${id} renders without console errors`, ...) }

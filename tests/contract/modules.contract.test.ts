@@ -32,7 +32,39 @@
  * 10. Every explain.md, if present, parses.
  */
 import { describe, it, expect } from 'vitest';
-import { manifests } from '@/modules/registry';
+import { manifests, loadModule } from '@/modules/registry';
+import { encodeState, decodeState } from '@/shell/state/urlCodec';
+import { paramDefaults } from '@/shell/state/store';
+import { createRng, nextRange } from '@/kernel/random';
+import type { ParamDef } from '@/modules/types';
+import type { ParamValue } from '@/shell/state/store';
+
+/**
+ * A random but valid value per ParamDef kind, seeded (not Math.random)
+ * so a contract-test failure is reproducible. `expression` params keep
+ * their default — a random string risks being syntactically invalid,
+ * which would be testing kernel/expr's parser, not the codec.
+ */
+function randomParamValue(def: ParamDef, rng: () => number): ParamValue {
+  switch (def.kind) {
+    case 'number':
+      return nextRange(rng, def.min, def.max);
+    case 'vector':
+      return [
+        nextRange(rng, -def.range, def.range),
+        nextRange(rng, -def.range, def.range),
+        nextRange(rng, -def.range, def.range),
+      ];
+    case 'toggle':
+      return rng() < 0.5;
+    case 'select':
+      return def.options[Math.floor(rng() * def.options.length)].value;
+    case 'expression':
+      return def.default;
+    case 'angle':
+      return nextRange(rng, def.min ?? -Math.PI, def.max ?? Math.PI);
+  }
+}
 
 describe('module contract', () => {
   for (const manifest of manifests) {
@@ -49,7 +81,70 @@ describe('module contract', () => {
       it.todo('scalars() is pure');
       it.todo('scalars(A) is deterministic when called twice in a row');
       it.todo('parametric modules: update({t}) is independent of history');
-      it.todo('URL round-trip preserves state');
+
+      it('URL round-trip: encode(defaults) -> decode deep-equals defaults', async () => {
+        const module = await loadModule(manifest.id);
+        const codecCtx = {
+          schemaVersion: module.manifest.schemaVersion,
+          params: module.params,
+          layers: module.layers,
+        };
+        const defaults = paramDefaults(module.params);
+        const defaultLayers = Object.fromEntries(module.layers.map((l) => [l.key, l.default]));
+
+        const encoded = encodeState(
+          {
+            moduleId: module.manifest.id,
+            params: defaults,
+            layers: defaultLayers,
+            time: { t: 0, playing: false, speed: 1, direction: 1 },
+            camera: decodeState('', codecCtx).camera!,
+            ui: { presenterMode: false, predictMode: false, panelsOpen: [] },
+            prefs: { upAxis: 'y', theme: 'light', projector: false },
+          },
+          codecCtx,
+        );
+        const decoded = decodeState(encoded, codecCtx);
+        expect(decoded.params).toEqual(defaults);
+        expect(decoded.layers).toEqual(defaultLayers);
+      });
+
+      it('URL round-trip: encode(randomized) -> decode deep-equals the randomized state', async () => {
+        const module = await loadModule(manifest.id);
+        const codecCtx = {
+          schemaVersion: module.manifest.schemaVersion,
+          params: module.params,
+          layers: module.layers,
+        };
+        // Seeded by the module id (via a trivial hash) so it's stable
+        // across runs and still varies per module.
+        const seed = manifest.id.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0);
+        const rng = createRng(seed);
+
+        const params: Record<string, ParamValue> = {};
+        for (const p of module.params) params[p.key] = randomParamValue(p, rng);
+        const layers: Record<string, boolean> = {};
+        for (const l of module.layers) layers[l.key] = rng() < 0.5;
+        // t=' spec-mandated 2dp truncation is a documented lossy field
+        // (urlCodec's own doc comment) — round here so this check tests
+        // the codec's round-trip contract, not that lossiness.
+        const t = Math.round(nextRange(rng, 0, 20) * 100) / 100;
+
+        const state = {
+          moduleId: module.manifest.id,
+          params,
+          layers,
+          time: { t, playing: false, speed: 1, direction: 1 as const },
+          camera: decodeState('', codecCtx).camera!,
+          ui: { presenterMode: false, predictMode: false, panelsOpen: [] },
+          prefs: { upAxis: 'y' as const, theme: 'light' as const, projector: false },
+        };
+        const decoded = decodeState(encodeState(state, codecCtx), codecCtx);
+        expect(decoded.params).toEqual(params);
+        expect(decoded.layers).toEqual(layers);
+        expect(decoded.time?.t).toBe(t);
+      });
+
       it.todo('no NaN across a sampling of the parameter space');
       it.todo('explain.md, if present, parses');
     });

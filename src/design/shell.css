@@ -167,6 +167,43 @@ body {
   white-space: pre;
 }
 
+.pv-plot {
+  width: 100%;
+}
+
+.pv-readouts {
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.pv-readouts td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.pv-readouts__label {
+  color: var(--ink-1);
+}
+
+.pv-readouts__value {
+  color: var(--ink-0);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.pv-readouts--pinned {
+  position: fixed;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: var(--surf-1);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: var(--space-2);
+  font-size: 1.5em;
+  z-index: 10;
+}
+
 .pv-timeline {
   display: flex;
   flex-direction: column;

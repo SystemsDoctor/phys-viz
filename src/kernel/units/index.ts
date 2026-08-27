@@ -10,7 +10,10 @@
  *
  * `formatQuantity` is prefix-and-numeral only (e.g. "1.23 k"); deriving a
  * unit *symbol* string from `Dimension`'s seven exponents (e.g. "kg m/s")
- * is a Layer 2/3 axis-label concern, out of kernel scope.
+ * is a Layer 2/3 axis-label concern, out of kernel scope. A DIMENSIONLESS
+ * quantity (a pure ratio like a direction cosine) never gets an SI-prefix
+ * letter — there is no unit for "milli" or "kilo" to modify — so it prints
+ * as a plain decimal number instead.
  */
 
 export type Dimension = readonly [number, number, number, number, number, number, number];
@@ -87,14 +90,41 @@ function formatMantissaFixedWidth(mantissa: number, sigFigs: number): string | n
   return str.padEnd(sigFigs + 1, ' ');
 }
 
+/**
+ * Format a dimensionless value (e.g. a direction cosine or other pure
+ * ratio) as a plain decimal number with `sigFigs` significant figures —
+ * no SI-prefix scaling, since there is no unit for a prefix to modify.
+ * Self-corrects once if rounding pushes the value up an order of
+ * magnitude (e.g. 0.9996 -> "1.000"), mirroring `formatMantissaFixedWidth`.
+ */
+function formatDimensionlessMantissa(absValue: number, sigFigs: number): string {
+  let order = Math.floor(Math.log10(absValue));
+  let decimals = Math.max(0, sigFigs - 1 - order);
+  let str = absValue.toFixed(decimals);
+  const roundedOrder = Math.floor(Math.log10(Number(str)));
+  if (roundedOrder !== order) {
+    order = roundedOrder;
+    decimals = Math.max(0, sigFigs - 1 - order);
+    str = absValue.toFixed(decimals);
+  }
+  return str;
+}
+
 /** Format with SI prefixes and significant-figure control, at a fixed character width. */
 export function formatQuantity(q: Quantity, sigFigs = 3): string {
   const sign = q.value < 0 ? '-' : ' ';
   const absValue = Math.abs(q.value);
+  const isDimensionless = dimEquals(q.dim, DIMENSIONLESS);
 
   if (absValue === 0) {
     const mantissaStr = (0).toFixed(Math.max(0, sigFigs - 1)).padEnd(sigFigs + 1, ' ');
-    return `${sign}${mantissaStr}${SI_PREFIXES[0] || ' '}`;
+    return isDimensionless
+      ? `${sign}${mantissaStr.trimEnd()}`
+      : `${sign}${mantissaStr}${SI_PREFIXES[0] || ' '}`;
+  }
+
+  if (isDimensionless) {
+    return `${sign}${formatDimensionlessMantissa(absValue, sigFigs)}`;
   }
 
   // Math.log10 can round a value that's *just* under an exact power of

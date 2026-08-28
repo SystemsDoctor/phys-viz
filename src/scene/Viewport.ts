@@ -227,6 +227,20 @@ export class Viewport {
    * Turning OFF is instant — §15 only asks for a fade-IN ("students see
    * what appeared"), and fading out risks masking content the student
    * just chose to hide with a lingering translucent ghost.
+   *
+   * Idempotent while already visible — this matters more than it looks:
+   * a `LayerManager` exclusive-group (radio) selection fires ONE
+   * `setLayer` call per sibling (§9's `selectExclusive`), each of which
+   * independently re-notifies this same layer's `setGroupVisible(true)`
+   * via ModuleView's per-layer subscribe loop, all synchronously within
+   * one click. Re-entering the fade setup on those redundant calls used
+   * to re-`traverse()` and re-capture "current" opacity as the new
+   * baseline — which, mid-fade, is partway (or already zeroed) toward 0,
+   * so the group could latch onto a near-zero baseline and never
+   * actually reach full opacity. Bailing out whenever `group.visible` is
+   * already true (whether mid-fade or long since settled) makes every
+   * redundant call a pure no-op, so only the FIRST call of a burst ever
+   * captures a baseline, and it always captures the true pre-fade value.
    */
   setGroupVisible(name: string, visible: boolean): void {
     const group = this.resolveGroup({ id: name });
@@ -238,7 +252,7 @@ export class Viewport {
       return;
     }
 
-    if (group.visible && !this.activeFades.has(name)) return; // already visible, nothing to do
+    if (group.visible) return; // already visible (or already fading in) — nothing to do
 
     group.visible = true;
     if (this.reducedMotion) {

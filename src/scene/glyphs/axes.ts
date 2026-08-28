@@ -12,6 +12,8 @@ import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
 import type { SubstrateHost } from '../internal/SubstrateHost';
 import { worldUnitsPerPixel } from '../internal/screenSpace';
+import { createLabel } from '../annotate/label';
+import type { LabelHandle } from '../annotate/label';
 
 export interface AxesProps {
   group?: GroupHandle;
@@ -37,6 +39,10 @@ const PERPENDICULARS: readonly [number, number, number][] = [
   [1, 0, 0],
   [1, 0, 0],
 ];
+const AXIS_LABELS = ['x', 'y', 'z'] as const;
+// Nudged just past the axis tip (in world units) so the glyph doesn't
+// sit right on top of the line's own endpoint.
+const LABEL_OFFSET = 0.3;
 
 const scratchOrigin = new THREE.Vector3(0, 0, 0);
 
@@ -117,6 +123,27 @@ export function createAxes(props: AxesProps, host: SubstrateHost): AxesHandle {
     if (cursor > 0) tickGeometry.computeBoundingSphere();
   }
 
+  // Axis labels ('x'/'y'/'z' at each positive tip) — a plain KaTeX
+  // overlay label per axis, attached to `root` so they inherit the SAME
+  // visibility as the lines/ticks (`attachTo`'s hierarchy check in
+  // `createLabel`, already relied on by arrow/arc/curvedArrow labels):
+  // toggling the reference grid off via `visible()` hides these too,
+  // with no extra wiring here.
+  const labels: LabelHandle[] = AXIS_LABELS.map((latex, a) =>
+    createLabel({ latex, anchor: labelAnchor(a, current.extent ?? DEFAULT_EXTENT) }, host, root),
+  );
+
+  function labelAnchor(axis: number, extent: number): [number, number, number] {
+    const [dx, dy, dz] = AXES[axis];
+    const r = extent + LABEL_OFFSET;
+    return [dx * r, dy * r, dz * r];
+  }
+
+  function repositionLabels(): void {
+    const extent = current.extent ?? DEFAULT_EXTENT;
+    labels.forEach((label, a) => label.set({ anchor: labelAnchor(a, extent) }));
+  }
+
   rebuildAxisLines();
   rebuildTicks(niceSpacing(DEFAULT_EXTENT / 10));
 
@@ -135,6 +162,7 @@ export function createAxes(props: AxesProps, host: SubstrateHost): AxesHandle {
     set(next) {
       current = { ...current, ...next };
       rebuildAxisLines();
+      repositionLabels();
       lastSpacing = -1; // force a tick rebuild on the next frame
     },
     visible(show) {
@@ -149,6 +177,7 @@ export function createAxes(props: AxesProps, host: SubstrateHost): AxesHandle {
       axisMaterial.dispose();
       tickGeometry.dispose();
       tickMaterial.dispose();
+      labels.forEach((label) => label.dispose());
     },
   };
 }

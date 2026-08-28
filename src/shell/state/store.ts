@@ -28,14 +28,18 @@ export interface AppState {
     predictMode: boolean;
     panelsOpen: string[];
     /**
-     * Global "free rotation" toggle (§9 settings menu, ADR 0011). Applies
-     * only to a module with `manifest.dimensions === 2` (ADR 0007's
-     * locked-ortho modules) — a no-op elsewhere. Deliberately transient,
-     * not persisted/URL-serialized: same shape as `presenterMode` /
+     * Global "2D-only" toggle (§9 settings menu, ADR 0011/0012). Checked
+     * (the default, matching ADR 0012's "every module locks orbit and
+     * forces orthographic by default") restricts EVERY module to a
+     * locked, orthographic view of the x/y plane (camera looking down
+     * +z, z axis out of the page) — orbit suppressed, pan/zoom stay
+     * live. Unchecking it releases full 3D orbit and restores the
+     * module's own declared projection. Deliberately transient, not
+     * persisted/URL-serialized: same shape as `presenterMode` /
      * `predictMode`, a viewing convenience for the current visit rather
      * than a bookmarkable demo state.
      */
-    rotationReleased: boolean;
+    lockTo2D: boolean;
   };
   /** Viewer display preferences (ADR 0009, §13) — persisted locally, not per-module. */
   prefs: { upAxis: 'y' | 'z'; theme: 'light' | 'dark'; projector: boolean; showGrid: boolean };
@@ -55,7 +59,7 @@ export const DEFAULT_UI: AppState['ui'] = {
   presenterMode: false,
   predictMode: false,
   panelsOpen: [],
-  rotationReleased: false,
+  lockTo2D: true,
 };
 
 export const DEFAULT_PREFS: AppState['prefs'] = {

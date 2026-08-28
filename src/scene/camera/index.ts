@@ -18,10 +18,11 @@
  * - Orbit lock (ADR 0007) via `setLockedToPlane`: pan/zoom stay live,
  *   only rotation is suppressed. Originally scoped to `dimensions: 2`
  *   modules only; ADR 0012 makes it the GLOBAL default for every
- *   module (paired with forcing orthographic projection), driven by
- *   the settings menu's "Free rotation" toggle rather than the
- *   module's own declared dimensionality — `ModuleView` is what
- *   actually applies this, this file just provides the mechanism.
+ *   module (paired with forcing orthographic projection and a fixed
+ *   `+z` orientation), driven by the settings menu's "2D-only" toggle
+ *   rather than the module's own declared dimensionality —
+ *   `ModuleView` is what actually applies this, this file just
+ *   provides the mechanism.
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -50,7 +51,23 @@ export interface CameraControllerOptions {
 }
 
 export interface CameraController {
-  goTo(preset: CameraPreset, durationMs?: number, fitBounds?: Box3Like): void;
+  /**
+   * `recenterTarget`, when true, also resets the orbit target (pan) to
+   * the world origin as part of the SAME tween as the orientation change
+   * — e.g. "Recenter view" (ADR 0011/0012) needs to undo an arbitrary
+   * pan, not just re-orient. Folding it into one tween (rather than a
+   * separate target-only animation) is what `'fit'` already does for
+   * its own bounds-driven recenter; this just makes that same target
+   * reset available to a plain named preset too. Defaults to false so
+   * every other caller (the `v` key cycle, the 2D-lock re-lock tween)
+   * keeps today's "orientation only" behavior unless it opts in.
+   */
+  goTo(
+    preset: CameraPreset,
+    durationMs?: number,
+    fitBounds?: Box3Like,
+    recenterTarget?: boolean,
+  ): void;
   setProjection(projection: Projection): void;
   setUpAxis(axis: UpAxis, animate?: boolean): void;
   getUpAxis(): UpAxis;
@@ -254,7 +271,7 @@ export function createCameraController(options: CameraControllerOptions): Camera
       return activeCamera;
     },
 
-    goTo(preset, durationMs = DEFAULT_DURATION_MS, fitBounds) {
+    goTo(preset, durationMs = DEFAULT_DURATION_MS, fitBounds, recenterTarget = false) {
       if (preset === 'fit') {
         if (fitBounds) {
           target.set(fitBounds.center[0], fitBounds.center[1], fitBounds.center[2]);
@@ -265,6 +282,19 @@ export function createCameraController(options: CameraControllerOptions): Camera
           /* theta/phi unchanged; target/radius already committed above */
         });
         return;
+      }
+      // Committed immediately (like `fitBounds.center` above), not
+      // deferred to the tween's onDone: `posAfter` below must already be
+      // computed relative to the NEW target for the pan reset to be
+      // part of the same smooth motion, rather than an instant post-tween
+      // jump. `controls.target` has to move with it right away too —
+      // plain per-frame `update()` treats `controls.target` as the
+      // source of truth and copies it back onto `target` every tick
+      // (that's how a live user pan is picked up), so leaving it stale
+      // here would silently undo this reset on the very next frame.
+      if (recenterTarget) {
+        target.set(0, 0, 0);
+        if (controls) controls.target.copy(target);
       }
       const dirCanonical = presetDirectionCanonical(preset);
       const spherical = new THREE.Spherical().setFromVector3(dirCanonical);

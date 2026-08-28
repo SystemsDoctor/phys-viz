@@ -490,6 +490,100 @@ tagged with the milestone that must not ship without it.
 - [READY] **X-9** Keep `AGENTS.md` and `CLAUDE.md` in step with the substrate as it lands — both currently describe stubs as though they were working APIs, and stale agent docs produce confidently wrong code. _(continuous)_
 - [DONE] **X-10** `formatQuantity` (`kernel/units`) follow-up flagged at UI-7: a `DIMENSIONLESS` quantity (a pure ratio like `vector-algebra`'s `cosAlpha`/`cosBeta`/`cosGamma`) no longer picks an SI-prefix letter — engineering-notation scaling only applies to quantities with a real unit dimension now; a dimensionless value prints as a plain decimal number with `sigFigs` significant figures via a new `formatDimensionlessMantissa` helper. The existing engineering-notation tests (kilo/milli/micro/clamping/rounding-artifact cases) moved from `DIMENSIONLESS` to a real `LENGTH` dim, since they were exercising prefix-scaling behavior, not dimensionless-specific behavior; new `DIMENSIONLESS`-specific cases cover the (-1, 1) range including the reported `0.949` -> `"0.949"` regression and a rounding-crosses-an-order-of-magnitude case. Verified: `kernel/units/index.test.ts` (25 cases, kernel/units coverage 96.84%, gate is ≥90%), `npm run test:unit`/`test:contract`/`typecheck`/`lint`/`build` all clean, and live in the dev server on `#/m/vector-algebra` — the readout table now shows `cosα 0.949`, `cosβ 0.316`, `cosγ 0.00` with no stray unit letter
 
+- [DONE] **X-11** §14's "a bookmarked demo restores the viewing angle" was
+  only half-wired. UI-9 fixed URL/default -> Viewport (`viewport.camera
+  .setState(...)` at mount); `state.camera`/`setCamera()` never got
+  written from the OTHER direction — nothing subscribed to
+  `CameraController.onChange()` and pushed `viewport.camera.getState()`
+  back into the store, so a user's manual orbit/pan/zoom never reached
+  `AppState` or the URL: `encodeCamera` (urlCodec.ts) always saw the
+  untouched default and omitted `c=` entirely, no matter how the user had
+  actually orbited. Fixed in `ModuleView.tsx` with a new effect wiring
+  `viewport.camera.onChange(...)` -> `useAppStore.getState().setCamera
+  (viewport.camera.getState())`, debounced with the same
+  `URL_SYNC_DEBOUNCE_MS`/`MAX_WAIT_MS` pattern the pre-existing state ->
+  URL sync effect uses (camera changes fire on every drag/tween frame,
+  not just at rest) — reads `getState()` inside the debounced `flush`,
+  not at subscribe time, so a burst of onChange calls collapses to one
+  write of the settled final state. No feedback loop: nothing else
+  re-applies `store.camera` to the Viewport after mount, so this write
+  can't retrigger itself. Verified: new Playwright test (`X-11: a manual
+  camera orbit is reflected in the URL and survives a reload in a fresh
+  browser context`) drags the canvas on `rotational-dynamics` with free
+  rotation released, confirms `c=` appears in the URL (the exact case
+  that previously silently no-opped), reloads that URL in a fresh
+  `browser.newContext()`, and confirms `c=` round-trips unchanged
+- [DONE] **X-12** Reported: `rotational-dynamics`'s exclusive-layer panels
+  (everything except the default "Torque") rendered only their KaTeX
+  labels, not the actual glyphs — "the axes... not displaying correctly,
+  only the variables". Root cause: `Viewport.setGroupVisible`'s
+  re-entrancy guard (`if (group.visible && !this.activeFades.has(name))
+  return;`) let a REDUNDANT call — made while that same group's fade-in
+  was already in progress — fall through and re-`traverse()` the group,
+  re-capturing "current" material opacity (already 0, mid-fade) as the
+  new fade baseline. `LayerManager`'s exclusive-group radios trigger this
+  every time: `selectExclusive` fires one `setLayer` call per sibling (1
+  true + 6 false here), each of which independently re-notifies the
+  newly-active layer's `setGroupVisible(true)` via `ModuleView`'s
+  per-layer subscribe loop, all synchronously within one click — so the
+  target group's fade gets re-armed with a zeroed baseline 6 times in a
+  row and never recovers. Fixed by making the guard `if (group.visible)
+  return;` — once a group is visible (mid-fade or long since settled),
+  every redundant call is now a pure no-op, so only the FIRST call of a
+  burst ever captures a baseline, and it always captures the true
+  pre-fade value. Separately found and fixed while chasing this: `path`
+  glyph's `LineBasicMaterial` kept its constructed near-black
+  `color` (`0x12161d`) as the base uniform while `vertexColors: true`
+  multiplies it against each vertex's colour — so the parallel-axis
+  theorem panel's CM axis and offset axis (`ctx.palette.construction`
+  and `ctx.palette.angular`) rendered as indistinguishable near-black
+  lines regardless of their declared colour; the base is now a constant
+  white so the vertex colour (already correctly blended toward the
+  background for the fade-tail effect) reaches the screen unmodified.
+  Also added axis-end labels ('x'/'y'/'z') to the shared reference grid
+  (`scene/glyphs/axes.ts`) — previously unlabelled despite the shell
+  exposing a whole up-axis (y/z) setting — via the same `createLabel`
+  `attachTo`-hierarchy-visibility pattern arrow/arc labels already use,
+  so they appear/disappear with the grid for free, no new wiring in
+  `Viewport`. Verified: new Playwright test (`X-14: switching to a
+  non-default rotational-dynamics panel actually renders its glyphs, not
+  just their labels`) — confirmed it reproduces the bug (closest pixel
+  match to the omega/L arrows' colour: ~68) against the pre-fix code and
+  passes (exact match: 0) against the fix; `axes.test.ts`/`path.test.ts`
+  unchanged and still green
+- [DONE] **X-13** "Free rotation" renamed to **"2D-only"** with inverted,
+  clearer semantics: checked (still the default, ADR 0012) restricts
+  every module to a locked, orthographic view of the x/y plane (camera
+  on `+z`, z axis out of the page); unchecking releases full 3D orbit.
+  Store field renamed `ui.rotationReleased` -> `ui.lockTo2D` (default
+  flipped `false` -> `true` to match). This also fixes a reported visual
+  bug: re-locking used to just freeze rotation wherever the camera
+  happened to be (the module's own, often 3D-ish, `defaultView.preset`,
+  or wherever the user had last orbited to) instead of a deterministic
+  view — both `ModuleView`'s mount effect and its live-prefs toggle
+  effect now always `goTo('+z', ...)` on entering the lock, never
+  `module.defaultView.preset`. Recenter view was also reported as
+  incomplete: it only re-oriented the camera, never undid a pan — fixed
+  by adding an optional `recenterTarget` param to `CameraController
+  .goTo()` (default `false`, so the `v`-key preset cycle and other
+  callers are unaffected) that resets the orbit target to the origin as
+  part of the SAME tween, wired into both Recenter and the 2D-only
+  lock-entry transition. One subtlety each: `goTo`'s instant
+  (`durationMs: 0`) path doesn't resync OrbitControls' own cached
+  angle — needed for `setLockedToPlane` right after to read the correct
+  angle — so the mount-time lock now forces one extra `camera.update()`
+  call; and `recenterTarget` has to update `controls.target` immediately
+  too, not just the controller's own `target`, or the very next
+  per-frame `update()` (which treats `controls.target` as the source of
+  truth) silently copies the stale value straight back. Verified: new
+  camera unit tests (`goTo leaves the target untouched by default...`,
+  `goTo with recenterTarget resets a panned-away target...`) and a new
+  Playwright test (`X-13: re-checking 2D-only always resets to the same
+  canonical x/y view, and Recenter also resets pan`) that orbits+pans,
+  re-locks, and asserts the resulting canvas frame is pixel-identical to
+  the original default-locked frame, then pans again and confirms
+  Recenter reproduces it again
+
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 
 Found on the second pass. Each needs a decision before the milestone

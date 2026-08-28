@@ -85,6 +85,18 @@ describe('createCameraController', () => {
     expect(state.radius).toBeCloseTo(11, 6);
   });
 
+  it('goTo leaves the target untouched by default, even for a named preset', () => {
+    controller.setState({ theta: 0, phi: 0, radius: 6, target: [4, 5, 6], projection: 'ortho' });
+    controller.goTo('+x', 0);
+    expect(controller.getState().target).toEqual([4, 5, 6]);
+  });
+
+  it('goTo with recenterTarget resets a panned-away target to the origin (Recenter view, ADR 0012)', () => {
+    controller.setState({ theta: 0, phi: 0, radius: 6, target: [4, 5, 6], projection: 'ortho' });
+    controller.goTo('+x', 0, undefined, true);
+    expect(controller.getState().target).toEqual([0, 0, 0]);
+  });
+
   it('setLockedToPlane does not throw and can be toggled back', () => {
     expect(() => controller.setLockedToPlane(true)).not.toThrow();
     expect(() => controller.setLockedToPlane(false)).not.toThrow();

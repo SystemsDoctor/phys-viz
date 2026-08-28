@@ -32,6 +32,12 @@ export type PathHandle = Handle<PathProps>;
 const MAX_POINTS = 2000;
 const DEFAULT_COLOR = 0x12161d;
 const BACKGROUND_COLOR = 0xeceef2;
+// `LineBasicMaterial`'s fragment shader multiplies `vColor` by this base
+// colour when `vertexColors` is on — stays white so the per-vertex fade
+// computed in `applyProps` (already blended toward `p.color`) is what
+// actually reaches the screen, instead of being tinted toward whatever
+// this material's own `.color` happens to be.
+const MATERIAL_BASE_COLOR = 0xffffff;
 
 const scratchColor = new THREE.Color();
 const scratchBg = new THREE.Color(BACKGROUND_COLOR);
@@ -45,7 +51,7 @@ export function createPath(props: PathProps, host: SubstrateHost): PathHandle {
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geometry.setDrawRange(0, 0);
-  const material = new THREE.LineBasicMaterial({ color: DEFAULT_COLOR, vertexColors: true });
+  const material = new THREE.LineBasicMaterial({ color: MATERIAL_BASE_COLOR, vertexColors: true });
   const line = new THREE.Line(geometry, material);
   parent.add(line);
   const unTheme = host.registerThemedMaterial(material, 'line');

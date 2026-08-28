@@ -306,27 +306,230 @@ test('settings menu (M3-41/42): up-axis choice persists across reload via localS
   await expect(page.locator('html')).toHaveClass(/projector-mode/);
 });
 
-test('free rotation (ADR 0012) applies globally: toggling it on a dimensions:3 module (not just dimensions:2) does not error', async ({
+test('X-14: switching to a non-default rotational-dynamics panel actually renders its glyphs, not just their labels', async ({
+  page,
+}) => {
+  // Regression test for a real bug: `Viewport.setGroupVisible`'s
+  // re-entrancy guard let a redundant call (while a fade-in was already
+  // in progress) re-capture "current" opacity — already mid-fade, i.e.
+  // partway or already zeroed — as the new fade baseline, permanently
+  // stranding the group at opacity 0 (invisible) even though `.visible`
+  // stayed true. `LayerManager`'s exclusive-group radios (this module's
+  // 7-way panel switch) trigger EXACTLY this: `selectExclusive` fires
+  // one `setLayer` call per sibling, each of which independently
+  // re-notifies the newly-active layer's `setGroupVisible(true)` via
+  // ModuleView's per-layer subscribe loop, all synchronously within one
+  // click. The "L vs ω" panel's omega/L arrows ended up rendering only
+  // their labels (a separate DOM overlay, unaffected by the WebGL
+  // material opacity bug), with the arrow geometry itself invisible —
+  // exactly "the objects/glyphs... not displaying correctly, only the
+  // variables".
+  //
+  // A non-blank-canvas check alone doesn't catch this — the reference
+  // grid already makes every frame non-blank, bug or no bug — so this
+  // looks for the arrows' own flat, unlit colour (`ctx.palette.angular`,
+  // `MeshBasicMaterial` so it isn't shaded and reads as one exact hex)
+  // directly in the canvas's pixels.
+  await page.goto('#/m/rotational-dynamics');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+  await page.waitForTimeout(500);
+
+  await page.getByRole('radio', { name: 'L vs ω (non-parallel case)' }).check();
+  await page.waitForTimeout(400); // §15 fade-in (150ms) plus margin
+
+  const closestDistance = await page.evaluate(
+    ({ r, g, b }) =>
+      new Promise<number>((resolve) => {
+        requestAnimationFrame(() => {
+          const webgl = document.querySelector('canvas.pv-viewport-canvas') as HTMLCanvasElement;
+          const offscreen = document.createElement('canvas');
+          offscreen.width = webgl.width;
+          offscreen.height = webgl.height;
+          const ctx2d = offscreen.getContext('2d')!;
+          ctx2d.drawImage(webgl, 0, 0);
+          const { data } = ctx2d.getImageData(0, 0, offscreen.width, offscreen.height);
+          let best = Infinity;
+          for (let i = 0; i < data.length; i += 4) {
+            const dr = data[i] - r;
+            const dg = data[i + 1] - g;
+            const db = data[i + 2] - b;
+            const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+            if (dist < best) best = dist;
+          }
+          resolve(best);
+        });
+      }),
+    // ctx.palette.angular (#7a4fbf) — the omega/L arrows' colour.
+    { r: 0x7a, g: 0x4f, b: 0xbf },
+  );
+
+  // A generous tolerance for anti-aliased edge pixels; the bug's
+  // signature is a closest match nowhere near this colour at all
+  // (~68 on this exact scene), not a slightly-off shade.
+  expect(closestDistance).toBeLessThan(20);
+});
+
+test('2D-only (ADR 0012) applies globally: unchecking it on a dimensions:3 module (not just dimensions:2) does not error', async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (err) => errors.push(err.message));
 
   // rotational-dynamics declares dimensions: 3 — before ADR 0012 the
-  // "Free rotation" setting had no wiring at all for a module like this.
+  // 2D lock had no wiring at all for a module like this.
   await page.goto('#/m/rotational-dynamics');
   await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
 
   await page.getByLabel('Display settings').click();
-  const freeRotation = page.getByRole('checkbox', { name: 'Free rotation' });
-  await expect(freeRotation).not.toBeChecked();
-  await freeRotation.check();
+  const twoDOnly = page.getByRole('checkbox', { name: '2D-only' });
+  await expect(twoDOnly).toBeChecked(); // checked (locked) by default
+  await twoDOnly.uncheck();
   await page.waitForTimeout(100);
-  await freeRotation.uncheck();
+  await twoDOnly.check();
   // Re-locking tweens for ~400ms before forcing ortho — wait it out.
   await page.waitForTimeout(500);
 
   expect(errors).toEqual([]);
+});
+
+test('X-13: re-checking 2D-only always resets to the same canonical x/y view, and Recenter also resets pan (ADR 0012)', async ({
+  page,
+}) => {
+  // rotational-dynamics's own defaultView is 'iso' (a 3D-ish angle), so
+  // this module is exactly the case that used to expose the bug: locking
+  // used to just freeze rotation wherever the camera happened to be
+  // (the module's iso default, or wherever the user had last orbited to)
+  // instead of a deterministic x/y-plane view.
+  await page.goto('#/m/rotational-dynamics');
+  const canvas = page.locator('canvas.pv-viewport-canvas');
+  await expect(canvas).toBeVisible();
+  await page.waitForTimeout(500);
+
+  // WebGLRenderer's drawing buffer is only guaranteed valid for readback
+  // inside the same animation-frame task as the render call that filled
+  // it (see the "demo scene renders..." test above for the same caveat)
+  // — read from inside a rAF callback every time.
+  const captureCanvas = (): Promise<string> =>
+    page.evaluate(
+      () =>
+        new Promise<string>((resolve) => {
+          requestAnimationFrame(() => {
+            const c = document.querySelector('canvas.pv-viewport-canvas') as HTMLCanvasElement;
+            resolve(c.toDataURL());
+          });
+        }),
+    );
+
+  const defaultLockedFrame = await captureCanvas();
+
+  // Release the lock, then orbit to an arbitrary angle.
+  await page.getByLabel('Display settings').click();
+  await page.getByRole('checkbox', { name: '2D-only' }).uncheck();
+  await page.getByLabel('Display settings').click();
+
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('canvas has no bounding box');
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+  await page.mouse.move(centerX, centerY);
+  await page.mouse.down();
+  await page.mouse.move(centerX + 220, centerY - 150, { steps: 15 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+
+  // Re-lock: must land on the exact same canonical view every time,
+  // regardless of the arbitrary angle above — pixel-identical to the
+  // original default-locked frame.
+  await page.getByLabel('Display settings').click();
+  await page.getByRole('checkbox', { name: '2D-only' }).check();
+  await page.getByLabel('Display settings').click();
+  await page.waitForTimeout(900); // ~400ms re-lock tween + ~420ms lock delay
+
+  const relockedFrame = await captureCanvas();
+  expect(relockedFrame).toBe(defaultLockedFrame);
+
+  // Pan away while still locked (rotation is locked, pan/zoom stay live
+  // per ADR 0007/0011 — right-drag is OrbitControls' default pan
+  // binding), then Recenter. It must undo the pan too, not just
+  // re-orient — the reported gap: Recenter previously only touched
+  // orientation, never the pan target.
+  await page.mouse.move(centerX, centerY);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(centerX - 160, centerY + 90, { steps: 10 });
+  await page.mouse.up({ button: 'right' });
+  await page.waitForTimeout(200);
+  const pannedFrame = await captureCanvas();
+  expect(pannedFrame).not.toBe(relockedFrame);
+
+  await page.getByRole('button', { name: 'Recenter view' }).click();
+  await page.waitForTimeout(600);
+  const recenteredFrame = await captureCanvas();
+  expect(recenteredFrame).toBe(defaultLockedFrame);
+});
+
+test('X-11: a manual camera orbit is reflected in the URL and survives a reload in a fresh browser context (§14 bookmark round-trip)', async ({
+  page,
+  browser,
+}) => {
+  // rotational-dynamics (dimensions: 3), same as the 2D-only test above
+  // — orbit is locked by default (ADR 0012), so it has to be released
+  // first or the drag below would only pan.
+  await page.goto('#/m/rotational-dynamics');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+
+  await page.getByLabel('Display settings').click();
+  await page.getByRole('checkbox', { name: '2D-only' }).uncheck();
+  await page.getByLabel('Display settings').click(); // close the menu, it can overlay the canvas
+
+  const canvas = page.locator('canvas.pv-viewport-canvas');
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('canvas has no bounding box');
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+
+  await page.mouse.move(centerX, centerY);
+  await page.mouse.down();
+  await page.mouse.move(centerX + 160, centerY - 120, { steps: 20 });
+  await page.mouse.up();
+
+  // Two chained debounces sit between the drag and the URL: viewport ->
+  // store (this fix) and the pre-existing store -> URL sync, each up to
+  // URL_SYNC_DEBOUNCE_MS/MAX_WAIT_MS in ModuleView.tsx.
+  await page.waitForTimeout(1000);
+
+  // The regression this test guards: without wiring `CameraController
+  // .onChange` back into the store, `state.camera` never leaves its
+  // default, so `encodeCamera` (urlCodec.ts) always omits `c=` entirely
+  // — a manual orbit would be silently unbookmarkable.
+  const urlAfterDrag = page.url();
+  const cameraToken = urlAfterDrag.match(/[?&]c=([^&]+)/)?.[1] ?? null;
+  expect(cameraToken).not.toBeNull();
+
+  // Reload from a completely fresh browser context (no localStorage/
+  // session carried over) so the only thing that can reproduce the
+  // orientation is the URL itself.
+  const freshContext = await browser.newContext();
+  const freshPage = await freshContext.newPage();
+  try {
+    await freshPage.goto(urlAfterDrag);
+    await expect(freshPage.locator('canvas.pv-viewport-canvas')).toBeVisible();
+    await freshPage.waitForTimeout(500);
+
+    // Compare only the orientation component (theta,phi,radius,target),
+    // not the trailing `.o`/`.p` projection letter: `ui.lockTo2D` is
+    // deliberately session-only, never persisted or URL-serialized
+    // (store.ts) — a fresh reload always starts with it true (checked),
+    // so ModuleView's mount effect re-locks to orthographic regardless
+    // of which projection was bookmarked (ADR 0012's documented default).
+    // That's a separate, intentional gate; the viewing angle itself —
+    // what this test is actually about — isn't touched by it.
+    const orientationOf = (token: string | null): string | null =>
+      token?.replace(/\.[op]$/, '') ?? null;
+    const cameraTokenAfterReload = freshPage.url().match(/[?&]c=([^&]+)/)?.[1] ?? null;
+    expect(orientationOf(cameraTokenAfterReload)).toBe(orientationOf(cameraToken));
+  } finally {
+    await freshContext.close();
+  }
 });
 
 test('Recenter view (ADR 0012) shifts content into the visible pane without erroring, on a 3D module too', async ({
@@ -427,23 +630,24 @@ test('M3-G gate: control-showcase renders a complete usable UI with zero module 
   await expect(page.locator('.pv-plot')).toHaveCount(2);
 
   // 2D lock (ADR 0007, M3-31) + ADR 0011: dimensions: 2 suppresses
-  // orbit; "Free rotation" now lives in the global settings menu
-  // (unchecked by default) rather than an in-panel button, and toggling
-  // it there is what unlocks orbit for this module.
+  // orbit; "2D-only" now lives in the global settings menu (checked by
+  // default) rather than an in-panel button, and unchecking it there is
+  // what unlocks orbit for this module.
   await page.getByLabel('Display settings').click();
-  const freeRotation = page.getByRole('checkbox', { name: 'Free rotation' });
-  await expect(freeRotation).not.toBeChecked();
-  await freeRotation.check();
-  await expect(freeRotation).toBeChecked();
-  await freeRotation.uncheck();
+  const twoDOnly = page.getByRole('checkbox', { name: '2D-only' });
+  await expect(twoDOnly).toBeChecked();
+  await twoDOnly.uncheck();
+  await expect(twoDOnly).not.toBeChecked();
+  await twoDOnly.check();
   await page.getByLabel('Display settings').click(); // close the menu
 
   // URL round-trip (M3-37): change a param, confirm the URL reflects
-  // it (debounced ~250ms), reload, confirm the value survived.
+  // it (debounced ~250ms, longer under CI/parallel-worker CPU
+  // contention — poll instead of a fixed sleep so this isn't flaky
+  // under load), reload, confirm the value survived.
   const kSlider = page.getByRole('slider', { name: /Stiffness k/ });
   await kSlider.fill('0.8');
-  await page.waitForTimeout(400);
-  expect(page.url()).toContain('k=');
+  await expect.poll(() => page.url(), { timeout: 3000 }).toContain('k=');
 
   const urlBefore = page.url();
   await page.reload();

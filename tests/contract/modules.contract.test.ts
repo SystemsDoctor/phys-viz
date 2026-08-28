@@ -274,7 +274,7 @@ describe('module contract', () => {
               presenterMode: false,
               predictMode: false,
               panelsOpen: [],
-              rotationReleased: false,
+              lockTo2D: true,
             },
             prefs: { upAxis: 'y', theme: 'light', projector: false, showGrid: true },
           },
@@ -316,7 +316,7 @@ describe('module contract', () => {
             presenterMode: false,
             predictMode: false,
             panelsOpen: [],
-            rotationReleased: false,
+            lockTo2D: true,
           },
           prefs: {
             upAxis: 'y' as const,

@@ -252,16 +252,32 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     // internal placeholder angle, never the module's declared preset.
     viewport.camera.setState(useAppStore.getState().camera);
 
-    // Global 2D lock (ADR 0007, extended globally by ADR 0011): orbit
-    // suppressed and projection forced orthographic by default — pan/
-    // zoom stay live — regardless of the module's own `dimensions`
-    // (previously only `dimensions: 2` modules got this, which is why
-    // the "Free rotation" setting had no visible effect anywhere else).
-    // "Free rotation" in the settings menu (ui.rotationReleased) opts
-    // back into full orbit + the module's own declared projection for
-    // ANY module. Checked immediately at mount, not left to the
-    // live-prefs effect below, since the setting can already be on.
-    if (!useAppStore.getState().ui.rotationReleased) {
+    // Global 2D lock (ADR 0007, extended globally by ADR 0011/0012):
+    // orbit suppressed, projection forced orthographic, and the view
+    // pinned to a canonical x/y-plane look (camera on +z, z axis out of
+    // the page) by default — pan/zoom stay live — regardless of the
+    // module's own `dimensions` (previously only `dimensions: 2` modules
+    // got this, which is why the "2D-only" setting had no visible effect
+    // anywhere else). Unchecking "2D-only" in the settings menu
+    // (ui.lockTo2D) opts back into full orbit + the module's own
+    // declared projection for ANY module. Checked immediately at mount,
+    // not left to the live-prefs effect below, since the setting can
+    // already be off.
+    if (useAppStore.getState().ui.lockTo2D) {
+      // Always +z, never `module.defaultView.preset`: "2D-only" is a
+      // fixed x/y-plane restriction, not "whatever this module happens
+      // to consider its default angle" — locking onto the module's own
+      // (often 3D-ish, e.g. iso) default used to freeze wherever
+      // `setState` above had left the camera, which is the reported
+      // "axes return to an arbitrary position" bug.
+      viewport.camera.goTo('+z', 0, undefined, true);
+      // goTo(0) commits the new orientation/target synchronously but
+      // doesn't resync OrbitControls' own cached angle — that normally
+      // only happens via its `.update()`, driven by the render loop —
+      // and `setLockedToPlane` right below reads that cached angle, so
+      // force one resync now or it would freeze on the STALE angle from
+      // before this goTo instead of the one just set.
+      viewport.camera.update();
       viewport.camera.setLockedToPlane(true);
       viewport.camera.setProjection('ortho');
     }
@@ -359,8 +375,8 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   }, [mounted, panelCollapsed, centerInVisibleArea]);
 
   // Live prefs (M3-41/42, ADR 0011): up-axis, projector mode, the
-  // reference grid, and free rotation can all change while a module is
-  // already mounted (the settings menu is global, not per-route), so
+  // reference grid, and the 2D-only lock can all change while a module
+  // is already mounted (the settings menu is global, not per-route), so
   // the already-constructed Viewport needs to react — none of these are
   // ViewportOptions fixed at construction time.
   React.useEffect(() => {
@@ -368,7 +384,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     let lastUpAxis = useAppStore.getState().prefs.upAxis;
     let lastProjector = useAppStore.getState().prefs.projector;
     let lastShowGrid = useAppStore.getState().prefs.showGrid;
-    let lastRotationReleased = useAppStore.getState().ui.rotationReleased;
+    let lastLockTo2D = useAppStore.getState().ui.lockTo2D;
     return useAppStore.subscribe((s) => {
       const viewport = viewportRef.current;
       if (!viewport) return;
@@ -384,22 +400,26 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
         lastShowGrid = s.prefs.showGrid;
         viewport.setGridVisible(s.prefs.showGrid);
       }
-      if (s.ui.rotationReleased !== lastRotationReleased) {
-        lastRotationReleased = s.ui.rotationReleased;
-        if (s.ui.rotationReleased) {
+      if (s.ui.lockTo2D !== lastLockTo2D) {
+        lastLockTo2D = s.ui.lockTo2D;
+        if (!s.ui.lockTo2D) {
           // Restore full orbit AND the module's own natural projection
           // (persp for a module that declared one) — applies to every
           // module, not just `dimensions: 2` ones (ADR 0011).
           viewport.camera.setLockedToPlane(false);
           viewport.camera.setProjection(defaultCamera.projection);
         } else {
-          // Re-lock: animate back to the module's own default view (its
-          // defaultView preset, or '+z' if it declared none) via the
-          // same ~400ms eased transition camera presets use, THEN force
-          // orthographic and freeze rotation once the tween settles —
-          // locking immediately would freeze it mid-transition.
-          const preset = module.defaultView?.preset ?? '+z';
-          viewport.camera.goTo(preset, 400);
+          // Re-lock into the canonical x/y-plane view — always +z,
+          // never `module.defaultView.preset` ("2D-only" means the SAME
+          // fixed view every time, not wherever this module's own
+          // iso/etc default points, which is what produced the reported
+          // "axes return to an arbitrary position" bug) — via the same
+          // ~400ms eased transition camera presets use, recentering pan
+          // back to the origin in the same tween (so a pan made while
+          // unlocked doesn't linger), THEN force orthographic and freeze
+          // rotation once it settles — locking immediately would freeze
+          // it mid-transition.
+          viewport.camera.goTo('+z', 400, undefined, true);
           window.setTimeout(() => {
             viewport.camera.setLockedToPlane(true);
             viewport.camera.setProjection('ortho');
@@ -541,6 +561,50 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       timeoutId = window.setTimeout(() => flush(s), URL_SYNC_DEBOUNCE_MS);
     });
   }, [mounted, module, defaultCamera]);
+
+  // Viewport -> store (the other half of UI-9's `viewport.camera.setState`
+  // fix, which only wired URL/default -> Viewport at mount). `onChange`
+  // fires on every user-driven orbit/pan/zoom AND every tween tick
+  // (preset buttons, the 'v' cycle, free-rotation re-lock), so writes are
+  // debounced the same way state -> URL sync above is debounced — writing
+  // on every single onChange during a drag would be wasteful and would
+  // fight that effect's own debounce timer if done naively. This effect
+  // is upstream of it, not a competitor: it only ever writes into the
+  // store, and the existing store -> URL subscription is what turns that
+  // into a (replace-history) URL update on its own schedule. `getState()`
+  // is read inside `flush`, not captured at subscribe time, so a burst of
+  // onChange calls collapses into one write of the FINAL camera state —
+  // never a stale mid-drag/mid-tween snapshot (a preset tween doesn't
+  // commit its new theta/phi until the tween's last frame; see
+  // `camera/index.ts`'s `goTo`). No feedback loop back into the Viewport:
+  // nothing else subscribes to `store.camera` and re-applies it via
+  // `viewport.camera.setState()` after mount.
+  React.useEffect(() => {
+    if (!mounted) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    let timeoutId = 0;
+    let firstPendingAt: number | null = null;
+    const flush = (): void => {
+      window.clearTimeout(timeoutId);
+      firstPendingAt = null;
+      useAppStore.getState().setCamera(viewport.camera.getState());
+    };
+    const unsubscribe = viewport.camera.onChange(() => {
+      const now = Date.now();
+      if (firstPendingAt === null) firstPendingAt = now;
+      window.clearTimeout(timeoutId);
+      if (now - firstPendingAt >= MAX_WAIT_MS) {
+        flush();
+        return;
+      }
+      timeoutId = window.setTimeout(flush, URL_SYNC_DEBOUNCE_MS);
+    });
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
+  }, [mounted]);
 
   // Drag-to-param (M3-6): all pointer handling lives here, never in a
   // module. pointerdown ray-casts against every registered draggable
@@ -708,7 +772,17 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
               type="button"
               className="pv-view-controls__btn"
               onClick={() => {
-                viewportRef.current?.camera.goTo(module.defaultView?.preset ?? 'iso', 400);
+                // Locked (2D-only): always back to the canonical x/y-plane
+                // view, same as the lock-entry transition, never the
+                // module's own (possibly 3D-ish) default — recentering
+                // shouldn't ever tilt out of the plane the lock promises.
+                // Unlocked: the module's own declared view. Either way,
+                // `recenterTarget: true` also undoes any pan back to the
+                // origin — orientation alone isn't "recentered".
+                const preset = useAppStore.getState().ui.lockTo2D
+                  ? '+z'
+                  : (module.defaultView?.preset ?? 'iso');
+                viewportRef.current?.camera.goTo(preset, 400, undefined, true);
                 centerInVisibleArea();
               }}
             >

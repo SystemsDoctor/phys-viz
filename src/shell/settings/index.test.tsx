@@ -40,13 +40,14 @@ describe('SettingsMenu', () => {
     expect(JSON.parse(window.localStorage.getItem('phys-viz:prefs')!).showGrid).toBe(false);
   });
 
-  it('toggling free rotation patches transient ui state, not prefs (ADR 0011)', async () => {
+  it('toggling 2D-only patches transient ui state, not prefs (ADR 0011/0012)', async () => {
     render(<SettingsMenu />);
     await userEvent.click(screen.getByLabelText('Display settings'));
-    await userEvent.click(screen.getByLabelText('Free rotation'));
-    expect(useAppStore.getState().ui.rotationReleased).toBe(true);
-    // rotationReleased is `ui` state, not a `prefs` field — toggling it
-    // never touches localStorage at all.
+    expect(screen.getByLabelText('2D-only')).toBeChecked(); // checked by default (ADR 0012)
+    await userEvent.click(screen.getByLabelText('2D-only'));
+    expect(useAppStore.getState().ui.lockTo2D).toBe(false);
+    // lockTo2D is `ui` state, not a `prefs` field — toggling it never
+    // touches localStorage at all.
     expect(window.localStorage.getItem('phys-viz:prefs')).toBeNull();
   });
 });

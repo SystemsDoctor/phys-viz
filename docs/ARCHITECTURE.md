@@ -135,7 +135,12 @@ phys-viz/
 │   │   ├── readouts/             # live numeric value table
 │   │   ├── state/                # zustand store, URL codec, schema migration
 │   │   ├── presenter/            # presenter mode, keyboard map, fullscreen
-│   │   └── errors/               # ModuleErrorBoundary
+│   │   ├── errors/               # ModuleErrorBoundary
+│   │   ├── serviceWorker/        # SW registration + update-available notice (M6.5, ADR 0005)
+│   │   └── export/gif/           # on-demand GIF encoder + capture (M6.5, ADR 0006)
+│   ├── sw.ts                     # the service worker itself (M6.5) — a "fifth layer": no DOM,
+│   │                             #   no React, no three; see tsconfig.sw.json and the
+│   │                             #   .eslintrc.cjs `src/sw.ts` override
 │   ├── modules/                  # LAYER 3 — one folder per visualization.
 │   │   ├── types.ts              # THE MODULE CONTRACT
 │   │   ├── registry.ts           # glob-based auto-registration
@@ -163,6 +168,7 @@ phys-viz/
 ├── index.html
 ├── vite.config.ts
 ├── tsconfig.json
+├── tsconfig.sw.json           # separate program for src/sw.ts (M6.5) — see that file's own comment
 ├── .eslintrc.cjs
 └── package.json
 ```

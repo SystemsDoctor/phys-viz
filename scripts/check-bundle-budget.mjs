@@ -37,6 +37,7 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
 
 const INITIAL_BUDGET_BYTES = 250 * 1024;
 const MODULE_CHUNK_BUDGET_BYTES = 80 * 1024;
+const GIF_EXPORT_BUDGET_BYTES = 250 * 1024;
 
 function gzipSize(relativeFile) {
   const bytes = readFileSync(path.join(distDir, relativeFile));
@@ -104,6 +105,33 @@ for (const key of moduleIndexKeys) {
   console.log(`Module chunk ${id} (${chunk.file}): ${fmtKB(gzip)} gzipped`);
   if (gzip > MODULE_CHUNK_BUDGET_BYTES) {
     console.error(`  FAIL: exceeds the ${fmtKB(MODULE_CHUNK_BUDGET_BYTES)} per-module budget.`);
+    failed = true;
+  }
+}
+
+// --- GIF export chunk budget (ADR 0006, P-7): must stay out of the
+// initial bundle (checked structurally below, same way module chunks
+// are) and stay under its own, more generous budget since it carries an
+// LZW encoder, not just glue code.
+const gifExportKey = 'src/shell/export/gif/index.ts';
+const gifExportChunk = manifest[gifExportKey];
+if (!gifExportChunk) {
+  console.error(`FAIL: ${gifExportKey} not found in the manifest — is the build output stale?`);
+  failed = true;
+} else {
+  if (
+    staticallyImported.has(gifExportKey) ||
+    !(entry.dynamicImports ?? []).includes(gifExportKey)
+  ) {
+    console.error(
+      `FAIL: the GIF export encoder is not reachable only via the entry's dynamicImports — it leaked into the eagerly-loaded bundle.`,
+    );
+    failed = true;
+  }
+  const gzip = gzipSize(gifExportChunk.file);
+  console.log(`GIF export chunk (${gifExportChunk.file}): ${fmtKB(gzip)} gzipped`);
+  if (gzip > GIF_EXPORT_BUDGET_BYTES) {
+    console.error(`  FAIL: exceeds the ${fmtKB(GIF_EXPORT_BUDGET_BYTES)} budget.`);
     failed = true;
   }
 }

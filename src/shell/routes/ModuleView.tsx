@@ -27,6 +27,7 @@ import { ReadoutTable } from '../readouts';
 import { TimeSeriesPlot } from '../plots/TimeSeriesPlot';
 import { SweepPlot } from '../plots/SweepPlot';
 import { ExplainPanel } from '../explain';
+import { GifExportPanel } from '../export/GifExportPanel';
 import { ModuleErrorBoundary } from '../errors';
 import { usePresenterKeymap, KeymapOverlay } from '../presenter';
 import { useAppStore, paramDefaults, DEFAULT_APP_STATE } from '../state/store';
@@ -891,6 +892,13 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
                 }}
               />
             )}
+            <GifExportPanel
+              module={module}
+              getCamera={() => viewportRef.current?.camera.getState() ?? state.camera}
+              upAxis={state.prefs.upAxis}
+              showGrid={state.prefs.showGrid}
+              stepDt={stepDt}
+            />
             {explainSource && <ExplainPanel source={explainSource} />}
           </div>
         </aside>

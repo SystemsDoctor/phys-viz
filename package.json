@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && tsc -p tsconfig.sw.json && node scripts/generate-precache-manifest.mjs",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b --noEmit && tsc -p tsconfig.sw.json --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write .",

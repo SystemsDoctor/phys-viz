@@ -179,6 +179,53 @@ export class Viewport {
     this.dirty = true;
   }
 
+  /**
+   * Cancels the async requestAnimationFrame loop this Viewport's own
+   * constructor started, without disposing anything else. For headless/
+   * off-screen use only (GIF export, ADR 0006): deterministic frame
+   * capture needs `renderNow()` below to be the ONLY thing that ever
+   * calls `renderer.render()`, so the module's per-frame state and the
+   * rendered pixels stay in lockstep — an uncontrolled async tick
+   * (running on real wall-clock time, advancing layer fades against it)
+   * racing against an export's own synchronous frame-by-frame capture
+   * would break the byte-identical guarantee ADR 0006 depends on.
+   */
+  stopLoop(): void {
+    cancelAnimationFrame(this.frameId);
+  }
+
+  /**
+   * Synchronously renders exactly one frame — what `tick()` does, minus
+   * the async `requestAnimationFrame` scheduling. For headless/off-screen
+   * use only: normal playback always goes through `tick()`'s own loop.
+   * Skips `advanceFades` deliberately — GIF export passes
+   * `reducedMotion: true` at construction so a captured frame is never
+   * mid-fade.
+   */
+  renderNow(): void {
+    this.camera.update();
+    this.renderer.render(this.scene, this.camera.object);
+    this.dirty = false;
+  }
+
+  /**
+   * Sets an EXACT pixel size for a detached, never-laid-out canvas (GIF
+   * export's off-screen Viewport). `handleResize()` can't be reused here:
+   * it reads `canvas.clientWidth/clientHeight`, which is always 0 for an
+   * element with no CSS layout box. Also pins the renderer's pixel ratio
+   * to 1 — the live/DOM-driven path deliberately follows
+   * `devicePixelRatio` (up to 2) for display sharpness, but an export's
+   * output dimensions must match exactly what the user asked for,
+   * regardless of the machine it runs on.
+   */
+  resizeTo(width: number, height: number): void {
+    this.width = width;
+    this.height = height;
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(width, height, false);
+    this.camera.resize(width, height);
+  }
+
   /** The active camera's forward (viewing) direction — the natural plane normal for a screen-facing drag (`screenPointOnPlane`), so dragging a point doesn't fight an arbitrary world-axis plane. Shell-only (M3-6). */
   cameraForward(): readonly [number, number, number] {
     const dir = new THREE.Vector3();

@@ -20,6 +20,7 @@ import { About } from './routes/About';
 import { useHashLocation } from './routes/hashRouter';
 import { mountDemoScene } from '@/scene/demoScene';
 import { SettingsMenu } from './settings';
+import { UpdateNotice } from './serviceWorker/UpdateNotice';
 import { useAppStore } from './state/store';
 import { loadPrefs } from './state/prefsStorage';
 
@@ -64,6 +65,7 @@ export function App(): React.ReactElement {
   return (
     <Router hook={useHashLocation}>
       <SettingsMenu />
+      <UpdateNotice />
       <Switch>
         <Route path="/" component={Gallery} />
         <Route path="/about" component={About} />

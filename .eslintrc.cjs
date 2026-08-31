@@ -151,5 +151,36 @@ module.exports = {
         ],
       },
     },
+    {
+      // The service worker script (ADR 0005) runs in ServiceWorkerGlobalScope:
+      // no DOM, no React, no three, not even the browser `window`. It is a
+      // "fifth layer" the table in ARCHITECTURE.md §6 doesn't name, so it
+      // gets its own override here rather than silently falling through to
+      // the root config (which assumes `env: browser`) with no boundary
+      // enforcement at all.
+      files: ['src/sw.ts'],
+      env: { serviceworker: true, browser: false },
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: [
+                  'three',
+                  'three/*',
+                  'react',
+                  'react-dom',
+                  '@/scene/*',
+                  '@/shell/*',
+                  '@/modules/*',
+                ],
+                message: 'sw.ts must stay dependency-free: no rendering, no UI, no module imports.',
+              },
+            ],
+          },
+        ],
+      },
+    },
   ],
 };

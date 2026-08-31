@@ -20,6 +20,24 @@ export type Dimension = readonly [number, number, number, number, number, number
 
 export const DIMENSIONLESS: Dimension = [0, 0, 0, 0, 0, 0, 0];
 
+/**
+ * Named exponent tuples over [M, L, T, Θ, I, N, J] for the quantities
+ * modules reach for most often, so a `unit:` field never has to be
+ * hand-derived (and its exponent order guessed) per module. Prefer one
+ * of these; only write a literal tuple for a quantity not listed here.
+ */
+export const MASS: Dimension = [1, 0, 0, 0, 0, 0, 0];
+export const LENGTH: Dimension = [0, 1, 0, 0, 0, 0, 0];
+export const TIME: Dimension = [0, 0, 1, 0, 0, 0, 0];
+export const VELOCITY: Dimension = [0, 1, -1, 0, 0, 0, 0];
+export const ACCEL: Dimension = [0, 1, -2, 0, 0, 0, 0];
+export const FORCE: Dimension = [1, 1, -2, 0, 0, 0, 0];
+export const ENERGY: Dimension = [1, 2, -2, 0, 0, 0, 0];
+export const TORQUE: Dimension = ENERGY; // N·m, dimensionally identical to energy
+export const MOMENT_OF_INERTIA: Dimension = [1, 2, 0, 0, 0, 0, 0];
+export const ANGULAR_VELOCITY: Dimension = [0, 0, -1, 0, 0, 0, 0];
+export const ANGULAR_MOMENTUM: Dimension = [1, 2, -1, 0, 0, 0, 0];
+
 export interface Quantity {
   value: number;
   dim: Dimension;

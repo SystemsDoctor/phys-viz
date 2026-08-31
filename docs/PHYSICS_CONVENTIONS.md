@@ -71,12 +71,37 @@ Hardcoding `+y` is not an error — such a module simply always draws
 vertical along `+y` and ignores the setting — but prefer `ctx.up` unless
 the module is genuinely orientation-free.
 
+`rotational-dynamics` is the reference example — it has gravity, a
+rolling axis, and a precessing top, all of which need "up" to mean
+whatever the viewer has it set to:
+
+```ts
+const upVec: V3 = ctx.up === 'y' ? Y_HAT : [0, 0, 1];
+const horizAxis: V3 = X_HAT; // perpendicular to both up conventions
+```
+
+## Surface orientation
+
+**A closed surface parametrized for a flux or divergence-theorem
+demonstration must have every face ordered so `∂S/∂u × ∂S/∂v` points
+outward** from the enclosed volume (ADR 0013). Handedness fixes the
+cross product itself; it does not fix which `(u, v)` ordering a
+parametrization uses, so this is a separate, per-surface choice.
+
+`fields-gradients`' `cubeFaces()` is the reference implementation: each
+of the six faces is hand-ordered so the cross product faces outward,
+verified by the divergence-theorem golden test in that module's
+`module.test.ts`. This convention applies only to **closed** surfaces
+used for flux; an open surface (a cap, a bounded patch) has no
+"outward" and states its normal direction explicitly instead.
+
 ## Still open
 
 **Module-specific sign conventions** not implied by handedness — the sign
 of a bending moment, the direction of positive heel angle. Each
 non-obvious one gets its own ADR in `docs/adr/` as it arises, and is
-recorded here once decided.
+recorded here once decided, the way ADR 0013 recorded the outward-normal
+convention above.
 
 ## Notation in KaTeX labels
 
@@ -85,8 +110,33 @@ recorded here once decided.
 - Magnitude: `|\vec{a}|`.
 - Unit vectors: `\hat{a}`.
 
+**Angles are radians everywhere internally** — an `angle`-kind param's
+`default`/`min`/`max`, and any angle-valued `number` param or scalar, are
+always radians. The shell's `AngleDial` control converts to degrees for
+display only; the wire value, the URL-encoded state, and anything a
+module computes with an angle stay in radians. Do not write a param
+whose stored value is degrees.
+
 ## Units
 
 All physical `ParamDef`s and `ScalarDef`s that carry units use
-`kernel/units`' `Dimension` type so mismatches throw instead of silently
-producing a wrong number on a projector (ARCHITECTURE.md §7).
+`kernel/units`' `Dimension` type — an exponent tuple over `[M, L, T, Θ,
+I, N, J]` (mass, length, time, temperature, current, amount, luminous
+intensity) — so mismatches throw instead of silently producing a wrong
+number on a projector (ARCHITECTURE.md §7).
+
+`kernel/units` exports the common ones by name — `MASS`, `LENGTH`,
+`TIME`, `VELOCITY`, `ACCEL`, `FORCE`, `ENERGY`, `TORQUE`,
+`MOMENT_OF_INERTIA`, `ANGULAR_VELOCITY`, `ANGULAR_MOMENTUM`, and
+`DIMENSIONLESS` — use one of these rather than hand-deriving the
+exponent tuple:
+
+```ts
+import { VELOCITY } from '@/kernel/units';
+// { kind: 'number', ..., unit: VELOCITY }
+```
+
+Only write a literal `Dimension` tuple for a quantity not in that list,
+and add it to `kernel/units` if a second module ends up needing the same
+one. An `angle`-kind param has no `unit` field at all — radians are
+implicit (see above), not a unit to declare.

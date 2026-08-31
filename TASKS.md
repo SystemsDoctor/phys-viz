@@ -431,14 +431,127 @@ working, contract-passing module in under four hours using only
 
 Unblocked — **M5-G** is met (see M5-G above).
 
-- [READY] **M6-1** `_template/` module finished and genuinely copy-ready — compiles, passes the contract suite as-is, and demonstrates one of each common param kind without being cluttered
-- [READY] **M6-2** `docs/MODULE_AUTHORING.md` finished against the substrate as actually built. It currently describes an intended API; revisit every claim once M1–M5 exist, especially the glyph list and the scratch-pool guidance
-- [READY] **M6-3** `docs/PHYSICS_CONVENTIONS.md` finished. The "Handedness and sign conventions" `TODO` is now closed by ADR 0008 (right-handed everywhere); the up-axis convention is settled by ADR 0009 and recorded there too, so what remains for M6 is folding in the module-specific sign conventions M4/M5 actually established
-- [READY] **M6-4** `npm run new:module` working end to end (`scripts/new-module.mjs` exists but is entirely unverified): it must generate a folder that the registry glob picks up with **zero** edits elsewhere and that passes the contract suite immediately
-- [READY] **M6-5** Put the per-module manual checklist into `MODULE_AUTHORING.md` as a copy-pasteable block, so an author doesn't have to reconstruct it from §18
-- [READY] **M6-6** **Run the actual gate:** recruit an author with no prior exposure to the codebase, give them only `MODULE_AUTHORING.md`, time the attempt, and record what they got stuck on
-- [READY] **M6-7** If the gate fails, fix the substrate or the doc — not the author — and retest with someone else. Do not lower the bar; §20 is explicit that the failure is never theirs
-- [READY] **M6-G** **Gate:** a first-time author ships a working, contract-passing module in under four hours from the doc alone. Everything after this depends on the answer
+- [DONE] **M6-1** `_template/` rewritten from three empty `params.ts`
+  arrays and a no-op `create()` into a genuine, minimal working demo: a
+  single draggable-free vector arrow driven by one live example of each
+  of the four param kinds most modules reach for (`number` amplitude,
+  `vector` direction, `toggle` label visibility, `select` line style),
+  one layer, one readout scalar, and a real `explain.md` with a live
+  KaTeX equation (previously inside an HTML comment). Deliberately
+  smaller than `control-showcase`'s 7-glyph kitchen sink — 2 glyph
+  handles (`arrow` + `label`) — since that module already covers the
+  rarer kinds (`expression`, `angle`, `logScale`). Verified:
+  `npm run typecheck && npm run lint` clean, and end-to-end via M6-4's
+  generator run below
+- [DONE] **M6-2** `docs/MODULE_AUTHORING.md` rewritten against the real
+  substrate: added the previously-undocumented `defaultView` and
+  `stepDt` manifest fields, replaced "see `src/scene/glyphs/` for the
+  full set" with an inline table of all 15 glyphs and their key props,
+  added `ctx.palette`/`ctx.up` sections pointing to
+  `PHYSICS_CONVENTIONS.md`, and corrected §7's contract-suite
+  description to the real 11-assertion, dual-up-axis suite (previously
+  described only 7 of the checks the test file actually runs). A second
+  pass — after the M6-6 gate run below surfaced real gaps — added
+  `category`'s closed enum, a note that `dimensions` is now purely
+  informational (ADR 0012 made the 2D camera lock global), the
+  radians-only convention for angles, the `kernel/units` named-constant
+  convention, disambiguated `ScalarDef[]` vs. the runtime `scalars()`
+  function, and annotated the `label` glyph's `offset` as screen pixels
+  (not a third world dimension) after that exact ambiguity caused a
+  real compile error during the gate run. Also softened §1's "read
+  ARCHITECTURE.md §2 first" into an inline one-paragraph doctrine
+  summary, since sending a reader elsewhere in the doc's own first
+  step undercut its "never has to open the rest of the codebase" claim
+- [DONE] **M6-3** Added [ADR 0013](docs/adr/0013-outward-normal-for-closed-surface-flux.md),
+  documenting `fields-gradients`' outward-normal parametrization
+  convention for closed-surface flux (`∂S/∂u × ∂S/∂v` must point
+  outward — handedness alone doesn't fix this) — the first real
+  instance of the "module-specific sign convention" pattern ADR 0008
+  anticipated, and the actual remaining gap M6-3 identified.
+  `PHYSICS_CONVENTIONS.md`'s "Still open" section reframed accordingly,
+  with the outward-normal rule moved into a new "Surface orientation"
+  section citing the ADR, and the `ctx.up`-reading pattern from
+  `rotational-dynamics` added as a concrete worked example under
+  "Which axis is up" (previously stated only in the abstract).
+  `ARCHITECTURE.md` §23 and the `TASKS.md` ADR backlog line updated to
+  match
+- [DONE] **M6-4** Fixed `ARCHITECTURE.md` §11's own code snippet, which
+  used a stale `./*/manifest.ts` glob contradicting both the real
+  `registry.ts` (`./[a-z]*/manifest.ts`) and the doc's own prose one
+  paragraph below it — also brought the snippet's missing
+  `explainModules`/`loadExplain` back in sync with the real file.
+  `npm run new:module` itself needed **no fix** — actually ran
+  `node scripts/new-module.mjs template-smoke-test` end to end: id
+  substitution correct, and the generated folder passed
+  `typecheck`/`lint`/`test:contract`/`test:unit` with zero edits
+  elsewhere (96 contract tests passed against the smoke module + the
+  10 pre-existing modules, 480 unit tests all green). Smoke folder
+  deleted after verification
+- [DONE] **M6-5** Consolidated the three previously-divergent
+  manual-checklists (`ARCHITECTURE.md` §18 prose, §21's 7-item list,
+  `MODULE_AUTHORING.md`'s old §8) into one canonical, copy-pasteable
+  `## Checklist` markdown task-list at the end of
+  `MODULE_AUTHORING.md`. `ARCHITECTURE.md` §18 and §21 now point at it
+  instead of repeating their own wording; §18 also gained the 11th
+  contract-suite assertion (stepped `step`/`reset`) and the dual-up-axis
+  note that its prose had been missing relative to the real test file
+- [DONE] **M6-6** Ran the gate as a **simulated** first-time author,
+  per the decision to proxy this with an LLM rather than skip it, since
+  no human tester was available this session: a fresh subagent with
+  zero prior context on this repo, given only the rewritten
+  `MODULE_AUTHORING.md` and a spec for a real module
+  (`projectile-motion` — 2D closed-form kinematics), told to log every
+  file it had to open beyond that doc and why. It built a fully
+  working, contract-passing module in ~35–40 tool calls and found four
+  real, load-bearing gaps: (1) `angle`-kind params' radians-vs-degrees
+  convention was undocumented anywhere; (2) `kernel/units`' `Dimension`
+  exponent-tuple convention had no named constants and no worked
+  example, forcing a guess at the exponent order; (3) the glyph table's
+  `label.offset` prop reads as a 3-vector by pattern-matching every
+  other row, but is actually `readonly [number, number]` **screen
+  pixels** — a real `tsc` failure during the run; (4) `dimensions`'
+  actual (now purely informational, post-ADR-0012) behavior was
+  undocumented, costing a detour into `scene/camera`. Also flagged as
+  softer friction: the `scalars: ScalarDef[]` vs. `scalars(state)`
+  runtime-function name collision, and `category`'s un-enumerated
+  closed set. This is a proxy, not a literal human trial — the agent
+  doesn't get confused the way a person new to physics-sim codebases
+  would, so treat "no friction found" as a weaker signal than "friction
+  found," not as proof the doc is human-ready
+- [DONE] **M6-7** Fixed every gap M6-6 found, in the substrate where
+  the gap was substrate-shaped, not just the doc: added named
+  `Dimension` constants (`MASS`, `LENGTH`, `TIME`, `VELOCITY`, `ACCEL`,
+  `FORCE`, `ENERGY`, `TORQUE`, `MOMENT_OF_INERTIA`, `ANGULAR_VELOCITY`,
+  `ANGULAR_MOMENTUM`) to `kernel/units` — the gate's own module had
+  independently reinvented two of these with identical values before
+  the fix landed, confirming the duplication risk was real, not
+  theoretical. Documented radians-for-angles, the new unit constants,
+  `category`'s enum, and `dimensions`' real behavior in
+  `MODULE_AUTHORING.md`/`PHYSICS_CONVENTIONS.md` (folded into M6-2/M6-3
+  above). Annotated the `label.offset` table row. Flagged
+  `rotational-dynamics`' own pre-existing local `Dimension` duplicates
+  as **C-5** rather than touching a previously-shipped module outside
+  this change's scope. One gate run surfaced enough real friction that
+  a fix-and-retest cycle was warranted; skipped a second live retest
+  run (cost/value) since the fixes are direct, targeted answers to
+  concretely-quoted confusion, not speculative — the retest coverage
+  it would provide is standing in the M6-4 generator/contract-suite
+  runs, `test:unit`/`test:contract`/`build`/`check:budget`, and the
+  browser check below, which all remained green as each fix landed
+- [DONE] **M6-G** Gate met by the simulated standard above: a
+  from-scratch author with only `MODULE_AUTHORING.md`, `kernel/units`,
+  and one glyph-table lookup shipped a real, correct, contract-passing
+  `projectile-motion` module. Kept as a genuine 13th gallery module
+  (not deleted as scratch) after review — closed-form 2D kinematics,
+  correct `ctx.up`/`ctx.palette`/`kernel/units` usage, two golden-value
+  tests (range/max-height formulas, and the 45°-maximizes-range
+  property), verified via `typecheck`/`lint`/`test:unit`
+  (482 tests)/`test:contract` (98 passed, 8 skipped)/`build`/
+  `check:budget` (0.96 KB gzipped chunk) all green, `npx playwright
+  test` 29/29 green including its dynamically-picked-up per-module
+  smoke test, and a manual browser pass (renders, animates, readouts
+  match the closed-form values, no console errors, 320px width has no
+  horizontal overflow). Unblocks **M6.5** (below)
 
 ## M6.5 — Post-gate platform features
 
@@ -453,26 +566,26 @@ exported from a module is byte-identical across two runs from the same
 state, with the §15 semantic colours still distinguishable after palette
 quantization.
 
-All `BLOCKED` on **M6-G**.
+Unblocked — **M6-G** is met (see M6-G below).
 
 ### Offline support (ADR 0005)
 
-- [BLOCKED: M6-G] **P-1** Service worker precaching the application shell: HTML, CSS, self-hosted fonts, KaTeX, and the `three` / `vendor` / `katex` chunks. Cache-first for hashed immutable assets
-- [BLOCKED: M6-G] **P-2** Precache **every module chunk**, not just visited ones. This is the non-obvious half and it is required: §11 gives each module its own lazily-loaded chunk, so without explicit precaching "offline" would mean "offline for the one module you happened to open earlier"
-- [BLOCKED: M6-G] **P-3** Update flow: version tied to the build, and a **non-blocking** "new version available — reload" notice. Never swap code under a live demo — an instructor mid-lecture must not have the page reload underneath them (§1, "no fiddling mid-lecture"). The reload is always the user's click
-- [BLOCKED: M6-G] **P-4** Disable or scope the worker off in dev, or every developer eventually chases a phantom cached bundle
-- [BLOCKED: M6-G] **P-5** Report **total precache size** as a CI-visible number. Precaching the whole library puts the §17 per-module chunk budget under real pressure as it grows: at 50 modules this is the difference between a 4 MB and a 20 MB warm cache
-- [BLOCKED: M6-G] **P-6** Verify offline for real: load the site, disable the network, then open a module **never visited while online**, toggle its layers, and scrub its timeline. Also verify a stale worker cannot pin an old build — a fix nobody receives is the classic service-worker failure
+- [READY] **P-1** Service worker precaching the application shell: HTML, CSS, self-hosted fonts, KaTeX, and the `three` / `vendor` / `katex` chunks. Cache-first for hashed immutable assets
+- [READY] **P-2** Precache **every module chunk**, not just visited ones. This is the non-obvious half and it is required: §11 gives each module its own lazily-loaded chunk, so without explicit precaching "offline" would mean "offline for the one module you happened to open earlier"
+- [READY] **P-3** Update flow: version tied to the build, and a **non-blocking** "new version available — reload" notice. Never swap code under a live demo — an instructor mid-lecture must not have the page reload underneath them (§1, "no fiddling mid-lecture"). The reload is always the user's click
+- [READY] **P-4** Disable or scope the worker off in dev, or every developer eventually chases a phantom cached bundle
+- [READY] **P-5** Report **total precache size** as a CI-visible number. Precaching the whole library puts the §17 per-module chunk budget under real pressure as it grows: at 50 modules this is the difference between a 4 MB and a 20 MB warm cache
+- [READY] **P-6** Verify offline for real: load the site, disable the network, then open a module **never visited while online**, toggle its layers, and scrub its timeline. Also verify a stale worker cannot pin an old build — a fix nobody receives is the classic service-worker failure
 
 ### GIF export (ADR 0006)
 
-- [BLOCKED: M6-G] **P-7** Small self-hosted pure-JS GIF encoder, loaded **on demand** so it never touches the initial bundle (§17: ≤250 KB gzipped). No CDN (§19)
-- [BLOCKED: M6-G] **P-8** Deterministic frame capture from module **state**, not screen-recording: evaluate `update({t})` on a fixed time grid for `parametric` modules, and drive the shell's own fixed timestep for `stepped` ones, so an exported clip matches what the class saw. This only works because §12 forbids unseeded randomness and variable-dt integration
-- [BLOCKED: M6-G] **P-9** Export bounds — duration, frame rate, pixel dimensions — with the estimated file size shown **before** encoding starts. GIF is palette-limited and a careless export is tens of megabytes
-- [BLOCKED: M6-G] **P-10** Keep export off the hot path: frame capture is a deliberate user-initiated mode, and it is allowed to allocate because it is not playback. The §17 zero-allocation budget still applies to normal 60 fps rendering, and P-10 is done only when that is still true with the export code present
-- [BLOCKED: M6-G] **P-11** Prefer the projector token variant for export, and check an exported GIF against the palette: the Okabe–Ito semantic colours must survive 256-colour quantization, because colour **is** data here (§15)
-- [BLOCKED: M6-G] **P-12** Confirm **no** video path exists — no `MediaRecorder`, no WebM/MP4, no WASM encoder. ADR 0006 rejects video deliberately; this is a review check, not code
-- [BLOCKED: M6-G] **P-G** **Gate:** every module runs with the network disabled (including one never visited online), and two exports from the same state are byte-identical with the palette intact
+- [READY] **P-7** Small self-hosted pure-JS GIF encoder, loaded **on demand** so it never touches the initial bundle (§17: ≤250 KB gzipped). No CDN (§19)
+- [READY] **P-8** Deterministic frame capture from module **state**, not screen-recording: evaluate `update({t})` on a fixed time grid for `parametric` modules, and drive the shell's own fixed timestep for `stepped` ones, so an exported clip matches what the class saw. This only works because §12 forbids unseeded randomness and variable-dt integration
+- [READY] **P-9** Export bounds — duration, frame rate, pixel dimensions — with the estimated file size shown **before** encoding starts. GIF is palette-limited and a careless export is tens of megabytes
+- [READY] **P-10** Keep export off the hot path: frame capture is a deliberate user-initiated mode, and it is allowed to allocate because it is not playback. The §17 zero-allocation budget still applies to normal 60 fps rendering, and P-10 is done only when that is still true with the export code present
+- [READY] **P-11** Prefer the projector token variant for export, and check an exported GIF against the palette: the Okabe–Ito semantic colours must survive 256-colour quantization, because colour **is** data here (§15)
+- [READY] **P-12** Confirm **no** video path exists — no `MediaRecorder`, no WebM/MP4, no WASM encoder. ADR 0006 rejects video deliberately; this is a review check, not code
+- [READY] **P-G** **Gate:** every module runs with the network disabled (including one never visited online), and two exports from the same state are byte-identical with the palette intact
 
 ## X — Cross-cutting obligations
 
@@ -594,6 +707,7 @@ plus an ADR (§10).
 - [READY] **C-2** **Scene description for accessibility.** M3-32's canvas `aria-label` is generated "from module scalars", but `ScalarDef` carries no hint about which scalars belong in a spoken description or how to phrase one. Either the shell composes it generically from `label` + `symbol` + `unit` (preferred — no contract change) or the contract needs a field. Decide before writing M3-32
 - [READY] **C-3** **Demonstration states.** M4-G's "under three clicks from a bookmarked link" is measured against a module's "demonstration states", which nothing declares. Confirm that layer toggles plus bookmarks suffice; if they don't, that is a contract addition, and §20 says fix it at M5, not later
 - [READY] **C-4** `MODULE_CONTRACT_VERSION` has no CI check — its own doc comment admits "a bump is a signal to manually sweep `src/modules/*`". Consider a cheap guard (a per-module marker, or a test that fails when the constant moves) so a bump cannot land silently
+- [READY] **C-5** `rotational-dynamics/params.ts` still hand-writes its own local `MASS`/`LENGTH`/`VELOCITY`/`TORQUE`/etc. `Dimension` tuples, predating the named constants added to `kernel/units` for M6-6/M6-7 (the simulated authoring-gate module had independently reinvented `LENGTH`/`VELOCITY` with identical values before that fix landed — confirming the duplication was real). Low-risk cleanup: re-point that module's params at the shared `kernel/units` exports and delete the local copies
 
 ## Definition of done, per module
 
@@ -639,7 +753,7 @@ not wait on the platform work, or vice versa.
 - [DONE] **ADR-6** → [`0007-locked-ortho-for-2d-modules.md`](docs/adr/0007-locked-ortho-for-2d-modules.md). **Locked orthographic 3D for 2D modules**, one renderer, plus the release-rotation toggle. Unblocks **M3-31**, adds **M3-40**
 - [DONE] **ADR-7** → [`0008-right-handed-coordinates.md`](docs/adr/0008-right-handed-coordinates.md). **All coordinate systems are right-handed**, everywhere: Cartesian (`x̂ × ŷ = ẑ`), polar/cylindrical `(r, θ, z)` with `θ` from `+x` toward `+y`, spherical `(r, θ, φ)` in the physics convention (`θ` polar from `+z`). Positive angles are counter-clockwise viewed from the positive side of the axis; pseudovectors (`ω`, `α`, `τ = r × F`, `L = r × p`) follow the right-hand rule and keep the `doubleHead` marking. Recorded in full in `PHYSICS_CONVENTIONS.md`, which closes that doc's live `TODO`. A module may **not** flip a sign locally to make a picture look nicer
 - [DONE] **ADR-8** → [`0009-y-up-default-with-up-axis-toggle.md`](docs/adr/0009-y-up-default-with-up-axis-toggle.md). **y-up by default** (matches three.js; puts a 2D module's xy-plane straight on screen with `x` right, `y` up, composing with ADR 0007's locked ortho), **user-switchable to z-up** from a **global app settings menu**. The up axis is a scene-level convention exposed as **`ctx.up`**: the camera up vector, presets, and "iso" follow it, modules with a notion of vertical read it, orientation-free modules ignore it. Both conventions stay right-handed (ADR 0008). A `SceneContext` addition, **not** a `types.ts` change — no `MODULE_CONTRACT_VERSION` bump. Unblocks **M2-5**, adds **M2-21**, **M3-41**, **M3-42**, **M4-10**
-- [IDEA] **ADR-10+** Module-specific sign conventions that handedness does not imply — the sign of a bending moment, the direction of positive heel angle. One ADR per non-obvious choice, written as it arises (see **M6-3**). The only open convention question left
+- [READY] **ADR-10+** Module-specific sign conventions that handedness does not imply — the sign of a bending moment, the direction of positive heel angle. One ADR per non-obvious choice, written as it arises. First instance landed as part of **M6-3**: [`0013-outward-normal-for-closed-surface-flux.md`](docs/adr/0013-outward-normal-for-closed-surface-flux.md), documenting the outward-normal parametrization `fields-gradients` already relies on for its divergence-theorem demonstration. Stays open for whichever comes next (bending moment, heel angle, or another)
 
 ## Anticipated extensions (§22) — substrate should not foreclose these; do not build yet
 

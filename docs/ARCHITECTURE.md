@@ -544,13 +544,22 @@ import type { ModuleManifest, PhysicsModule } from './types';
 
 // Manifests: eagerly loaded. They are tiny data objects, and the gallery
 // needs all of them to render cards, search, and filter.
-const manifestModules = import.meta.glob<{ default: ModuleManifest }>('./*/manifest.ts', {
+const manifestModules = import.meta.glob<{ default: ModuleManifest }>('./[a-z]*/manifest.ts', {
   eager: true,
 });
 
 // Implementations: lazily loaded. Each becomes its own chunk, so the
 // initial bundle never grows as the library does.
-const implModules = import.meta.glob<{ default: PhysicsModule }>('./*/index.ts');
+const implModules = import.meta.glob<{ default: PhysicsModule }>('./[a-z]*/index.ts');
+
+// explain.md: lazily loaded as raw text, same reasoning as implModules —
+// the explain panel content (§9) must not bloat the initial bundle.
+// Optional per module; loadExplain resolves to null when a module has
+// none.
+const explainModules = import.meta.glob<string>('./[a-z]*/explain.md', {
+  query: '?raw',
+  import: 'default',
+});
 
 export const manifests: ModuleManifest[] = Object.values(manifestModules)
   .map((m) => m.default)
@@ -561,11 +570,17 @@ export async function loadModule(id: string): Promise<PhysicsModule> {
   if (!entry) throw new Error(`Unknown module: ${id}`);
   return (await entry[1]()).default;
 }
+
+export async function loadExplain(id: string): Promise<string | null> {
+  const entry = Object.entries(explainModules).find(([path]) => path === `./${id}/explain.md`);
+  if (!entry) return null;
+  return await entry[1]();
+}
 ```
 
 This is the single most important piece of scaffolding for the extensibility goal. **The initial page load cost is O(1) in the number of modules**, so the library can grow to 50 modules without the gallery getting slower.
 
-Folders prefixed with `_` (like `_template`) are excluded by the glob pattern `./[a-z]*/`.
+Folders prefixed with `_` (like `_template`) and the non-module `testing/` folder are excluded by the glob pattern `./[a-z]*/`, which only matches directories starting with a lowercase letter.
 
 ---
 
@@ -767,6 +782,9 @@ Assertions:
 8. URL round-trip: encode(defaults) → decode → deep-equals defaults; and the same for a randomized state.
 9. No `NaN` in any scalar across a sampling of the parameter space (100 quasi-random states).
 10. Every `explain.md`, if present, parses.
+11. For `stepped` modules: `step()` and `reset()` are actually implemented.
+
+Assertions 4–7 and 9 each run **twice — once with `ctx.up === 'y'`, once with `'z'`** (ADR 0009), so a module that only half-respects the up-axis setting fails here.
 
 A new module either passes this or does not merge. **No module-specific test code is required to get this coverage** — that is the point.
 
@@ -776,7 +794,7 @@ For every module id: navigate to its route, wait for canvas, assert non-blank re
 
 ### Manual checklist per module
 
-Documented in `MODULE_AUTHORING.md`: check on a projector, check at 320 px width, check with `prefers-reduced-motion`, check with a colour-blindness simulator.
+See the copy-pasteable checklist in `MODULE_AUTHORING.md` — projector, 320 px width, `prefers-reduced-motion`, colour-blindness simulator, plus the mechanical steps (contract suite, typecheck, lint).
 
 ---
 
@@ -1034,13 +1052,12 @@ export default module;
 
 ### Author's checklist
 
-1. Copy `_template/`, rename the folder (the folder name _is_ the module id).
-2. Fill in `manifest.ts`.
-3. Declare params, layers, scalars.
-4. Build handles in `create()`, set them in `update()`, dispose them in `dispose()`.
-5. Write `explain.md`.
-6. Run `npm run test:contract` — it will find your module automatically.
-7. Check on a projector, at 320 px, and with a colour-blindness simulator.
+The short version: copy `_template/`, fill in `manifest.ts`, declare
+params/layers/scalars, build handles in `create()` and set them in
+`update()`, write `explain.md`, run `npm run test:contract`. The full,
+copy-pasteable checklist — including the manual projector/320px/
+reduced-motion/colour-blindness checks — lives in `MODULE_AUTHORING.md`
+and is the canonical version; this is only a summary.
 
 ---
 
@@ -1089,11 +1106,17 @@ The up axis that ADR 0008 left open is settled too: **y-up by default**,
 user-switchable to z-up from the global settings menu, exposed to modules
 as `ctx.up` ([ADR 0009](adr/0009-y-up-default-with-up-axis-toggle.md)).
 
-Still genuinely open, and tracked in `TASKS.md`: the module-specific sign
-conventions that handedness does not imply — the sign of a bending
-moment, the direction of positive heel angle — which
-`PHYSICS_CONVENTIONS.md` defers to an ADR per non-obvious choice as each
-one is decided.
+The pattern has already produced its first module-specific instance:
+`fields-gradients`' outward-normal convention for closed-surface flux
+parametrizations, which handedness alone does not fix
+([ADR 0013](adr/0013-outward-normal-for-closed-surface-flux.md)), now
+recorded in `PHYSICS_CONVENTIONS.md`.
+
+Still genuinely open, and tracked in `TASKS.md`: further module-specific
+sign conventions that handedness does not imply — the sign of a bending
+moment, the direction of positive heel angle — each of which
+`PHYSICS_CONVENTIONS.md` defers to its own ADR as it arises, the way
+ADR 0013 did.
 
 ---
 

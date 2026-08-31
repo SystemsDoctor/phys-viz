@@ -1,18 +1,14 @@
 import type { ParamDef, LayerDef, ScalarDef } from '../types';
-import type { Dimension } from '@/kernel/units';
-
-// [M, L, T, Theta, I, N, J] — see kernel/units. Local literal tuples
-// rather than named kernel exports: no other module needs these yet,
-// and inlining keeps this the only place that would need to change if
-// that stops being true.
-const MASS: Dimension = [1, 0, 0, 0, 0, 0, 0];
-const LENGTH: Dimension = [0, 1, 0, 0, 0, 0, 0];
-const VELOCITY: Dimension = [0, 1, -1, 0, 0, 0, 0];
-const TORQUE: Dimension = [1, 2, -2, 0, 0, 0, 0];
-const MOMENT_OF_INERTIA: Dimension = [1, 2, 0, 0, 0, 0, 0];
-const ANGULAR_MOMENTUM: Dimension = [1, 2, -1, 0, 0, 0, 0];
-const ANGULAR_VELOCITY: Dimension = [0, 0, -1, 0, 0, 0, 0];
-const ENERGY: Dimension = [1, 2, -2, 0, 0, 0, 0];
+import {
+  MASS,
+  LENGTH,
+  VELOCITY,
+  TORQUE,
+  MOMENT_OF_INERTIA,
+  ANGULAR_MOMENTUM,
+  ANGULAR_VELOCITY,
+  ENERGY,
+} from '@/kernel/units';
 
 export const params: ParamDef[] = [
   // Shared rigid body — reused by parallel-axis, L-vs-omega, the

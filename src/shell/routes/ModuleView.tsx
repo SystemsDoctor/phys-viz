@@ -689,6 +689,14 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       },
       c: () => navigator.clipboard?.writeText(window.location.href),
       v: () => {
+        // "2D-only" (ADR 0012) promises a flat, plane-locked view with
+        // rotation suppressed — cycling to a 3D-ish preset (iso, +x, +y)
+        // would silently break that promise while the checkbox still
+        // reads checked, since `goTo` moves the camera directly and
+        // bypasses OrbitControls' own `enableRotate=false` guard
+        // entirely. No-op while locked, same as every other rotation
+        // path being unavailable (drag, keyboard orbit).
+        if (useAppStore.getState().ui.lockTo2D) return;
         cameraCycleIndexRef.current = (cameraCycleIndexRef.current + 1) % CAMERA_CYCLE.length;
         viewportRef.current?.camera.goTo(CAMERA_CYCLE[cameraCycleIndexRef.current]);
       },

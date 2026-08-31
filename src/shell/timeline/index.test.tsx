@@ -53,6 +53,36 @@ describe('Timeline', () => {
     expect(onChange).toHaveBeenCalledWith({ t: 0.1 });
   });
 
+  it('reset button sets t to 0 and is disabled when already at t=0', async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <Timeline
+        timeModel="parametric"
+        t={0}
+        playing={false}
+        speed={1}
+        direction={1}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Reset to start' })).toBeDisabled();
+
+    rerender(
+      <Timeline
+        timeModel="parametric"
+        t={5}
+        playing={true}
+        speed={1}
+        direction={1}
+        onChange={onChange}
+      />,
+    );
+    const reset = screen.getByRole('button', { name: 'Reset to start' });
+    expect(reset).not.toBeDisabled();
+    await userEvent.click(reset);
+    expect(onChange).toHaveBeenCalledWith({ t: 0 });
+  });
+
   it('reverse is enabled for parametric and toggles direction', async () => {
     const onChange = vi.fn();
     render(

@@ -60,6 +60,16 @@ export function Timeline(props: TimelineProps): React.ReactElement | null {
         <button
           type="button"
           className="pv-timeline__btn"
+          aria-label="Reset to start"
+          title="Reset to t = 0"
+          disabled={t === 0}
+          onClick={() => onChange({ t: 0 })}
+        >
+          ↺
+        </button>
+        <button
+          type="button"
+          className="pv-timeline__btn"
           aria-label="Step back"
           onClick={() => onChange({ t: Math.max(0, t - stepSize) })}
         >

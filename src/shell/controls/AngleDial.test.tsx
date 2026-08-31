@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { AngleDial } from './AngleDial';
 
 describe('AngleDial', () => {
@@ -7,7 +7,32 @@ describe('AngleDial', () => {
     render(<AngleDial label="Angle" value={Math.PI / 2} onChange={vi.fn()} />);
     const dial = screen.getByRole('slider', { name: 'Angle' });
     expect(dial).toHaveAttribute('tabindex', '0');
-    expect(screen.getByText('90°')).toBeInTheDocument();
+    expect(screen.getByLabelText('Angle in degrees')).toHaveValue(90);
+  });
+
+  it('typing a degree value into the text entry commits the equivalent radian value', () => {
+    const onChange = vi.fn();
+    render(<AngleDial label="Angle" value={0} onChange={onChange} />);
+    const input = screen.getByLabelText('Angle in degrees');
+    fireEvent.change(input, { target: { value: '45' } });
+    expect(onChange).toHaveBeenCalledWith(Math.PI / 4);
+  });
+
+  it('clamps a typed degree value to min/max, same as the dial', () => {
+    const onChange = vi.fn();
+    render(<AngleDial label="Angle" value={0} min={0} max={Math.PI / 2} onChange={onChange} />);
+    const input = screen.getByLabelText('Angle in degrees');
+    fireEvent.change(input, { target: { value: '180' } });
+    expect(onChange).toHaveBeenCalledWith(Math.PI / 2);
+  });
+
+  it('does not call onChange while the text entry is empty or unparseable mid-edit', () => {
+    const onChange = vi.fn();
+    render(<AngleDial label="Angle" value={0} onChange={onChange} />);
+    const input = screen.getByLabelText('Angle in degrees');
+    fireEvent.change(input, { target: { value: '' } });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input).toHaveValue(null);
   });
 
   it('ArrowRight increases the angle, ArrowLeft decreases it', () => {

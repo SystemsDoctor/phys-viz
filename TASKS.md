@@ -696,6 +696,53 @@ canonical x/y view, and Recenter also resets pan`) that orbits+pans,
   re-locks, and asserts the resulting canvas frame is pixel-identical to
   the original default-locked frame, then pans again and confirms
   Recenter reproduces it again
+- [DONE] **X-14** Added a "Reset to start" button (↺) to the timeline
+  transport row, before "Step back" — `onChange({ t: 0 })`, the same
+  patch shape the scrub slider already sends when dragged to 0, so it
+  reuses every existing reset+fast-forward path (`SteppedScrubber`,
+  URL sync) with no `ModuleView`/driver changes. Disabled when already
+  at `t = 0`. Reported friction: repeatedly dragging the scrub slider
+  back to zero to rerun a demonstration. Verified: 2 new
+  `Timeline.test.tsx` cases (disabled at `t=0`, enabled + emits
+  `{t: 0}` otherwise) plus the existing suite, `typecheck`/`lint` clean
+- [DONE] **X-15** `AngleDial`'s read-only degree readout (`90°` as a
+  `<span>`) replaced with an editable degree text entry next to the
+  dial, following `VectorPad`'s `AxisInput` local-text-buffer idiom
+  (authoritative while typing, re-synced from the dial's own value only
+  when it changes for some other reason — dragging, arrow keys, an
+  external param change — so a `NaN` or in-progress `"-"` mid-edit is
+  never clobbered by a re-render). Typed degrees convert to radians and
+  run through the same `clampAngle(min, max)` the dial's drag/keyboard
+  paths already use. Reported friction: homing in on an exact degree on
+  a 56px dial face is hard. Verified: updated + 3 new
+  `AngleDial.test.tsx` cases (typed value commits the right radians,
+  clamps like the dial, empty/unparseable input doesn't call `onChange`
+  mid-edit), `typecheck`/`lint` clean
+- [DONE] **X-16** Reported: "2D-only" sometimes appeared to snap to an
+  isometric-ish view instead of staying flat, "whichever view is
+  closest when the box is checked". Root cause: the `v` keyboard
+  shortcut (cycles `iso -> +x -> +y -> +z`, §16) called
+  `camera.goTo(...)` **unconditionally** — `goTo` moves the camera
+  directly and never goes through `OrbitControls`, so it bypasses
+  `setLockedToPlane`'s `enableRotate = false` guard entirely. Pressing
+  `v` while "2D-only" was checked silently cycled the view while the
+  checkbox stayed checked and nothing else signaled anything had
+  changed; the reported "closest of two" pattern is consistent with a
+  4-position cycle (`iso`/`+x`/`+y`/`+z`) landing on whichever preset a
+  few stray presses happened to reach, misread as the checkbox itself
+  choosing between two outcomes. X-13's own write-up had already
+  special-cased this exact call site for `recenterTarget` without
+  noticing it also needed to respect the lock. Fixed with a one-line
+  guard: `if (useAppStore.getState().ui.lockTo2D) return;` at the top
+  of the `v` handler — silent no-op while locked, same as every other
+  rotation path (drag, arrow-key orbit) being unavailable; works again
+  once unlocked. Verified: new Playwright test (`X-16: the "v"
+camera-cycle shortcut is a no-op while 2D-only is locked, and works
+again once unlocked`), confirmed it fails against the pre-fix code
+  (reproduces: `v` moves the canvas while still checked) and passes
+  against the fix; full 30/30 Playwright suite, `test:unit` (486),
+  `test:contract`, `typecheck`, `lint`, `build`, `check:budget`,
+  `format:check` all green
 
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 

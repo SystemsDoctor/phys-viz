@@ -702,8 +702,22 @@ body {
 }
 
 .pv-angle-dial__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
+  color: var(--ink-0);
+}
+
+.pv-angle-dial__input {
+  width: 3.5em;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--surf-1);
   color: var(--ink-0);
 }

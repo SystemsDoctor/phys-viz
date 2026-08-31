@@ -467,6 +467,53 @@ test('X-13: re-checking 2D-only always resets to the same canonical x/y view, an
   expect(recenteredFrame).toBe(defaultLockedFrame);
 });
 
+test('X-16: the "v" camera-cycle shortcut is a no-op while 2D-only is locked, and works again once unlocked', async ({
+  page,
+}) => {
+  // Reported bug: "2D-only" sometimes appeared to revert to an
+  // isometric-ish view instead of staying flat. Root cause: the "v" key
+  // handler called `camera.goTo(...)` directly, which moves the camera
+  // regardless of OrbitControls' `enableRotate=false` lock — so pressing
+  // "v" while "2D-only" was checked silently cycled to iso/+x/+y while
+  // the checkbox stayed checked, with nothing else visibly wrong until
+  // the user next looked at the canvas.
+  await page.goto('#/m/rotational-dynamics');
+  const canvas = page.locator('canvas.pv-viewport-canvas');
+  await expect(canvas).toBeVisible();
+  await page.waitForTimeout(500);
+
+  const captureCanvas = (): Promise<string> =>
+    page.evaluate(
+      () =>
+        new Promise<string>((resolve) => {
+          requestAnimationFrame(() => {
+            const c = document.querySelector('canvas.pv-viewport-canvas') as HTMLCanvasElement;
+            resolve(c.toDataURL());
+          });
+        }),
+    );
+
+  // "2D-only" is checked by default (ADR 0012) — no need to open
+  // settings to confirm before capturing the baseline locked frame.
+  const lockedFrame = await captureCanvas();
+
+  await canvas.click();
+  await page.keyboard.press('v');
+  await page.keyboard.press('v');
+  await page.waitForTimeout(500);
+  expect(await captureCanvas()).toBe(lockedFrame);
+
+  // Unlock, and "v" should cycle the view again like normal.
+  await page.getByLabel('Display settings').click();
+  await page.getByRole('checkbox', { name: '2D-only' }).uncheck();
+  await page.getByLabel('Display settings').click();
+
+  await canvas.click();
+  await page.keyboard.press('v');
+  await page.waitForTimeout(500);
+  expect(await captureCanvas()).not.toBe(lockedFrame);
+});
+
 test('X-11: a manual camera orbit is reflected in the URL and survives a reload in a fresh browser context (§14 bookmark round-trip)', async ({
   page,
   browser,

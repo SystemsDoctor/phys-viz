@@ -17,7 +17,7 @@ arises."
 flux through a closed cube surface two ways — a surface integral over
 six parametrized faces, and a volume integral of the divergence — and
 checking they agree. The surface integral's sign depends entirely on
-which way each face's normal points: `∮ F·dA` over an *inward* normal
+which way each face's normal points: `∮ F·dA` over an _inward_ normal
 gives the negative of the correct flux, and the divergence theorem
 would appear to fail.
 
@@ -77,4 +77,4 @@ sides of the cube rather than flipping sign on one of them.
   whichever the parametrization gives, and the module states it
   explicitly rather than inheriting this rule.
 - Recorded in `docs/PHYSICS_CONVENTIONS.md`, which is the doc a module
-  author actually reads; this ADR is the paper trail for *why*.
+  author actually reads; this ADR is the paper trail for _why_.

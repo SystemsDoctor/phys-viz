@@ -78,8 +78,8 @@ one of the named `Dimension` constants from `kernel/units` (also in
 **`scalars` names two different things — don't conflate them.** The
 `scalars: ScalarDef[]` array you declare here is metadata (key, label,
 symbol, unit) that tells the shell what a readout/plot series is
-*called*. The `scalars(state)` function you return from `create()` in
-step 5 is what actually *computes* the numbers at runtime. Every key
+_called_. The `scalars(state)` function you return from `create()` in
+step 5 is what actually _computes_ the numbers at runtime. Every key
 your `scalars(state)` function returns must appear in this `ScalarDef[]`
 array, and vice versa — they describe the same set of outputs from two
 different angles.
@@ -115,23 +115,23 @@ rather than adding more UI machinery to one.
   `{ set(props), visible(show), dispose() }` regardless of glyph kind.
   The full set `ctx` offers:
 
-  | Glyph           | Purpose                              | Key props                                             |
-  | --------------- | ------------------------------------- | ------------------------------------------------------ |
-  | `arrow`         | vectors, forces                       | `from`, `to`, `color`, `dashed`, `doubleHead`           |
-  | `curvedArrow`   | angular arcs (torque, curl)            | `center`, `axis`, `radius`, `startAngle`, `endAngle`    |
-  | `path`          | trajectories, fading tails             | `points`, `persistence`                                 |
-  | `point`         | markers                               | `position`, `sizePx`                                    |
-  | `patch`         | flat filled regions (fan, ≤ 16 points) | `points`, `opacity`                                     |
-  | `surface`       | parametric surfaces                    | `parametric`, `uRange`, `vRange`, `resolution`          |
-  | `arc`           | angle between two vectors from origin  | `from`, `to`, `radius`                                  |
-  | `body`          | rigid-body shapes                      | `kind` (`box`\|`sphere`\|`cylinder`\|`disc`\|`rod`\|`spring`), `position`, `orientation`, `scale` |
-  | `field`         | sampled vector field on a grid         | `sample`, `gridBounds`, `gridResolution`, `mode`        |
-  | `frame`         | nestable coordinate frames             | `origin`, `orientation`, `parent`                       |
-  | `axes`          | reference axes (rarely needed — see below) | `extent`, `showTicks`                              |
-  | `graticule`     | 2D grid overlay (no `group`; DOM, not scene) | `viewportSize`, `worldUnitsPerTick`               |
-  | `label`         | KaTeX text at a world anchor           | `latex`, `anchor` (world position), `offset` (**screen pixels**, `[x, y]` — not a third world dimension, unlike every other `offset`/`anchor`-shaped prop above) |
-  | `dimensionLine` | measurement brackets                   | `from`, `to`, `offset`, `label`                         |
-  | `draggable`     | wire a param to pointer drag           | `paramKey`, `getPoint`                                  |
+  | Glyph           | Purpose                                      | Key props                                                                                                                                                        |
+  | --------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `arrow`         | vectors, forces                              | `from`, `to`, `color`, `dashed`, `doubleHead`                                                                                                                    |
+  | `curvedArrow`   | angular arcs (torque, curl)                  | `center`, `axis`, `radius`, `startAngle`, `endAngle`                                                                                                             |
+  | `path`          | trajectories, fading tails                   | `points`, `persistence`                                                                                                                                          |
+  | `point`         | markers                                      | `position`, `sizePx`                                                                                                                                             |
+  | `patch`         | flat filled regions (fan, ≤ 16 points)       | `points`, `opacity`                                                                                                                                              |
+  | `surface`       | parametric surfaces                          | `parametric`, `uRange`, `vRange`, `resolution`                                                                                                                   |
+  | `arc`           | angle between two vectors from origin        | `from`, `to`, `radius`                                                                                                                                           |
+  | `body`          | rigid-body shapes                            | `kind` (`box`\|`sphere`\|`cylinder`\|`disc`\|`rod`\|`spring`), `position`, `orientation`, `scale`                                                                |
+  | `field`         | sampled vector field on a grid               | `sample`, `gridBounds`, `gridResolution`, `mode`                                                                                                                 |
+  | `frame`         | nestable coordinate frames                   | `origin`, `orientation`, `parent`                                                                                                                                |
+  | `axes`          | reference axes (rarely needed — see below)   | `extent`, `showTicks`                                                                                                                                            |
+  | `graticule`     | 2D grid overlay (no `group`; DOM, not scene) | `viewportSize`, `worldUnitsPerTick`                                                                                                                              |
+  | `label`         | KaTeX text at a world anchor                 | `latex`, `anchor` (world position), `offset` (**screen pixels**, `[x, y]` — not a third world dimension, unlike every other `offset`/`anchor`-shaped prop above) |
+  | `dimensionLine` | measurement brackets                         | `from`, `to`, `offset`, `label`                                                                                                                                  |
+  | `draggable`     | wire a param to pointer drag                 | `paramKey`, `getPoint`                                                                                                                                           |
 
   `resolution`, `gridResolution`, and `kind` (on `body`) are fixed for a
   handle's lifetime — pass their final value at `create()` time, not in

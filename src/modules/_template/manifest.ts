@@ -7,7 +7,8 @@ const manifest: ModuleManifest = {
   id: '_template', // TODO: rename to match the new folder name
   title: 'Template Module',
   category: 'sandbox',
-  blurb: 'A single vector, driven by one of each common param kind — the starting point for a new module.',
+  blurb:
+    'A single vector, driven by one of each common param kind — the starting point for a new module.',
   tags: [],
   timeModel: 'static', // 'static' | 'parametric' (preferred) | 'stepped' (see §12)
   dimensions: 'both', // 2 | 3 | 'both'

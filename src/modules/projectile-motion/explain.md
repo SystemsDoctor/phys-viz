@@ -32,7 +32,7 @@ backward is exact and instantaneous.
 
 Position as a function of time, measured from the launch point:
 
-$$ x(t) = v_0 \cos\theta \; t \qquad\quad y(t) = v_0 \sin\theta \; t -
+$$ x(t) = v_0 \cos\theta ; t \qquad\quad y(t) = v_0 \sin\theta ; t -
 \tfrac{1}{2} g t^2 $$
 
 Both scalars below follow from setting $y(t) = 0$ and solving for the
@@ -43,3 +43,4 @@ $$ R = \frac{v_0^2 \sin(2\theta)}{g} \qquad\quad H = \frac{(v_0
 
 where $R$ is the range (horizontal distance back to $y = 0$) and $H$ is
 the maximum height.
+$$

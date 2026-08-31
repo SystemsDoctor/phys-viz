@@ -548,7 +548,7 @@ Unblocked — **M5-G** is met (see M5-G above).
   property), verified via `typecheck`/`lint`/`test:unit`
   (482 tests)/`test:contract` (98 passed, 8 skipped)/`build`/
   `check:budget` (0.96 KB gzipped chunk) all green, `npx playwright
-  test` 29/29 green including its dynamically-picked-up per-module
+test` 29/29 green including its dynamically-picked-up per-module
   smoke test, and a manual browser pass (renders, animates, readouts
   match the closed-form values, no console errors, 320px width has no
   horizontal overflow). Unblocks **M6.5** (below)
@@ -605,7 +605,7 @@ tagged with the milestone that must not ship without it.
 
 - [DONE] **X-11** §14's "a bookmarked demo restores the viewing angle" was
   only half-wired. UI-9 fixed URL/default -> Viewport (`viewport.camera
-  .setState(...)` at mount); `state.camera`/`setCamera()` never got
+.setState(...)` at mount); `state.camera`/`setCamera()` never got
   written from the OTHER direction — nothing subscribed to
   `CameraController.onChange()` and pushed `viewport.camera.getState()`
   back into the store, so a user's manual orbit/pan/zoom never reached
@@ -613,7 +613,7 @@ tagged with the milestone that must not ship without it.
   untouched default and omitted `c=` entirely, no matter how the user had
   actually orbited. Fixed in `ModuleView.tsx` with a new effect wiring
   `viewport.camera.onChange(...)` -> `useAppStore.getState().setCamera
-  (viewport.camera.getState())`, debounced with the same
+(viewport.camera.getState())`, debounced with the same
   `URL_SYNC_DEBOUNCE_MS`/`MAX_WAIT_MS` pattern the pre-existing state ->
   URL sync effect uses (camera changes fire on every drag/tween frame,
   not just at rest) — reads `getState()` inside the debounced `flush`,
@@ -621,8 +621,8 @@ tagged with the milestone that must not ship without it.
   write of the settled final state. No feedback loop: nothing else
   re-applies `store.camera` to the Viewport after mount, so this write
   can't retrigger itself. Verified: new Playwright test (`X-11: a manual
-  camera orbit is reflected in the URL and survives a reload in a fresh
-  browser context`) drags the canvas on `rotational-dynamics` with free
+camera orbit is reflected in the URL and survives a reload in a fresh
+browser context`) drags the canvas on `rotational-dynamics` with free
   rotation released, confirms `c=` appears in the URL (the exact case
   that previously silently no-opped), reloads that URL in a fresh
   `browser.newContext()`, and confirms `c=` round-trips unchanged
@@ -631,7 +631,7 @@ tagged with the milestone that must not ship without it.
   labels, not the actual glyphs — "the axes... not displaying correctly,
   only the variables". Root cause: `Viewport.setGroupVisible`'s
   re-entrancy guard (`if (group.visible && !this.activeFades.has(name))
-  return;`) let a REDUNDANT call — made while that same group's fade-in
+return;`) let a REDUNDANT call — made while that same group's fade-in
   was already in progress — fall through and re-`traverse()` the group,
   re-capturing "current" material opacity (already 0, mid-fade) as the
   new fade baseline. `LayerManager`'s exclusive-group radios trigger this
@@ -641,7 +641,7 @@ tagged with the milestone that must not ship without it.
   per-layer subscribe loop, all synchronously within one click — so the
   target group's fade gets re-armed with a zeroed baseline 6 times in a
   row and never recovers. Fixed by making the guard `if (group.visible)
-  return;` — once a group is visible (mid-fade or long since settled),
+return;` — once a group is visible (mid-fade or long since settled),
   every redundant call is now a pure no-op, so only the FIRST call of a
   burst ever captures a baseline, and it always captures the true
   pre-fade value. Separately found and fixed while chasing this: `path`
@@ -659,8 +659,8 @@ tagged with the milestone that must not ship without it.
   `attachTo`-hierarchy-visibility pattern arrow/arc labels already use,
   so they appear/disappear with the grid for free, no new wiring in
   `Viewport`. Verified: new Playwright test (`X-14: switching to a
-  non-default rotational-dynamics panel actually renders its glyphs, not
-  just their labels`) — confirmed it reproduces the bug (closest pixel
+non-default rotational-dynamics panel actually renders its glyphs, not
+just their labels`) — confirmed it reproduces the bug (closest pixel
   match to the omega/L arrows' colour: ~68) against the pre-fix code and
   passes (exact match: 0) against the fix; `axes.test.ts`/`path.test.ts`
   unchanged and still green
@@ -678,7 +678,7 @@ tagged with the milestone that must not ship without it.
   `module.defaultView.preset`. Recenter view was also reported as
   incomplete: it only re-oriented the camera, never undid a pan — fixed
   by adding an optional `recenterTarget` param to `CameraController
-  .goTo()` (default `false`, so the `v`-key preset cycle and other
+.goTo()` (default `false`, so the `v`-key preset cycle and other
   callers are unaffected) that resets the orbit target to the origin as
   part of the SAME tween, wired into both Recenter and the 2D-only
   lock-entry transition. One subtlety each: `goTo`'s instant
@@ -692,7 +692,7 @@ tagged with the milestone that must not ship without it.
   camera unit tests (`goTo leaves the target untouched by default...`,
   `goTo with recenterTarget resets a panned-away target...`) and a new
   Playwright test (`X-13: re-checking 2D-only always resets to the same
-  canonical x/y view, and Recenter also resets pan`) that orbits+pans,
+canonical x/y view, and Recenter also resets pan`) that orbits+pans,
   re-locks, and asserts the resulting canvas frame is pixel-identical to
   the original default-locked frame, then pans again and confirms
   Recenter reproduces it again

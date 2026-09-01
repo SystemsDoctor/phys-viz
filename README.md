@@ -1,16 +1,15 @@
 # PhysViz
 
+**Live at [systemsdoctor.github.io/phys-viz](https://systemsdoctor.github.io/phys-viz/)**
+
 A static, client-only gallery of interactive, rotatable, toggleable
 physics visualizations for undergraduate mechanics and engineering
 courses. Pick a module, orbit and zoom a 3D scene, adjust parameters
 with sliders, and toggle individual visual elements on and off. Every
 configuration is encoded in the URL, so a demo can be prepared in
 advance, bookmarked, projected in a lecture hall, and handed to students
-as a link.
-
-**Status:** early scaffold. The repository layout matches the
-architecture spec, but almost nothing is implemented yet — see
-[Project status](#project-status) below.
+as a link. Works offline once loaded (installable, service-worker
+precached) and can export the current demonstration as a GIF.
 
 ## This is a visualizer, not a simulator
 
@@ -76,15 +75,23 @@ picture.
 Tracking [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §20's milestone
 plan, in order:
 
-- [ ] **M0** — scaffold and deploy
-- [ ] **M1** — kernel
-- [ ] **M2** — scene substrate
-- [ ] **M3** — shell
-- [ ] **M4** — first module: Vector Algebra
-- [ ] **M5** — two deliberately dissimilar modules (Rotational Dynamics,
+- [x] **M0** — scaffold and deploy
+- [x] **M1** — kernel
+- [x] **M2** — scene substrate
+- [x] **M3** — shell
+- [x] **M4** — first module: Vector Algebra
+- [x] **M5** — two deliberately dissimilar modules (Rotational Dynamics,
       Fields/Gradients/Flux)
-- [ ] **M6** — authoring path (the extensibility gate)
-- [ ] **M7+** — library growth
+- [x] **M6** — authoring path (the extensibility gate)
+- [x] **M6.5** — offline support (installable, service-worker precached)
+      and GIF export
+- [ ] **M7+** — library growth (ongoing; see `TASKS.md`)
+
+Five modules are live today: Vector Algebra, Rotational Dynamics,
+Fields/Gradients/Flux, Projectile Motion, and a Control Showcase (the
+authoring reference implementation). `TASKS.md` is the authoritative,
+up-to-date execution tracker — check it before starting non-trivial
+work.
 
 ## License
 

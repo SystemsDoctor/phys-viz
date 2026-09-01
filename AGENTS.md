@@ -146,10 +146,18 @@ chat history.
 
 ## Current state of the codebase
 
-This scaffold matches the repository layout in ARCHITECTURE.md §5 but
-implements almost nothing yet — most functions intentionally
-`throw new Error('not implemented (see M<N> in ARCHITECTURE.md §20)')`.
-Work through the milestones in §20 **in order**; do not start M2 work
-before M1's acceptance criterion is met, etc. M0 (scaffold + a
-rotatable cube deployed, with the lint boundary rule proven to fail on a
-deliberate violation) is the immediate next milestone.
+M0 through M6.5 (ARCHITECTURE.md §20) are all `DONE` — the layered
+substrate (kernel/scene/shell), the module-authoring path, and the
+offline/GIF-export platform features are built and deployed at
+`https://systemsdoctor.github.io/phys-viz/`. Five modules are
+registered: `vector-algebra`, `rotational-dynamics`,
+`fields-gradients`, `projectile-motion`, `control-showcase`. Nothing in
+`src/kernel`, `src/scene`, or `src/shell` should still be a
+`throw new Error('not implemented ...')` stub; if you find one, treat
+it as a bug, not expected scaffold state. What remains is tracked in
+`TASKS.md`: a small cross-cutting punch list (`X-*`/`C-*`), and M7+
+library growth (new physics modules, `[IDEA]` until explicitly
+scheduled — see `TASKS.md`'s status convention before starting one).
+A freshly scaffolded module (`npm run new:module -- <id>`) still starts
+as a stub by design — that's the one place the "implementing a stub"
+guidance above still applies.

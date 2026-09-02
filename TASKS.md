@@ -745,6 +745,32 @@ again once unlocked`), confirmed it fails against the pre-fix code
   against the fix; full 30/30 Playwright suite, `test:unit` (486),
   `test:contract`, `typecheck`, `lint`, `build`, `check:budget`,
   `format:check` all green
+- [READY] **X-17** Discovered while building `work-energy` (M7-1): a
+  `surface` or `patch` glyph whose geometry extends off the canonical
+  x/up plane (a nonzero depth extent along the camera's view axis) does
+  not render at all under the default, locked "2D-only" orthographic
+  view (`ui.lockTo2D`, checked by default, ADR 0012) — confirmed
+  empirically (screenshot shows nothing; unchecking "2D-only" and
+  orbiting away from `+z` makes the identical geometry appear
+  correctly), while `point`/`body`/`arrow` glyphs at the same
+  off-plane coordinates render fine in the same locked view. Point
+  and body glyphs never left the plane in this repro, so it's untested
+  whether they'd show the same symptom off-plane. Likely an
+  orthographic near-plane clipping edge case in `src/scene/camera` (the
+  locked view forces `setProjection('ortho')` + a fixed `+z` `goTo`),
+  not anything glyph-specific, since `surface` renders correctly for
+  `fields-gradients` under its own (unlocked, iso/persp)
+  `defaultView`. `work-energy` worked around this by keeping every
+  glyph exactly on the canonical plane (z=0) rather than depending on a
+  camera fix — see the comment at the top of
+  `src/modules/work-energy/index.ts`. Not investigated further here:
+  out of scope for a single module's smallest-change discipline, and
+  touches shared substrate every module depends on. Whoever picks this
+  up should start by reproducing minimally (a `surface` with a
+  deliberate small z-offset under `{preset:'+z', projection:'ortho'}`
+  and `lockTo2D:true`) and inspecting the ortho camera's actual
+  near/far values in `src/scene/camera/index.ts` around
+  `setProjection`/`goTo`
 
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 
@@ -782,7 +808,59 @@ project or a summer contributor — and each is done per the checklist
 above. M6.5 and M7+ are independent of each other; library growth need
 not wait on the platform work, or vice versa.
 
-- [IDEA] **M7-1** Work & Energy (potential surface + total-energy plane)
+- [DONE] **M7-1** Work & Energy (potential surface + total-energy plane).
+  Promoted to `READY` and built this session per the user's explicit
+  choice (following the recommendation §20 already gives: M7+ ordered
+  "roughly by pedagogical value per unit effort," M7-1 first). Scaffolded
+  via `npm run new:module -- work-energy`
+  ([manifest.ts](../src/modules/work-energy/manifest.ts),
+  [params.ts](../src/modules/work-energy/params.ts),
+  [index.ts](../src/modules/work-energy/index.ts),
+  [explain.md](../src/modules/work-energy/explain.md)). A mass on a
+  frictionless spring (closed-form SHM, `timeModel: 'parametric'` — no
+  `kernel/ode`, per the Visualizer Doctrine §2), drawn as its own energy
+  diagram rather than a literal spring: `U(x)=½kx²` as a `surface`
+  ribbon (height = potential energy, colour-shaded by the same value),
+  a translucent `patch` "total-energy plane" at `E=½kA²` marking the
+  turning points `x=±A`, and the oscillating mass riding the ribbon
+  with a velocity `arrow` and a dashed `dimensionLine` bracket making
+  `KE=E−U(x)` a literal on-screen gap. Drawn in reduced coordinates
+  (`ξ=x/A`, `η=U/E=ξ²`, both algebraically independent of `k`/`m`/`A`)
+  so the diagram is framed identically at every parameter setting
+  rather than the raw `U(x)` ribbon's height blowing up with `k`; a
+  real bug caught this ([X-17](#x--cross-cutting-obligations)):
+  `surface`/`patch` geometry that leaves the canonical x/up plane by
+  even a fraction of a world unit silently fails to render under the
+  default locked "2D-only" orthographic view, so every glyph here stays
+  exactly on that plane (z=0) rather than depending on a camera fix —
+  see the comment at the top of `index.ts`. `module.test.ts` (6 tests)
+  covers the golden-value physics: starts at the turning point
+  (`x=A`, `KE=0`), reaches `KE=E`/`speed=Aω` a quarter-period in,
+  conserves `PE+KE=E` across a full period sampled at 20 points, the
+  work-energy theorem (`ΔKE=−ΔU` between two arbitrary times), and that
+  amplitude changes `E` but not the period. Verified:
+  `npm run typecheck && npm run lint && npm run test:unit` (509 tests,
+  up from 503) `&& npm run test:contract` (118 passed/9 skipped, up
+  from 108/8 — auto-discovered, no module-specific contract code
+  needed) `&& npm run build && npm run check:budget` (`work-energy`
+  chunk 1.24 KB gzipped against the 80 KB budget; entry chunk
+  unaffected at 71.74 KB) `&& npm run format:check` all clean. Manually
+  verified live in the dev server (Browser pane): the default locked
+  2D view renders the full parabola/plane/ball correctly; playing
+  and scrubbing the timeline moves the ball, velocity arrow, and KE
+  bracket correctly (readouts cross-checked against the closed-form
+  formulas by hand, e.g. `|v|=4.74` at the well bottom exactly matches
+  `Aω=1.5×√10`); both layer checkboxes toggle their glyphs
+  independently; dragging "Amplitude" to 3 rescales `E`/`x_max` while
+  the on-screen diagram stays the same size (the reduced-coordinate
+  design working as intended) and `T` stays fixed (SHM's
+  amplitude-independent period); switching the global up-axis to z-up
+  reproduces the same flattened view `projectile-motion` already shows
+  under z-up (pre-existing, not a regression — projectile-motion's
+  own `defaultView` collapses identically). Not independently
+  investigated: the X-17 root cause itself (flagged for a future
+  session), and a real physical-projector/colour-blindness-simulator
+  pass (same residual-manual-gap category as M2-19/M4-6).
 - [IDEA] **M7-2** Momentum & Collisions (CM-frame toggle; closed-form elastic collision formulae, **not** a solver — §2)
 - [IDEA] **M7-3** Non-inertial Frames & Coriolis (the consumer of M1-6's separately retrievable ω × r / Coriolis / centrifugal terms)
 - [IDEA] **M7-4** Oscillations (driven and damped steady state is `parametric`; keep it that way)

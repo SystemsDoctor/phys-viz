@@ -771,6 +771,46 @@ again once unlocked`), confirmed it fails against the pre-fix code
   and `lockTo2D:true`) and inspecting the ortho camera's actual
   near/far values in `src/scene/camera/index.ts` around
   `setProjection`/`goTo`
+- [READY] **X-18** Discovered while adding `momentum-collisions` (M7-2):
+  `tests/e2e/smoke.spec.ts`'s per-module "disposes its WebGL context on
+  navigate-away" check (the `for (const id of manifests...)` loop
+  starting at line 708) is flaky under Playwright's default multi-worker
+  run — `npx playwright test tests/e2e/smoke.spec.ts` (6 workers)
+  intermittently fails `projectile-motion`'s instance of this check with
+  `canvas` count 2–3 instead of the expected 0, while
+  `npx playwright test tests/e2e/smoke.spec.ts --workers=1` passes all
+  31/31 every time, and re-running the single `projectile-motion` test
+  alone (any worker count) also passes. This is consistent with two
+  parallel workers sharing a browser context/tab pool and one test's
+  `page.goto('#/')` disposal check racing another worker's own module
+  mount in the same underlying page — not a `momentum-collisions`
+  regression (that module's own instance of the same check passed in
+  every run, parallel or not) and not a pre-existing failure either (the
+  full suite was green before this session, per M7-1's write-up). Not
+  investigated further here: reproducing and fixing a cross-worker test
+  isolation race is a `tests/e2e/` harness question, out of scope for a
+  module-addition change. Whoever picks this up should start by checking
+  whether Playwright's config gives each worker its own browser context
+  (`playwright.config.ts`) and whether the per-module `describe.serial`
+  or lack thereof around line 708 is letting two module tests interleave
+  navigation on a shared page
+- [READY] **X-19** `formatQuantity` (`src/kernel/units/index.ts`) is
+  prefix-and-numeral only by design (documented at the top of that
+  file) — it never prints a unit symbol string, only an SI-prefix
+  letter. Confirmed working as intended while manually verifying
+  `momentum-collisions` in the Browser pane (M7-2): `vcm = 0.333 m/s`
+  reads as literal `"333m"` in the readout table (333 milli-(base
+  unit), i.e. 0.333) — easy to misread as "333 meters" at a glance since
+  the milli-prefix letter and a length-unit symbol happen to collide
+  visually. Not a bug (every other readout at this module's default
+  parameters happens to fall in the un-prefixed 1–999 range, e.g.
+  `v_1 = "3.00"`, so this is the first module whose default state
+  actually exercises the sub-1 prefix path) and out of scope to fix
+  here — flagged because a reviewer skimming a readout table for the
+  first time is likely to make the same misreading, and the fix (a
+  Layer 2 unit-symbol string, explicitly deferred to "Layer 2/3" by that
+  file's own doc comment) is a shell-wide readout change, not a
+  `momentum-collisions`-specific one
 
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 
@@ -861,7 +901,103 @@ not wait on the platform work, or vice versa.
   investigated: the X-17 root cause itself (flagged for a future
   session), and a real physical-projector/colour-blindness-simulator
   pass (same residual-manual-gap category as M2-19/M4-6).
-- [IDEA] **M7-2** Momentum & Collisions (CM-frame toggle; closed-form elastic collision formulae, **not** a solver — §2)
+- [DONE] **M7-2** Momentum & Collisions (CM-frame toggle; closed-form
+  elastic collision formulae, **not** a solver — §2). Promoted to
+  `READY` and built this session per the user's standing instruction to
+  keep working down the M7+ list without asking cold each time.
+  Scaffolded via `npm run new:module -- momentum-collisions`
+  ([manifest.ts](../src/modules/momentum-collisions/manifest.ts),
+  [params.ts](../src/modules/momentum-collisions/params.ts),
+  [index.ts](../src/modules/momentum-collisions/index.ts),
+  [explain.md](../src/modules/momentum-collisions/explain.md)). Two
+  carts on a frictionless 1D track close on each other and collide
+  exactly once; a restitution-coefficient slider `e` sweeps the general
+  1D restitution formula (momentum conservation +
+  `v2' - v1' = e(u1-u2)`) from perfectly elastic (`e=1`) to perfectly
+  inelastic (`e=0`, carts stick and share one velocity) — not an
+  elastic-only special case, and not a numeric solver: `tCollision` is a
+  closed-form root of the linear separation-vs-time equation, and both
+  the pre- and post-collision motion are closed-form linear functions of
+  `t`, so `timeModel: 'parametric'` needs no integration. The **CM-frame
+  toggle** is a `toggle`-kind `ParamDef` (not a layer — it recenters the
+  whole picture rather than adding/removing a glyph): momentum
+  conservation makes `m1*v1After + m2*v2After` equal `m1*u1 + m2*u2`
+  exactly for every `e` (the `(1+e)*m1*m2*approachSpeed/totalMass` term
+  cancels between the two post-collision velocities), so the center of
+  mass moves at one constant velocity `vcm` for all `t` with no kink at
+  the collision — the toggle recenters position by the (linear-in-`t`)
+  CM position **and** velocity by `vcm` (two different corrections, not
+  one — a position-only recentering would leave every velocity arrow's
+  length unchanged, which is wrong), so the CM's own velocity arrow
+  visibly shrinks to nothing once the toggle is on. Both carts share
+  `ctx.palette.position` (not two different colours) since they're two
+  instances of the same quantity kind — distinguished by radius
+  (`∝ mass^(1/3)`) and a `m_1`/`m_2` KaTeX label, per
+  PHYSICS_CONVENTIONS.md's "same quantity, same colour" rule, mirroring
+  how `vector-algebra` reuses the 8-colour palette across multiple
+  instances of an abstract, non-physically-typed vector. Readouts
+  (`scalars()`) always report the lab frame regardless of the CM-frame
+  toggle — that toggle is a picture recentering, not a second physical
+  scenario. `module.test.ts` (8 tests) covers the golden-value physics:
+  total momentum conserved across the collision for every `e` sampled;
+  elastic (`e=1`) conserves kinetic energy across the collision; elastic
+  equal-mass collision swaps the two velocities exactly; perfectly
+  inelastic (`e=0`) leaves both carts at `vcm`; partial inelasticity
+  (`0<e<1`) loses kinetic energy while `e=1` conserves it exactly; carts
+  that never approach (`u1<=u2`) never collide, velocities unchanged out
+  to `t=20`; CM velocity is independent of both `e` and `t`. Verified:
+  `npm run typecheck && npm run lint && npm run test:unit` (517 tests,
+  up from 509) `&& npm run test:contract` (138 passed/10 skipped, up
+  from 118/9 — auto-discovered, no module-specific contract code
+  needed) `&& npm run build && npm run check:budget`
+  (`momentum-collisions` chunk 1.64 KB gzipped against the 80 KB budget;
+  entry chunk unaffected at 71.93 KB) `&& npm run format:check` all
+  clean (one round of `prettier --write` needed on the first draft —
+  its markdown formatter reflowed a multi-line KaTeX block in
+  `explain.md` and silently dropped two `\,` escapes in the process;
+  fixed by splitting that block into two single-line `$$...$$` formulas,
+  matching every other module's explain.md style, and confirmed stable
+  under `format:check` afterward). Manually verified live in the dev
+  server (Browser pane): loaded `#/m/momentum-collisions`, confirmed the
+  default state's readouts (`v1=3.00, v2=-1.00, p1=3.00, p2=-2.00,
+pTotal=1.00, K=5.50`) match the hand-computed pre-collision values for
+  the default params; scrubbed to `t=2` (past the ~1.30s collision
+  instant at defaults) and confirmed the elastic-collision readouts
+  (`v1=-2.33, v2=1.67, pTotal=1.00, K=5.50`) match the closed-form
+  restitution formulas to 2 decimal places, both momentum and (since
+  `e=1`) kinetic energy conserved across the collision; set `e=0` at the
+  same `t=2` and confirmed both carts land on the identical CM velocity
+  (`v1=v2=vcm=0.333`, `p1=0.333, p2=0.667, pTotal=1.00, KE=0.167`,
+  correctly less than the pre-collision 5.50, i.e. energy actually lost)
+  — matching `module.test.ts`'s inelastic case exactly; toggled "View in
+  center-of-mass frame" and confirmed the readout table is untouched (by
+  design — lab-frame only) and no console errors on the toggle. Could
+  not get a pixel-level visual confirmation of the CM-frame recentering
+  or the glyph layout in the Browser pane tool itself — this
+  environment's pane does not composite frames
+  ([[project-browser-pane-no-compositing]]; `<canvas>` stayed at its
+  un-sized default 300×150 rather than filling the viewport, consistent
+  with the known `ResizeObserver`-under-a-hidden-page limitation, not a
+  module bug) — so used the Playwright e2e suite for the actual
+  rendered-frame proof instead: `npx playwright test
+tests/e2e/smoke.spec.ts` auto-discovered `momentum-collisions` via the
+  registry glob with zero test edits and its per-module "renders, no
+  console errors, every layer toggles, disposes its WebGL context on
+  navigate-away" case passed on the first run; the same run's lone
+  failure (`projectile-motion`'s instance of that same check) turned out
+  to be a pre-existing cross-worker test-isolation flake unrelated to
+  this module — reproduced it disappearing under `--workers=1` (31/31
+  green) and passing standalone at any worker count, logged as X-18
+  rather than silently ignored. Also flagged **X-19**: `vcm=0.333`
+  render as literal `"333m"` in the readout table (the SI milli-prefix
+  letter, not a length unit) is easy to misread as "333 meters" at a
+  glance — not a bug (`formatQuantity` is documented prefix-only, and
+  this module's defaults are the first to actually exercise the sub-1
+  prefix path), but worth a future Layer-2 look. Not independently
+  investigated: a real physical-projector/colour-blindness-simulator
+  pass (same residual-manual-gap category as M2-19/M4-6/M7-1) — deferred
+  to the batched QA checkpoint per this session's Part B instructions,
+  not skipped module-by-module.
 - [IDEA] **M7-3** Non-inertial Frames & Coriolis (the consumer of M1-6's separately retrievable ω × r / Coriolis / centrifugal terms)
 - [IDEA] **M7-4** Oscillations (driven and damped steady state is `parametric`; keep it that way)
 - [IDEA] **M7-5** Gravitation & Central Forces (Kepler via M1-15's root-finder, `parametric`)

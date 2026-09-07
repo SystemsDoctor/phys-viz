@@ -27,7 +27,15 @@ is the axis the box is _easiest_ to spin about.
 
 **Precession**: a fast top released tilted doesn't fall — it precesses
 around the vertical at a rate set by gravity fighting its own spin
-angular momentum, with a small nutation ripple layered on top.
+angular momentum. Set "Nutation amplitude" to 0 to isolate that ideal,
+wobble-free precession on its own. Raise it and a genuine nutation
+ripple appears, correctly coupled into the precession rate itself (not
+just a cosmetic wobble in the tilt) — watch the "Nutation coupling
+ratio" readout as you do: below 1 the path is wavy (precession slows
+but never reverses), at 1 it's cusped (the classic "released from
+rest" trajectory, where precession momentarily stops), and above 1 the
+top genuinely loops — precession reverses direction for part of each
+cycle.
 
 **Rolling**: the small point at the contact is the _instantaneous axis_
 — it has zero velocity at that instant, even though the wheel's center

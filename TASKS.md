@@ -1143,6 +1143,87 @@ build && npm run check:budget` (7 module chunks, largest
   silently is the least surprising default and matches how sliders
   already behave, but changes what a truncated/malformed bookmark link
   restores to, which is worth a one-line ADR note per X-8 if adopted.
+- [DONE] **X-21** User manual inspection of `rotational-dynamics`'
+  precession panel (M5-1) asked two questions the old implementation
+  couldn't answer: (1) is a genuinely looping axis path possible, not
+  just the smooth "peaky wave" the demo showed, and (2) can precession
+  be isolated from nutation entirely? Investigated and both answered
+  no, for a structural reason: the old `topDirectionAt` had `theta(t)`
+  wobble sinusoidally but `phi(t) = precessionRate * t` strictly
+  linear, with the nutation amplitude itself hardcoded as
+  `0.15 * topTiltAngle` — a free-floating cosmetic multiplier, not
+  derived from any release condition. Since real phi-theta coupling
+  (`φ̇` depending on `θ`, via conservation of `p_φ`) is exactly what
+  produces the wavy/cusped/looping family in a real top, and exactly
+  what was missing, fixed both by re-deriving the fast-top
+  small-oscillation approximation properly (`p_φ = I1 φ̇ sin²θ + I3 Ω
+cosθ = Jz` and `E' = ½I1θ̇² + ½I1φ̇²sin²θ + Mgl cosθ = const`,
+  linearized around steady precession — full derivation in the comment
+  block above `precessionCoefficients()` in `index.ts`) rather than
+  reaching for the exact elliptic-function solution (no Jacobi elliptic
+  functions in `kernel/math`, and ARCHITECTURE.md §2 wants a closed-form
+  formula evaluated per-`t`, not an ODE solve — ruled out `kernel/ode`
+  for the same reason M5-1 itself already gives for _not_ using it on
+  the other six panels). The new `nutationAmplitude` param (a `kind:
+'angle'`, `forLayer: 'precession'` dial, default 0.27, range
+  [-0.3, 0.5]) is exposed directly rather than the "release ratio" `k`
+  it's derived from (`k = φ̇(0)/Ω_p`, solved backward from the
+  user-facing `deltaTheta`) — `deltaTheta` is the physically legible
+  quantity; `k` stays an internal implementation detail. `deltaTheta=0`
+  gives exactly `theta(t)=topTiltAngle` (constant) and
+  `phi(t)=precessionRate*t` (linear) — pure, wobble-free steady
+  precession, directly answering question (2). Two new scalars expose
+  the coupling itself: `precessionRateSecular` (the actual
+  time-averaged precession rate once nutation is coupled in — often
+  very different from the bare `Mgl/(I3Ω)` formula near the cusp; 3.44
+  vs. 1.75 rad/s at this panel's own defaults, confirmed live) and
+  `nutationCouplingRatio` (`|C·deltaTheta/A|` — <1 wavy, ≈1 cusped, >1
+  genuinely looping), answering question (1) with a number the student
+  can watch move past 1. `topSpinRate`'s range was also widened
+  (5–80 → 20–200, default 40 → 70) because the small-oscillation
+  linearization the coupling formulas rest on requires a genuinely
+  "fast" top (`Ω_p/ωn ≪ 1`) — at the old default this ratio was ≈0.995
+  (nowhere near fast), so the formulas would have produced nonsensical
+  large-angle swings out of the box; the new default's ratio (≈0.32)
+  keeps the demo in the regime the module's own "(fast top)" label
+  already claimed. Two defensive clamps guard extreme parameter
+  combinations the contract suite's 100 random samples can still reach:
+  `deltaTheta` clamped to ±0.6 rad (keeps the linearization from being
+  extrapolated past where it means anything) and `theta(t)` clamped to
+  `[0.02, π−0.02]` (keeps the polar angle away from the poles
+  regardless of how `deltaTheta` and `topTiltAngle` combine). Verified:
+  two new golden-value tests in `module.test.ts` — `nutationAmplitude=0`
+  gives `nutationCouplingRatio=0` and `precessionRateSecular ===
+precessionRate` exactly; and an exact analytic identity (holds for
+  _any_ top parameters, not just one hand-picked example, and is a
+  genuine cross-check that the derivation was translated into code
+  correctly, not just "looks plausible"): at `deltaTheta = baseSwing`
+  (the closed-form "released from rest" swing, `2Ω_p sinθ0/ωn`),
+  `nutationCouplingRatio` is exactly 1 (cusped boundary) to 6 decimal
+  places, `>1` at `1.3×baseSwing` (genuine looping), `<1` at
+  `0.5×baseSwing` (ordinary wavy path) — `npm run typecheck && npm run
+lint && npm run test:unit` (519 tests, up from 517)
+  `&& npm run test:contract` (138/10-skip, unchanged — no module-count
+  change) `&& npm run build && npm run check:budget`
+  (`rotational-dynamics` chunk 4.77 KB gzipped, up from 4.11 KB, still
+  far under the 80 KB budget) `&& npm run format:check` all clean.
+  Manually verified live in the dev server (Browser pane): at defaults,
+  readouts showed `\Omega_p=1.75`, `\bar\Omega_p=3.44`,
+  `nutationCouplingRatio=0.992` (matching a standalone numeric check to
+  3 decimal places); set nutation amplitude to 0° and confirmed
+  `\bar\Omega_p` snapped to exactly `1.75` (matching `\Omega_p`) with
+  `nutationCouplingRatio=0.00`; set it to 26° and confirmed
+  `nutationCouplingRatio=1.17` (>1, genuine looping, live) — zero
+  console errors throughout (confirmed against a background stretch of
+  `ERR_CONNECTION_REFUSED` noise that turned out to be stale dev-server
+  HMR reconnect attempts from an unrelated earlier `preview_stop`, not
+  a real regression — the Playwright e2e run below has its own,
+  separate "no console errors" assertion and passed clean). Also ran
+  `npx playwright test tests/e2e/smoke.spec.ts -g rotational-dynamics
+--workers=1`: both the X-14 panel-switch test and the per-module
+  smoke test passed. `explain.md`'s "Precession" paragraph rewritten to
+  describe the new isolate/couple behavior instead of the old
+  "small nutation ripple" description.
 - [IDEA] **M7-3** Non-inertial Frames & Coriolis (the consumer of M1-6's
   separately retrievable ω × r / Coriolis / centrifugal terms). Also a
   candidate to generalize `momentum-collisions`' CM-frame recenter

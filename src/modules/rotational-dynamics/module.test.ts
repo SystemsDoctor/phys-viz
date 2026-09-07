@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SceneContext } from '@/scene/SceneContext';
-import { discInertia } from '@/kernel/inertia';
+import { discInertia, parallelAxis as parallelAxisTensor } from '@/kernel/inertia';
 import module from './index';
 import type { ModuleState } from '../types';
 
@@ -85,6 +85,53 @@ describe(module.manifest.id, () => {
     const I3 = discInertia(params.topMass, params.topRadius)[8];
     const expected = (params.topMass * 9.8 * params.topArmLength) / (I3 * params.topSpinRate);
     expect(s.precessionRate).toBeCloseTo(expected, 10);
+  });
+
+  it('nutationAmplitude=0 isolates pure steady precession: no coupling, secular rate = bare rate', () => {
+    const instance = module.create(fakeCtx);
+    const s = instance.scalars(stateWith({ nutationAmplitude: 0 }));
+    expect(s.nutationCouplingRatio).toBeCloseTo(0, 10);
+    expect(s.precessionRateSecular).toBeCloseTo(s.precessionRate, 10);
+  });
+
+  it('golden value: nutationAmplitude = "released from rest" swing gives an exactly cusped path (ratio=1)', () => {
+    const instance = module.create(fakeCtx);
+    const params = {
+      topMass: 1.4,
+      topArmLength: 0.7,
+      topRadius: 0.35,
+      topSpinRate: 90,
+      topTiltAngle: 0.5,
+    };
+    const I3 = discInertia(params.topMass, params.topRadius)[8];
+    const I1 = parallelAxisTensor(discInertia(params.topMass, params.topRadius), params.topMass, [
+      0,
+      0,
+      params.topArmLength,
+    ])[0];
+    const omegaP = (params.topMass * 9.8 * params.topArmLength) / (I3 * params.topSpinRate);
+    const nutationOmega = (I3 * params.topSpinRate) / I1;
+    // baseSwing: the nutation amplitude produced by releasing the top
+    // from rest (zero initial precession) — the classic textbook case,
+    // and the exact boundary between "wavy" and "looping" (a cusped
+    // path, where precession momentarily stops but never reverses).
+    const baseSwing = (2 * omegaP * Math.sin(params.topTiltAngle)) / nutationOmega;
+
+    const cusped = instance.scalars(stateWith({ ...params, nutationAmplitude: baseSwing }));
+    expect(cusped.nutationCouplingRatio).toBeCloseTo(1, 6);
+
+    // Push the release condition further from steady precession in the
+    // same direction (more nutation than "released from rest" produces)
+    // and the path should genuinely loop — precession reverses somewhere
+    // in the cycle, not just touch zero.
+    const looping = instance.scalars(stateWith({ ...params, nutationAmplitude: baseSwing * 1.3 }));
+    expect(looping.nutationCouplingRatio).toBeGreaterThan(1);
+
+    // And pulling back toward the steady rate (less nutation than
+    // "released from rest") gives an ordinary wavy path that never
+    // reverses at all.
+    const wavy = instance.scalars(stateWith({ ...params, nutationAmplitude: baseSwing * 0.5 }));
+    expect(wavy.nutationCouplingRatio).toBeLessThan(1);
   });
 
   it('golden value: rolling speed is omega * R', () => {

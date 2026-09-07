@@ -67,6 +67,94 @@ function quatFromTo(from: V3, to: V3): Quat {
   return fromAxisAngle(normalize(cross(f, t)), Math.acos(d));
 }
 
+// ---- Precession/nutation coupling (fast-top perturbative approximation) ----
+//
+// Exact conservation laws for a heavy symmetric top (pivot fixed, axial
+// moment I3, transverse moment about the pivot I1, spin Ω=ω3 constant):
+//   p_φ = I1 φ̇ sin²θ + I3 Ω cosθ = Jz (const)         -- ang. momentum about vertical
+//   E'  = ½I1θ̇² + ½I1φ̇²sin²θ + Mgl cosθ = const        -- energy (spin KE subtracted out)
+// give an exact, generally elliptic-function equation of motion for θ(t)
+// (ARCHITECTURE.md §2 rules out reaching for that here — no Jacobi
+// elliptic functions live in kernel/math, and this is meant to stay a
+// closed-form formula evaluated at each t, not an ODE solve). Linearizing
+// θ = θ0 + ε(t) for small ε around the steady-precession value θ0 (the
+// standard "fast top" small-oscillation treatment, e.g. Goldstein ch. 5
+// or Taylor's Classical Mechanics ch. 10) gives SHM in ε at frequency
+// nutationOmega = I3Ω/I1, and — this is the part the previous
+// implementation omitted — a φ̇ that is NOT constant during that
+// oscillation: φ̇(t) ≈ A - Cε(t), where A is the secular (time-averaged)
+// precession rate and C ties the swing in θ back into φ. Whether the
+// resulting path is wavy (φ̇ never reverses), cusped (φ̇ touches zero at
+// the top of the wobble), or looping (φ̇ goes negative, i.e. genuine
+// retrograde loops) depends only on |Cε_amplitude| vs |A| — see
+// `couplingRatio` below.
+//
+// `deltaTheta` (exposed as the `nutationAmplitude` param) is the used
+// swing amplitude directly, parameterized as if the top were released at
+// tilt θ0 with some initial precession rate k·Ω_p (k = φ̇(0)/Ω_p, the
+// "release ratio"): k=1 gives deltaTheta=0 (released already at the
+// steady rate — pure circular precession, no nutation at all, isolating
+// precession from the combined dynamics); k=0 (released from rest) gives
+// the reference swing `baseSwing`, reproducing the classic cusped
+// trajectory exactly (φ̇ dips to exactly 0 at the peak, never negative);
+// deltaTheta beyond baseSwing (k<0, "released already precessing
+// backward") is where genuine looping becomes reachable. `k` itself is
+// solved for from the user-facing deltaTheta rather than exposed
+// directly, since deltaTheta is the physically legible dial (and the
+// map deltaTheta -> k is a straight proportionality, well-defined for
+// every deltaTheta in the param's declared range).
+const MAX_NUTATION_SWING = 0.6; // rad — keeps deltaTheta inside where the small-ε linearization above still means something, even for an extreme parameter combination
+const MIN_TOP_THETA = 0.02; // rad — keeps theta(t) away from the poles regardless of parameter combination
+const MAX_TOP_THETA = Math.PI - 0.02;
+const COUPLING_EPS = 1e-6; // floor under |secularPrecessionRate| in the couplingRatio denominator
+
+interface PrecessionCoefficients {
+  theta0: number;
+  deltaTheta: number;
+  nutationOmega: number;
+  precessionRate: number; // Ω_p, the bare/steady-state precession rate
+  secularPrecessionRate: number; // A, the actual time-averaged rate once nutation is coupled in
+  precessionOscillation: number; // B, amplitude of the φ wobble riding on the secular rate
+  couplingRatio: number; // |C·deltaTheta / A| — <1 wavy, ≈1 cusped, >1 genuinely looping
+}
+
+function precessionCoefficients(
+  topSpinRate: number,
+  topTiltAngle: number,
+  topArmLength: number,
+  topRadius: number,
+  topMass: number,
+  nutationAmplitude: number,
+): PrecessionCoefficients {
+  const flywheelI = discInertia(topMass, topRadius);
+  const i3 = flywheelI[8]; // axial moment, unaffected by an offset along the axis itself
+  const i1 = parallelAxisTensor(flywheelI, topMass, [0, 0, topArmLength])[0]; // transverse moment about the pivot
+  const precessionRate = (topMass * G * topArmLength) / (i3 * topSpinRate); // Ω_p = Mgl/(I3Ω)
+  const nutationOmega = (i3 * topSpinRate) / i1; // ωn = I3Ω/I1
+
+  const theta0 = topTiltAngle;
+  const sinTheta0 = Math.sin(theta0);
+  const cosTheta0 = Math.cos(theta0);
+  const baseSwing = (2 * precessionRate * sinTheta0) / nutationOmega; // deltaTheta at k=0 (released from rest)
+  const deltaTheta = Math.max(-MAX_NUTATION_SWING, Math.min(MAX_NUTATION_SWING, nutationAmplitude));
+  const releaseRatio = baseSwing > 1e-9 ? 1 - deltaTheta / baseSwing : 1; // k = φ̇(0)/Ω_p
+  const couplingC = (nutationOmega - 2 * releaseRatio * precessionRate * cosTheta0) / sinTheta0;
+  const secularPrecessionRate = releaseRatio * precessionRate + couplingC * deltaTheta; // A
+  const precessionOscillation = (-couplingC * deltaTheta) / nutationOmega; // B
+  const couplingRatio =
+    Math.abs(couplingC * deltaTheta) / Math.max(COUPLING_EPS, Math.abs(secularPrecessionRate));
+
+  return {
+    theta0,
+    deltaTheta,
+    nutationOmega,
+    precessionRate,
+    secularPrecessionRate,
+    precessionOscillation,
+    couplingRatio,
+  };
+}
+
 const module: PhysicsModule = {
   manifest,
   params,
@@ -385,15 +473,21 @@ const module: PhysicsModule = {
         const topArmLength = s.params.topArmLength as number;
         const topRadius = s.params.topRadius as number;
         const topMass = s.params.topMass as number;
-        const flywheelI = discInertia(topMass, topRadius);
-        const I3 = flywheelI[8]; // axial, unaffected by an axial offset
-        const I1 = parallelAxisTensor(flywheelI, topMass, [0, 0, topArmLength])[0];
-        const precessionRate = (topMass * G * topArmLength) / (I3 * topSpinRate);
-        const nutationOmega = (I3 * topSpinRate) / I1;
-        const nutationAmplitude = 0.15 * topTiltAngle; // illustrative, not a literal released-from-rest amplitude
+        const nutationAmplitude = s.params.nutationAmplitude as number;
+        const pc = precessionCoefficients(
+          topSpinRate,
+          topTiltAngle,
+          topArmLength,
+          topRadius,
+          topMass,
+          nutationAmplitude,
+        );
         function topDirectionAt(t: number): V3 {
-          const theta = topTiltAngle - nutationAmplitude * (1 - Math.cos(nutationOmega * t));
-          const phi = precessionRate * t;
+          const rawTheta = pc.theta0 + pc.deltaTheta * (1 - Math.cos(pc.nutationOmega * t));
+          const theta = Math.max(MIN_TOP_THETA, Math.min(MAX_TOP_THETA, rawTheta));
+          const phi =
+            pc.secularPrecessionRate * t +
+            pc.precessionOscillation * Math.sin(pc.nutationOmega * t);
           const tilted = rotateVec3(fromAxisAngle(horizAxis, theta), upVec);
           return rotateVec3(fromAxisAngle(upVec, phi), tilted);
         }
@@ -405,7 +499,8 @@ const module: PhysicsModule = {
         const precessionRadius = topArmLength * Math.sin(topTiltAngle);
         precessionArc.set({ radius: Math.max(0.05, precessionRadius) });
         const TRACE_POINTS = 60;
-        const traceDt = (2 * Math.PI) / Math.abs(precessionRate) / 30;
+        const traceDt =
+          (2 * Math.PI) / Math.max(COUPLING_EPS, Math.abs(pc.secularPrecessionRate)) / 30;
         const tracePts: [number, number, number][] = [];
         for (let i = TRACE_POINTS - 1; i >= 0; i--) {
           const ti = s.t - i * traceDt;
@@ -473,11 +568,19 @@ const module: PhysicsModule = {
         const eig = eigenSymmetric3(boxI);
 
         const topSpinRate = s.params.topSpinRate as number;
+        const topTiltAngle = s.params.topTiltAngle as number;
         const topArmLength = s.params.topArmLength as number;
         const topRadius = s.params.topRadius as number;
         const topMass = s.params.topMass as number;
-        const flywheelI = discInertia(topMass, topRadius);
-        const precessionRate = (topMass * G * topArmLength) / (flywheelI[8] * topSpinRate);
+        const nutationAmplitude = s.params.nutationAmplitude as number;
+        const pc = precessionCoefficients(
+          topSpinRate,
+          topTiltAngle,
+          topArmLength,
+          topRadius,
+          topMass,
+          nutationAmplitude,
+        );
 
         const rollRadius = s.params.rollRadius as number;
         const rollOmega = s.params.rollOmega as number;
@@ -495,7 +598,9 @@ const module: PhysicsModule = {
           I1: eig.values[0],
           I2: eig.values[1],
           I3: eig.values[2],
-          precessionRate,
+          precessionRate: pc.precessionRate,
+          precessionRateSecular: pc.secularPrecessionRate,
+          nutationCouplingRatio: pc.couplingRatio,
           rollingSpeed: rollOmega * rollRadius,
           dzKineticEnergy,
           dzAngularMomentumMag,

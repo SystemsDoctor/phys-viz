@@ -48,6 +48,10 @@ const PLOT_SCALE = 2;
 const DOMAIN_XI = 1.4;
 const RIBBON_HALF_THICKNESS = 0.035; // in η, painted-stroke width for the U(x) curve
 const PLANE_HALF_THICKNESS = 0.04; // in η, painted-stroke width for the E line
+// `body`'s `'sphere'` kind is a unit-diameter `THREE.SphereGeometry(0.5,
+// ...)` (`src/scene/glyphs/body.ts`), so `scale` is a diameter
+// multiplier — this constant is doubled at the `ctx.body()` call below
+// so the ball's actual world radius is 0.1, not 0.05.
 const BALL_RADIUS = 0.1;
 const VELOCITY_ARROW_MAX = 0.8;
 
@@ -65,10 +69,13 @@ const module: PhysicsModule = {
   defaultView: { preset: '+z', projection: 'ortho' },
 
   create(ctx: SceneContext) {
-    // This module has no notion of gravitational "vertical" — the
-    // up-axis choice instead picks which axis plots ENERGY (the
-    // conventional "higher = more energy" reading), same idiom as
-    // rotational-dynamics/projectile-motion's ctx.up handling.
+    // Unlike rotational-dynamics/projectile-motion, ctx.up isn't read
+    // here for gravity — this module has no notion of gravitational
+    // "vertical" at all. It's repurposed as a generic "which axis plots
+    // the second dimension" setting, so the same up/down reading the
+    // viewer already expects (up = more) lands on ENERGY here too,
+    // rather than leaving this one diagram fixed to +y regardless of
+    // the viewer's global choice.
     const upVec: V3 = ctx.up === 'y' ? Y_HAT : Z_HAT;
     const horizVec: V3 = X_HAT;
 
@@ -126,7 +133,7 @@ const module: PhysicsModule = {
       group: gParticle,
       kind: 'sphere',
       position: [0, 0, 0],
-      scale: [BALL_RADIUS, BALL_RADIUS, BALL_RADIUS],
+      scale: [2 * BALL_RADIUS, 2 * BALL_RADIUS, 2 * BALL_RADIUS],
       color: ctx.palette.position,
     });
     const velocityArrow = ctx.arrow({
@@ -195,7 +202,10 @@ const module: PhysicsModule = {
           E,
           speed: Math.abs(v),
           period: (2 * Math.PI) / omega,
-          turningPoint: A,
+          // A magnitude, like every other use of amplitude in this module
+          // (the turning points are always drawn at reduced ξ=±1
+          // regardless of A's sign) — not the raw signed param value.
+          turningPoint: Math.abs(A),
         };
       },
 

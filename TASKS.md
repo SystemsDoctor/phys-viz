@@ -998,7 +998,160 @@ tests/e2e/smoke.spec.ts` auto-discovered `momentum-collisions` via the
   pass (same residual-manual-gap category as M2-19/M4-6/M7-1) — deferred
   to the batched QA checkpoint per this session's Part B instructions,
   not skipped module-by-module.
-- [IDEA] **M7-3** Non-inertial Frames & Coriolis (the consumer of M1-6's separately retrievable ω × r / Coriolis / centrifugal terms)
+- [DONE] **QA checkpoint (post M7-1/M7-2)** Batched Part-B pass across
+  both M7+ modules added so far, per this session's mission brief
+  ("checkpoint after every 2 modules"). Four pieces:
+  1. **Code-review pass** (`code-review` skill, high effort, 8 finder
+     angles + verify) over `work-energy` and `momentum-collisions`. Two
+     CONFIRMED correctness bugs, both fixed in this change:
+     - **Sphere radius halved.** `body`'s `'sphere'` kind is
+       `THREE.SphereGeometry(0.5, ...)` — a unit-_diameter_ sphere — so
+       `scale` is a diameter multiplier, not a radius multiplier the way
+       it is for `'box'` (a unit _cube_). Both modules passed their
+       intended radius directly as `scale`, rendering spheres at half
+       size. In `momentum-collisions` this was a real, visible physics
+       bug, not just cosmetic: the collision-trigger math
+       (`contactSeparation = radiusOf(m1)+radiusOf(m2)`) used the
+       _intended_ (unhalved) radius, so the two carts' rendered surfaces
+       stopped touching with a visible gap at the moment the velocity
+       swap fired. Fixed by adding a `sphereScaleFor(radius)` helper
+       (`momentum-collisions/index.ts`) and doubling the same constant
+       inline in `work-energy/index.ts` (cosmetic-only there), both with
+       a comment pointing at `body.ts`'s geometry convention so the next
+       module author doesn't repeat it.
+     - **`work-energy`'s `turningPoint` scalar returned the raw signed
+       `amplitude` param** instead of its magnitude, inconsistent with
+       every other place in the module that treats amplitude as a
+       magnitude (turning points always drawn at reduced ξ=±1
+       regardless of sign). One-line fix: `Math.abs(A)`.
+       Also confirmed **not module-specific**: `src/shell/state/urlCodec.ts`'s
+       `decodeParamValue` does raw `Number(raw)` for every `number`/`angle`
+       param with no clamping to the declared `min`/`max` and no NaN/finite
+       guard anywhere in the decode→store→module pipeline — read the file
+       directly to confirm this, not just trusted the reviewer agent. A
+       hand-edited bookmark URL (`?m1=0&m2=0`, `?m=0`) can inject `NaN`
+       into any module's readouts and rendered positions. This is a
+       pre-existing, cross-cutting platform gap affecting every registered
+       module, not something introduced by either M7+ module reviewed here
+       — out of scope to patch defensively inside two modules' own math
+       (CLAUDE.md: don't validate against scenarios that "can't happen" via
+       the normal UI path; the real fix belongs in `urlCodec.ts`/`store.ts`
+       and is a design decision — clamp silently, reject, or fall back to
+       defaults — not mine to make unilaterally here). Logged as **X-20**.
+       Remaining findings (not fixed, lower severity/PLAUSIBLE or
+       style/altitude): `momentum-collisions`'s `tCollision` sign has no
+       assertion tying it to the fixed layout constants (not reachable via
+       the UI sliders today); `radiusOf()` unguarded against negative mass
+       (same root cause as X-20, not fixed defensively for the same
+       reason); the CM-frame recenter logic is bespoke 1D scalar math with
+       no reusable `src/scene`-level frame-transform helper, flagged as a
+       seam for **M7-3** to generalize from rather than reinvent (see that
+       entry's note below); `toWorld()` in both new modules hand-rolls
+       `kernel/math`'s `add`/`scale` instead of calling them, and the same
+       `ctx.up`+`toWorld` idiom is now copy-pasted across 4 modules with no
+       shared helper; `solveCollision()`/`kinematicsAt()` are independently
+       duplicated in `update()` and `scalars()` every frame (necessitated
+       by `scalars()`'s purity contract, not a bug, but a real
+       maintenance-drift risk); `work-energy`'s header comment claimed the
+       "same idiom as rotational-dynamics/projectile-motion's `ctx.up`
+       handling" while also correctly stating it has no gravitational
+       notion of vertical — reworded for clarity (not a functional bug;
+       the contract suite already exercises both up-axis settings).
+  2. **Manual-check backlog** (projector mode, 320px, reduced-motion,
+     colour-blindness — §18's per-module DoD item 10, deferred from both
+     M7-1 and M7-2's own write-ups to batch here). Verified by reading
+     the actual shared-substrate mechanisms rather than re-deriving
+     per-module claims: projector mode
+     (`getProjectorAdjustments`/`Viewport.setProjectorMode`) sweeps every
+     _registered_ themed material generically — confirmed both new
+     modules' arrow/body/point handles register through
+     `host.registerThemedMaterial`, so line-weight/opacity adjustments
+     apply with zero module code, same as every other module.
+     `prefers-reduced-motion` is similarly generic: `CameraController`
+     collapses `goTo` transitions to instant
+     (`src/scene/camera/index.ts:233`) and `Viewport.setLayerVisible`
+     skips the fade entirely (`src/scene/Viewport.ts:305`) — neither new
+     module adds camera or layer-fade code of its own, so both inherit
+     this for free. Colour-blindness: both modules use only
+     `ctx.palette.*` (`position`, `velocity`, `construction`, `energy`)
+     — no raw hex, and the Okabe-Ito safety property is verified once at
+     the palette level (`tokens.test.ts`), not per module.
+     `momentum-collisions` deliberately gives both carts the same colour
+     (`position`) and relies on radius+label to distinguish them, per
+     PHYSICS_CONVENTIONS.md's "same quantity, same colour" rule. 320px:
+     the existing e2e test only exercises `vector-algebra`, so actually
+     ran `momentum-collisions` through the identical check (a throwaway
+     Playwright script against a `vite preview` build at 320×640) —
+     `scrollWidth === clientWidth` (no overflow), zero console errors.
+     Projector: still cannot drive real hardware from this environment —
+     same residual manual gap as M2-19/M4-6/M7-1/M7-2, not silently
+     claimed.
+  3. **Full verification sweep**, holistic (not just the two new
+     modules): `npm run typecheck && npm run lint && npm run test:unit`
+     (517 tests) `&& npm run test:contract` (138/10-skip) `&& npm run
+build && npm run check:budget` (7 module chunks, largest
+     `fields-gradients`/`rotational-dynamics` at 4.1–4.2 KB gzipped,
+     entry chunk 71.93 KB — no budget pressure from adding a 7th module)
+     `&& npm run format:check` — all clean after the two code-review
+     fixes above. Also ran `npx playwright test tests/e2e/smoke.spec.ts`
+     twice: once at default (6 workers), which surfaced a
+     `projectile-motion` WebGL-disposal-check flake unrelated to either
+     M7+ module (logged as **X-18** under M7-2 above); once at
+     `--workers=1`, 31/31 green, confirming the flake is a cross-worker
+     test-isolation race, not a regression.
+  4. **X-17 revisit.** Neither `work-energy` nor `momentum-collisions`
+     newly reproduces X-17 — `momentum-collisions` never uses
+     `surface`/`patch` at all (only `body`/`point`/`arrow`/`label`, which
+     X-17's own writeup already confirms render fine off-plane), so it
+     provides zero new data points on the bug itself. Not root-caused
+     this session; still `READY`, unowned. **M2-19/M4-9 residual gaps**
+     (DevTools profiler session, `renderer.info` triangle/draw-call
+     instrumentation): reconsidered now that 7 modules are live — both
+     remain correctly out of scope. M2-19's gap is a literal
+     human-at-a-projector step, unaffected by module count. M4-9's gap
+     (no debug hook for `renderer.info`) was judged "scope creep" at 4
+     modules; at 7, the hand-counted per-module triangle budgets
+     (`momentum-collisions`: 2 spheres + 4 arrows + 1 point ≈ order 500
+     triangles, ~10 draw calls) remain several orders of magnitude under
+     the 60,000-triangle/200-draw-call ceiling, so there's still no
+     concrete signal that the ceiling is close enough to need
+     instrumentation rather than continued hand accounting.
+     Verified: the fixes above are covered by the existing golden-value
+     tests (`momentum-collisions`' 8 tests re-run clean, confirming the
+     collision-timing math itself was never wrong — only the rendered
+     sphere size was) and the full sweep in point 3.
+- [READY] **X-20** `src/shell/state/urlCodec.ts`'s `decodeParamValue`
+  (line ~76) does raw `Number(raw)` for every `number`/`angle`-kind
+  param straight from the URL query string, with no clamping to the
+  param's declared `min`/`max` and no `NaN`/finite check anywhere in the
+  decode → store → module pipeline (confirmed by reading `urlCodec.ts`,
+  `store.ts`, and `ModuleView.tsx` directly — none of the three clamps
+  or validates a decoded numeric value). Discovered during the
+  `momentum-collisions`/`work-energy` code-review pass (a bookmarkable
+  URL is a documented, shipped feature per ARCHITECTURE.md §14, so a
+  hand-edited or shared link is a legitimate "platform" input, not a
+  contrived one) but applies to every registered module, not just those
+  two — e.g. `#/m/momentum-collisions?m1=0&m2=0` makes every downstream
+  scalar `NaN` via `0/0`; `#/m/work-energy?m=0` makes `omega=Infinity`
+  and every subsequent ball position `NaN` via `Infinity*0`-shaped
+  arithmetic. Not fixed inline: this is a shell-level gap, and the right
+  fix is a design decision (clamp silently to `[min,max]`? reject and
+  fall back to the module default? show a "malformed URL" notice?) that
+  affects every module's URL-restore behavior, not a module-specific
+  patch. Whoever picks this up should start at `decodeParamValue`
+  (`urlCodec.ts`) and decide the policy before touching code — clamping
+  silently is the least surprising default and matches how sliders
+  already behave, but changes what a truncated/malformed bookmark link
+  restores to, which is worth a one-line ADR note per X-8 if adopted.
+- [IDEA] **M7-3** Non-inertial Frames & Coriolis (the consumer of M1-6's
+  separately retrievable ω × r / Coriolis / centrifugal terms). Also a
+  candidate to generalize `momentum-collisions`' CM-frame recenter
+  logic (`frameOffset`/`velCorrection`, a 1D position+velocity offset
+  applied at each glyph call site) into a reusable `src/scene`-level
+  frame-transform helper — this module's own recenter need (a moving,
+  possibly rotating frame) is a strict superset of that pattern, per the
+  QA checkpoint's code-review findings above. Worth a look before
+  copy-pasting the 1D version ad hoc.
 - [IDEA] **M7-4** Oscillations (driven and damped steady state is `parametric`; keep it that way)
 - [IDEA] **M7-5** Gravitation & Central Forces (Kepler via M1-15's root-finder, `parametric`)
 - [IDEA] **M7-6** Kinematics

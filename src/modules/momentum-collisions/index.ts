@@ -45,6 +45,18 @@ function radiusOf(mass: number): number {
   return BALL_RADIUS_BASE * Math.cbrt(mass);
 }
 
+/**
+ * `body`'s `'sphere'` kind is built on `THREE.SphereGeometry(0.5, ...)`
+ * (`src/scene/glyphs/body.ts`) — a unit-diameter sphere, so `scale` is a
+ * DIAMETER multiplier, not a radius multiplier like it is for `'box'`
+ * (built on a unit cube). Passing a radius directly as `scale` renders
+ * a sphere at half the intended world radius.
+ */
+function sphereScaleFor(radius: number): [number, number, number] {
+  const diameter = 2 * radius;
+  return [diameter, diameter, diameter];
+}
+
 interface CollisionSolution {
   tCollision: number; // Infinity if the carts never meet (u1 <= u2)
   v1After: number;
@@ -240,9 +252,9 @@ const module: PhysicsModule = {
         const pos2: V3 = toWorld(x2);
         const posCm: V3 = toWorld(xcmDrawn);
 
-        cart1.set({ position: pos1, scale: [r1, r1, r1] });
+        cart1.set({ position: pos1, scale: sphereScaleFor(r1) });
         cart1.visible(cartsOn);
-        cart2.set({ position: pos2, scale: [r2, r2, r2] });
+        cart2.set({ position: pos2, scale: sphereScaleFor(r2) });
         cart2.visible(cartsOn);
         label1.set({ anchor: pos1 });
         label1.visible(cartsOn);

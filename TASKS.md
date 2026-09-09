@@ -1224,21 +1224,409 @@ lint && npm run test:unit` (519 tests, up from 517)
   smoke test passed. `explain.md`'s "Precession" paragraph rewritten to
   describe the new isolate/couple behavior instead of the old
   "small nutation ripple" description.
-- [IDEA] **M7-3** Non-inertial Frames & Coriolis (the consumer of M1-6's
-  separately retrievable ω × r / Coriolis / centrifugal terms). Also a
-  candidate to generalize `momentum-collisions`' CM-frame recenter
-  logic (`frameOffset`/`velCorrection`, a 1D position+velocity offset
-  applied at each glyph call site) into a reusable `src/scene`-level
-  frame-transform helper — this module's own recenter need (a moving,
-  possibly rotating frame) is a strict superset of that pattern, per the
-  QA checkpoint's code-review findings above. Worth a look before
-  copy-pasting the 1D version ad hoc.
-- [IDEA] **M7-4** Oscillations (driven and damped steady state is `parametric`; keep it that way)
+- [DONE] **M7-3** Non-Inertial Frames & Coriolis — the consumer of M1-6's
+  separately retrievable ω×r / Coriolis / centrifugal terms; this is the
+  first module in the library to import `kernel/frames` at all. Promoted
+  to `READY` and built this session per the user's standing instruction
+  to keep working down the M7+ list without asking cold each time.
+  Scaffolded via `npm run new:module -- non-inertial-frames`
+  ([manifest.ts](../src/modules/non-inertial-frames/manifest.ts),
+  [params.ts](../src/modules/non-inertial-frames/params.ts),
+  [index.ts](../src/modules/non-inertial-frames/index.ts),
+  [explain.md](../src/modules/non-inertial-frames/explain.md)). A puck
+  slides at constant velocity with **no real force acting on it at
+  all** — frictionless, force-free — while a platform spins at a
+  constant `omega`; two `exclusiveGroup`-radio panels ("Lab frame" /
+  "Rotating frame") redraw the identical closed-form scenario
+  (`r(t)=r0+v0 t`, `a(t)=0`) from each observer's own coordinates.
+  `timeModel: 'parametric'`: the world<->rotating-frame position and
+  velocity transform is a plain 2D rotation by `-omega*t`, exact at any
+  `t`, no `kernel/ode` needed (ARCHITECTURE.md §2). The puck freezes once
+  it first crosses a fixed exit radius (closed-form root of
+  `|r0+v0 t|²=R²`, same pattern as `projectile-motion` resting at
+  touchdown) so an unbounded straight line doesn't coast off-screen over
+  the shell's 20s scrub range. The rotating panel's payoff: since the
+  puck's real (lab-frame) acceleration is exactly zero, the observer's
+  own "relative" acceleration must exactly cancel the Coriolis and
+  centrifugal terms — `fictitiousTermsAt()` gets those two kinematic
+  terms by calling kernel/frames' `transformAcceleration` (M1-6) with a
+  zero relative-acceleration guess (not by re-deriving the cross
+  products by hand a second time), then calls it again with `relative`
+  set to the exact negative of their sum, so the three acceleration
+  arrows are drawn **tip to tail** (centrifugal, then Coriolis from its
+  tip, then a dashed "observed" arrow closing the triangle back to the
+  puck) — the closed loop on screen _is_ the identity. A `residual`
+  scalar (`|relative+coriolis+centrifugal+euler|`) reports that same
+  statement as a number that should read ≈0 everywhere; live in the dev
+  server at defaults it rendered as `111 a` in the readout table — an
+  honest confirmation, not a bug: `formatQuantity`'s SI-prefix
+  engineering notation picked atto (`a`, 10⁻¹⁸) as the nearest bucket for
+  a value of order 10⁻¹⁶, i.e. `111×10⁻¹⁸ ≈ 1.11×10⁻¹⁶`, machine-epsilon
+  noise around the true value of exactly zero (same X-19 milli-prefix
+  legibility gap already logged, now hit at the atto end instead of
+  milli — not a new bug, just a second data point for that backlog
+  item). The Euler term is identically zero throughout, by construction
+  (`omega` is held constant — `omegaDot: [0,0,0]` — the explain.md panel
+  says so explicitly rather than silently omitting a term the API
+  supports).
+  Deliberately does **not** build a new shared "moving/rotating group"
+  Layer 1 capability, even though this module's own recenter need (a
+  rotating frame) is a superset of `momentum-collisions`' 1D CM-frame
+  recenter (`frameOffset`/`velCorrection`) that the QA checkpoint after
+  M7-1/M7-2 flagged as a seam for this module to generalize from:
+  investigated `ctx.frame()` first, since §8 documents it as "nestable
+  coordinate frames — modules compose these rather than doing their own
+  matrix bookkeeping," but it turns out to be a _visible_
+  coordinate-triad glyph (it always draws RGB axis lines) that only
+  nests other frame glyphs via its own `parent` prop — not a generic
+  invisible parent group an `arrow`/`point`/`body` glyph could attach
+  under — and a module cannot create its own `three.js` `Group` to fill
+  that role (no `three` import, §6). Building a real transform-aware
+  `ctx.group()` would be a genuine Layer 1 addition, not a small
+  refactor, so per ADR-3's own precedent ("share capability downward
+  only once a concrete duplication case is demonstrated") this module
+  generalizes the _pattern_ (world<->frame position/velocity math,
+  written directly against `kernel/math`) rather than inventing a new
+  shared abstraction for a second use case. Worth building for real if a
+  third module needs the same thing — noted inline in `index.ts` at the
+  point where the decision was made, not just here.
+  `module.test.ts` (7 tests) covers the golden-value physics: the three
+  acceleration terms sum to <1e-8 across a spread of `omega`/`t`
+  combinations; `omega=0` collapses the rotating frame onto the lab
+  frame exactly (`speedRel` equals the plain lab speed, both fictitious
+  terms exactly zero); `rho` (distance from the rotation axis) is
+  frame-invariant, matching the raw closed-form lab formula to 10
+  decimal places; a puck at (near-)rest in the lab frame traces a
+  perfect circle in the rotating frame at speed `|omega|*rho`, the
+  textbook illustration of uniform circular motion as seen by a rotating
+  observer; centrifugal acceleration is exactly `omega² * rho` in
+  magnitude; the exit-radius freeze leaves `rho` identical at two times
+  both past the exit instant. Verified:
+  `npm run typecheck && npm run lint && npm run test:unit` (526 tests, up
+  from 519) `&& npm run test:contract` (158 passed/11 skipped, up from
+  138/10 — auto-discovered, no module-specific contract code needed)
+  `&& npm run build && npm run check:budget` (`non-inertial-frames` chunk
+  2.48 KB gzipped against the 80 KB budget; entry chunk unaffected at
+  72.15 KB) `&& npm run format:check` all clean (one round of
+  `prettier --write` needed on the first draft, same as M7-2's
+  `explain.md` gotcha but this time on `index.ts`/`module.test.ts` — kept
+  every `$$...$$` block in `explain.md` on one line from the start this
+  time and it was untouched by the formatter). Manually verified live in
+  the dev server (Browser pane, which — contrary to the standing note
+  that this pane never composites rendered frames — did render real
+  canvas content once the tab was fronted and interacted with; the
+  earlier "stays blank" behavior was specifically about a _backgrounded_
+  tab not running its rAF loop, not a blanket pane limitation, worth a
+  memory correction): the platform disc renders as a true face-on circle
+  (confirming `DISC_ORIENTATION`'s one-time cylinder-axis-to-world-Z
+  rotation), the reference mark sits at the same screen position in both
+  panels at `t=0` (`theta(0)=0` for any `omega`, so the two frames
+  coincide there, as they must); readouts at defaults
+  (`rho=2.28, |v'|=3.31, aCor=7.94, acf=3.28`) matched hand computation
+  from the closed-form formulas to the displayed precision; switching to
+  the rotating-frame radio produced the tip-to-tail
+  centrifugal/Coriolis/dashed-relative triangle exactly as designed, with
+  zero console errors; a 320px check (`vite` dev server, not a separate
+  `vite preview` build) showed `scrollWidth === clientWidth` (no
+  overflow) and a correctly stacked layout. `npx playwright test
+tests/e2e/smoke.spec.ts -g non-inertial-frames --workers=1` passed
+  (auto-discovered, zero test edits): renders, no console errors, every
+  layer toggles, disposes its WebGL context on navigate-away. Not
+  independently investigated: a real physical-projector pass (same
+  residual-manual-gap category as M2-19/M4-6/M7-1/M7-2) and a dedicated
+  colour-blindness-simulator pass (deferred to the batched QA checkpoint,
+  per this session's Part B instructions — the module itself uses only
+  `ctx.palette.position/velocity/accel/construction`, zero raw hex,
+  confirmed by grep).
+- [DONE] **M7-4** Driven Damped Oscillations. Promoted to `READY` and
+  built this session per the user's standing instruction to keep working
+  down the M7+ list without asking cold each time. Scaffolded via
+  `npm run new:module -- oscillations`
+  ([manifest.ts](../src/modules/oscillations/manifest.ts),
+  [params.ts](../src/modules/oscillations/params.ts),
+  [index.ts](../src/modules/oscillations/index.ts),
+  [explain.md](../src/modules/oscillations/explain.md)). A mass hangs
+  from a spring, driven by a sinusoidal force `F0*cos(Omega t)` applied
+  directly to the mass, with linear viscous damping. Only the
+  **steady-state** (particular) solution is drawn — deliberately not the
+  transient that decays from whatever initial condition started it,
+  since the transient's closed form branches on the damping regime
+  (under-/critically-/over-damped) for no real gain in what the module
+  is actually teaching (amplitude/phase response vs. drive frequency),
+  and the M7-4 backlog note explicitly said to keep this `parametric`
+  rather than reach for `kernel/ode` (ARCHITECTURE.md §2). `timeModel:
+'parametric'`: `x(t) = A(Omega) cos(Omega t - delta)` is a pure
+  closed-form function of `t` via the standard driven-damped-oscillator
+  amplitude/phase formulas. The resonance curve itself needed **zero**
+  module-specific plotting code: `omegaDrive` is an ordinary `number`
+  param and `amplitude`/`phaseLag` are ordinary declared scalars, so the
+  shell's existing generic Sweep Plot (§9 — "pick a parameter, sweep it
+  across its range, evaluate a declared scalar at each value," explicitly
+  called out there as covering "resonance response curves") already
+  produces the textbook amplitude-vs-drive-frequency curve; `x`/`v` are
+  also both plottable, giving a phase-space (`v` vs `x`) portrait for
+  free through the same generic Time Series "vs. any other declared
+  scalar" mechanism (§9) — neither is bespoke to this module. This is the
+  first module in the library with both a genuine notion of vertical
+  (a mass hanging under a fixed anchor, reading `ctx.up`) and a `spring`
+  body glyph, so it's also the first exercise of `spring`'s own
+  orientation: identical to `non-inertial-frames`' disc gotcha, the
+  glyph's local axis of extension is its geometry's Y axis, so aligning
+  it with `ctx.up` needs a fixed one-time rotation when the viewer is
+  z-up (identity when y-up, since Y already equals up) — computed once
+  in `create()` alongside the rest of the up-axis idiom, not per frame.
+  `steadyStateAt()` floors the resonance denominator at `1e-6` rather
+  than letting it reach exactly zero, so undamped exact resonance
+  (`c=0`, `omegaDrive=omega0`) renders a large-but-finite amplitude
+  instead of `Infinity`/`NaN` — a deliberate, disclosed idealization
+  limit (explain.md says so directly: "an idealized undamped resonance
+  has no steady state at all... this is exactly where the closed form a
+  real spring can't actually reach"), not a silent fudge.
+  `module.test.ts` (8 tests) covers the golden-value physics: `omega0`
+  and `zeta` match their closed-form definitions directly; phase lag is
+  exactly `pi/2` at resonance; amplitude matches the full closed-form
+  formula for arbitrary parameters; amplitude approaches the static
+  deflection `F0/k` far below resonance and falls off like `1/Omega^2`
+  far above it, with phase lag approaching `pi`; `v(t)` matches a
+  central-difference numerical derivative of `x(t)` to 4 decimal places
+  (ties the two formulas together as one consistent closed form, not two
+  independently-typed ones); the `c=0`-at-exact-resonance edge case stays
+  finite. Verified: `npm run typecheck && npm run lint && npm run
+test:unit` (534 tests, up from 526) `&& npm run test:contract` (178
+  passed/12 skipped, up from 158/11 — auto-discovered, no module-specific
+  contract code needed) `&& npm run build && npm run check:budget`
+  (`oscillations` chunk 1.56 KB gzipped against the 80 KB budget; entry
+  chunk unaffected at 72.35 KB) `&& npm run format:check` all clean (one
+  round of `prettier --write` needed on `module.test.ts`, a plain
+  line-wrap of one long expression — no KaTeX involved, so none of the
+  M7-2 `explain.md` gotcha's risk applied here). Manually verified live
+  in the dev server (Browser pane, fronted): the spring renders as a
+  true vertical coil with the mass hanging below it (confirming the
+  identity orientation on the default y-up path), the green velocity
+  arrow and magenta force arrow point and scale correctly at both `t=0`
+  (near-resonance defaults: `omega0=3.00`, `zeta=0.100`,
+  `A(Omega)=2.78`, `delta=1.57`, `x(t)` reads as the atto-prefix
+  near-zero `170a` — matches `x(0)=A cos(pi/2)=0` to floating-point noise,
+  the same X-19 milli/atto-prefix legibility quirk `non-inertial-frames`
+  already logged, not a new bug) and at the timeline's far end (`t=20s`,
+  `x(t)=-847m` milli-prefix, velocity arrow flipped downward — consistent
+  with continuing steady-state oscillation, not a freeze); jumping to
+  `t=20s` and interacting produced zero NEW console errors, though a
+  pre-existing stretch of 126 stale `ERR_CONNECTION_REFUSED` messages was
+  present from an earlier `preview_stop`/restart in this same session —
+  the same benign HMR-reconnect-noise pattern X-21's write-up already
+  documented, confirmed here the same way (the count never grew across
+  further interaction); a 320px check (live `vite` dev server) showed
+  `scrollWidth === clientWidth`, no horizontal overflow. Did later drive
+  the settings menu's up-axis toggle by hand — see **X-22** below, which
+  the QA checkpoint's code-review pass on this module surfaced as a real,
+  confirmed bug (a false code comment plus a genuine live-toggle
+  staleness issue), not merely a UI-navigation quirk.
+  Not independently investigated: a real physical-projector pass and a dedicated
+  colour-blindness-simulator pass (deferred to the batched QA checkpoint
+  below, per this session's Part B instructions — the module itself uses
+  only `ctx.palette.position/velocity/force/construction`, zero raw hex,
+  confirmed by grep).
+- [DONE] **QA checkpoint (post M7-3/M7-4)** Batched Part-B pass across
+  `non-inertial-frames` and `oscillations`, per this session's mission
+  brief ("checkpoint after every 2 modules"). Four pieces:
+  1. **Code-review pass** (`code-review` skill, high effort, 8 finder
+     angles across both modules) — read every line of both `index.ts`
+     files fresh rather than trusting a first-pass reviewer agent, per
+     this project's own standing practice. Two CONFIRMED correctness
+     bugs:
+     - **`non-inertial-frames`'s `exitTime()` froze the puck at its
+       first entry into the visible radius instead of its true final
+       exit**, reachable whenever the puck starts already beyond
+       `EXIT_RADIUS` (both `x0`/`y0` range to ±3, so `|r0|` up to ~4.24
+       exceeds the 3.4 exit radius) and its straight line curves back
+       through the interior — the puck would appear to jump to the rim
+       and freeze forever instead of visibly crossing through. Fixed by
+       branching on the sign of `x0²+y0²-radius²`: freeze at `t=0`
+       immediately when already outside, only solve the quadratic (and
+       take the correct — larger, not smaller — positive root) when
+       starting inside. A new golden-value test locks this in
+       (`module.test.ts`: a puck at `(3,3)` aimed back through the
+       origin stays frozen at its starting `rho` for every later `t`
+       sampled).
+     - **`oscillations`' own code comment claimed the shell remounts a
+       module on a live up-axis switch — it does not.** Verified by
+       reading `ModuleView.tsx` directly (a live `prefs.upAxis` change
+       only re-tweens the camera; it never calls `create()` again) and
+       reproduced live in the dev server (switching Settings -> Up axis
+       -> Z-up while `oscillations` stayed mounted left the spring/mass
+       oriented along the old axis while the camera reoriented out from
+       under them, collapsing the scene to a silhouette). The comment
+       was corrected; the underlying behavior was deliberately **not**
+       patched inline — logged as **X-22** below, since the real fix
+       needs a decision between two costly options (see that entry) that
+       affects `projectile-motion`/`rotational-dynamics` equally, not a
+       one-module patch. This is the same category of judgment call as
+       X-20 in the M7-1/M7-2 checkpoint: a real, confirmed, cross-cutting
+       gap, disclosed and deferred rather than defensively patched in the
+       two modules that happened to surface it.
+  2. **Manual-check backlog** (projector, 320px, reduced-motion,
+     colour-blindness — §18's per-module DoD item 10). Both new modules
+     use only `ctx.palette.*` (`position`/`velocity`/`accel`/`force`/
+     `construction`), zero raw hex, confirmed by grep. `prefers-reduced-
+motion` and projector mode remain generic per the shell mechanisms
+     already confirmed in the M7-1/M7-2 checkpoint — neither module adds
+     its own camera or layer-fade code. 320px checked live for both
+     (`scrollWidth === clientWidth`, no overflow). Projector: still
+     cannot drive real hardware from this environment — same residual
+     manual gap as every prior checkpoint, not silently claimed.
+  3. **Full verification sweep**: `npm run typecheck && npm run lint &&
+npm run test:unit` (535 tests, up from 526) `&& npm run
+test:contract` (178 passed/12 skipped, unchanged — no module-count
+     change from the two fixes) `&& npm run build && npm run
+check:budget` (10 module chunks, largest `rotational-dynamics` at 4.77
+     KB gzipped, entry chunk 72.35 KB — no budget pressure from 2 more
+     modules) `&& npm run format:check` — all clean.
+  4. **X-17 revisit.** Neither module uses `surface`/`patch` (only
+     `body`/`point`/`arrow`/`path`/`label`), so neither provides a new
+     data point on X-17's off-plane rendering bug — still `READY`,
+     unowned, same as every checkpoint since it was logged.
+- [READY] **X-22** A live up-axis switch (Settings menu -> Up axis, or
+  the `V` keymap) does not update a module's own `ctx.up`-derived scene
+  geometry, even though the camera itself DOES re-tween to the new axis
+  (`CameraController.setUpAxis`, M2-21/M3-41). Discovered during the QA
+  checkpoint's code-review pass on `oscillations` (M7-4): its `create()`
+  reads `ctx.up` once and bakes it into `springOrientation`/`upVec`/
+  `horizAxis` (the same idiom `projectile-motion` and
+  `rotational-dynamics` already use), on the assumption — stated as fact
+  in a code comment, which was wrong and has been corrected — that the
+  shell remounts the module on a live switch. Reading
+  [`ModuleView.tsx`](../src/shell/routes/ModuleView.tsx) directly shows
+  it does not: a live `prefs.upAxis` change only calls
+  `viewport.camera.setUpAxis(...)`; `ModuleViewInner`'s own remount `key`
+  (`` `${moduleId}-${resetToken}` ``) has no `upAxis` term. Reproduced
+  live in the dev server: mounted `oscillations` at the default y-up,
+  then switched Settings -> Up axis -> Z-up without navigating away — the
+  camera reoriented but the spring/mass/arrows (built once against the
+  old axis) did not, collapsing the whole vertical apparatus into a
+  single silhouette viewed end-on. Affects every module that reads
+  `ctx.up` in `create()`: confirmed by code inspection for
+  `projectile-motion` and `rotational-dynamics` too (not independently
+  reproduced live for those two — the same `create()`-only read is
+  enough to establish the mechanism, and reproducing it once was enough
+  to confirm the mechanism itself, not a per-module fluke). Not fixed
+  inline: the two candidate fixes both have real costs that need a
+  deliberate decision, not a one-module patch — (a) have every `ctx.up`-
+  reading module recompute its orientation/position math inside
+  `update()` instead of caching it in `create()`, a real per-module code
+  shape change that's easy to half-apply and miss a spot; or (b) have the
+  shell force a full remount on an up-axis change (fold `upAxis` into
+  `ModuleViewInner`'s `key`, the same mechanism `resetToken` already
+  uses), a one-line shell fix that throws away the camera's own
+  deliberately-animated up-axis tween (M2-21/M3-41 built and tested a
+  smooth ~400ms reorientation specifically so this is not a jarring cut)
+  — a full remount would flash the canvas, drop any user pan/orbit
+  adjustment, and undercut that existing feature. Whoever picks this up
+  should decide between those (or a third option) before touching code,
+  and record the choice as an ADR per X-8 if it changes shell behavior.
+  Only the `oscillations` comment asserting the (wrong) safe-precedent
+  claim was corrected in this change; the underlying behavior in all
+  three modules is unchanged.
 - [IDEA] **M7-5** Gravitation & Central Forces (Kepler via M1-15's root-finder, `parametric`)
 - [IDEA] **M7-6** Kinematics
 - [IDEA] **M7-7** Newton's Laws & FBDs
 - [IDEA] **M7-8** Statics & Trusses
 - [IDEA] **M7-9** Sandbox — the one module that uses `kernel/expr`, and the only expected `?z=` URL-compression case (M3-20)
+- [DONE] **Enhancement: Projectile Motion — 3D start position + vector
+  launch** User-requested (not from the M7+ backlog): generalized
+  `projectile-motion` (previously a single fixed-plane, single-angle
+  module) to a genuinely 3D closed-form trajectory with two ways to
+  specify the launch, chosen via radio buttons. Added `startPosition`
+  (a `vector` param, default `[0,0,0]`, draggable) and replaced the old
+  single `angle` param with **elevation** (angle above horizontal, same
+  physical quantity as before) + **azimuth** (rotation within the
+  horizontal plane) for the angle-defined option, alongside a new
+  **velocity vector** option (`launchVelocity`, both direction and
+  magnitude at once, defaulting to the same 2D (x,y) plane as the angle
+  option per the request — its z-component defaults to 0). The
+  angle/vector choice is two `LayerDef`s
+  (`angleMode`/`vectorMode`, `exclusiveGroup: 'launchMode'`) rather than
+  a new `ParamDef` kind: this reuses the shell's existing
+  mutually-exclusive-radio rendering (ADR 0011) verbatim to get literal
+  radio buttons, instead of inventing a `shell/controls` change for
+  something the substrate already renders correctly — `forLayer` then
+  nests `speed`/`elevation`/`azimuth` under one disclosure and
+  `launchVelocity` under the other, exactly the documented use case for
+  that field. Investigated whether this needed a `schemaVersion` bump
+  (renaming `angle` -> `elevation` and adding new params/layers) and
+  concluded no: `elevation`'s `urlKey` is kept as the original `'ang'`,
+  so an old bookmarked `?ang=...` link still resolves to the right
+  value under the CURRENT param defs before any migration would even
+  run, and every other new param/layer is purely additive with a
+  default that reproduces the old behavior exactly when absent
+  (MODULE_AUTHORING.md: bump only on a genuine meaning change).
+  `startPosition`/`launchVelocity` are stored as literal WORLD x/y/z
+  vectors rather than mapped through a `toWorld(horiz, vert)` helper the
+  way this module used to (and the way other 2D-first modules in this
+  library still do) — `VectorPad` always labels its three inputs
+  "x"/"y"/"z" with no per-module override, so a vector param whose raw
+  components meant anything else would visibly disagree with its own
+  control. Gravity and the elevation/azimuth decomposition still respect
+  `ctx.up` (read once in `create()`, same idiom as before), just via
+  dot/cross products against `upVec` (`verticalComponent`,
+  `horizontalComponent`, `velocityFromAngles`) instead of a coordinate
+  remap. `timeToGround()` generalizes the old `timeOfFlight()` to a
+  nonzero start height by solving the full quadratic
+  `0.5 g t^2 - vy0 t - y0 = 0`, freezing immediately (`t=0`) if
+  `startPosition` is already below the world's vertical-zero reference
+  plane rather than solving at all — the exact same "start already past
+  the valid region -> freeze immediately, don't solve the quadratic
+  unconditionally" fix this session's QA checkpoint had just made to
+  `non-inertial-frames`' `exitTime()` (that entry above), applied
+  proactively here instead of being found the hard way a second time.
+  Also added a launch-velocity `arrow` glyph (`ctx.palette.velocity`),
+  which the module didn't have before — a natural, low-cost addition
+  once the launch is a vector a student can type in directly, giving
+  immediate visual feedback for both modes. `module.test.ts` (8 tests,
+  up from 2) covers the golden-value physics: the original 45°/R=14.7
+  golden values still hold exactly in angle mode; 45° still maximizes
+  range at zero azimuth; **azimuth changes only the trajectory's
+  direction, never its range/max height/flight time**, checked across
+  four azimuth values; angle mode and an equivalent hand-computed vector
+  agree exactly on range and max height; a vector with a nonzero
+  z-component still gives the correct closed-form range using its
+  horizontal-speed magnitude; a nonzero start height shifts max height
+  and range via the taller flight time exactly per the general quadratic
+  formula; a start height below the ground plane gives exactly zero
+  range. Verified: `npm run typecheck && npm run lint && npm run
+test:unit` (540 tests) `&& npm run test:contract` (178 passed/12
+  skipped, unchanged module count — auto-discovered, no
+  module-specific contract code needed, exercised under both
+  `{up:'y'}`/`{up:'z'}` and 100 random param+layer combinations per the
+  existing mechanism) `&& npm run build && npm run check:budget`
+  (`projectile-motion` chunk 1.61 KB gzipped, up from 0.96 KB, still far
+  under the 80 KB budget) `&& npm run format:check` all clean. Manually
+  verified live in the dev server (Browser pane, fronted): both radio
+  options render and switch correctly (mutually exclusive, each nesting
+  its own params); vector mode's default readout matched the angle
+  mode's exactly (`R=14.7, H=3.67`, matching this module's own original
+  documented example); setting azimuth to 60° visibly changed the
+  on-screen (locked 2D view) angle of the velocity arrow from a clean
+  45° diagonal to a steeper one — consistent with part of the horizontal
+  speed rotating into the (screen-depth, invisible under the locked +z
+  view) axis, exactly as the closed-form math predicts; zero new console
+  errors introduced (a pre-existing stale `ERR_CONNECTION_REFUSED`
+  stretch from an earlier `preview_stop` in this session did not grow
+  further); 320px check showed `scrollWidth === clientWidth`, no
+  overflow. `startPosition`'s dragging is the shell's existing generic
+  mechanism (`ModuleView.tsx` wires `ctx.draggable()` for every
+  `draggable: true` vector param automatically — §9/M3-6) — not
+  independently live-tested by hand, trusting that already-tested,
+  already-shared mechanism (the same judgment call M4-10 already
+  establishes for up-axis coverage) rather than re-verifying a generic
+  capability per module. `npx playwright test tests/e2e/smoke.spec.ts -g
+projectile-motion --workers=1` passed (auto-discovered, zero test
+  edits): renders, no console errors, every layer toggles (now
+  including the two new radio layers) without error, disposes its WebGL
+  context on navigate-away. Not independently investigated: a real
+  physical-projector pass and a colour-blindness-simulator pass (this
+  module adds no new colours — `ctx.palette.position`/`velocity`/
+  `construction`, all already in use before this change).
 
 ## ADRs — §23's seven questions resolved (0002–0009), including the up axis they exposed
 

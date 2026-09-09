@@ -152,6 +152,22 @@ describe(module.manifest.id, () => {
     expect(range).toBeCloseTo(vx0 * flight, 8);
   });
 
+  it('zero launch speed from a height is a pure free fall: zero range, max height equals the start height', () => {
+    const instance = module.create(fakeCtx);
+    const g = 9.8;
+    const y0 = 15;
+    // Speed=0 is now reachable (params.ts's `speed` min was lowered from
+    // 1 to 0 for exactly this case) — the elevation angle is moot at
+    // zero magnitude, so any value should give the same result.
+    const { range, maxHeight } = instance.scalars(
+      angleState(0, 0, Math.PI / 4, g, { startPosition: [0, y0, 0] }),
+    );
+    // Zero horizontal speed -> zero range; zero vertical launch speed ->
+    // max height is just the start height (no upward coasting to add).
+    expect(range).toBe(0);
+    expect(maxHeight).toBeCloseTo(y0, 10);
+  });
+
   it('a start position below the ground plane (y0 < 0) has zero flight — range is zero, not tunnelling further', () => {
     const instance = module.create(fakeCtx);
     const g = 9.8;

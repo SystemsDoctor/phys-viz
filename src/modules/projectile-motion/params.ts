@@ -35,12 +35,13 @@ export const params: ParamDef[] = [
     urlKey: 'v0',
     label: 'Launch speed',
     symbol: 'v_0',
-    min: 1,
+    min: 0,
     max: 30,
     step: 0.5,
     default: 12,
     unit: VELOCITY,
     forLayer: 'angleMode',
+    help: 'Zero speed gives a pure free-fall — the body drops straight down under gravity alone, with no horizontal motion.',
   },
   {
     kind: 'angle',
@@ -110,7 +111,15 @@ export const layers: LayerDef[] = [
 ];
 
 export const scalars: ScalarDef[] = [
-  { key: 'range', label: 'Range', symbol: 'R', unit: LENGTH, readout: true, plottable: true },
+  {
+    key: 'range',
+    label: 'Range',
+    symbol: 'R',
+    unit: LENGTH,
+    readout: true,
+    plottable: true,
+    description: 'The horizontal distance travelled from launch to landing back at the world’s vertical-zero reference plane.',
+  },
   {
     key: 'maxHeight',
     label: 'Max height',
@@ -118,5 +127,6 @@ export const scalars: ScalarDef[] = [
     unit: LENGTH,
     readout: true,
     plottable: true,
+    description: 'The highest point the body reaches above the vertical-zero reference plane, from its start height plus any upward coasting.',
   },
 ];

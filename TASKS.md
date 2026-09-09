@@ -1566,6 +1566,24 @@ module.test.ts` (8 tests, unchanged — none of these three changes
   coil ending flush with the box's top face rather than sunk into its
   center; hovered a readout label and confirmed a dark tooltip popover
   appears with the scalar's description text
+- [DONE] **Enhancement: Projectile Motion — zero launch speed (free
+  fall)** User-requested: the "Launch speed" slider's `min` was `1`
+  (`params.ts`), an artificial floor with no physical justification —
+  the closed-form kinematics (`velocityFromAngles`, `timeToGround`)
+  already handle a zero-magnitude launch velocity correctly (zero
+  horizontal speed -> zero range; zero vertical launch speed -> max
+  height is just the start height), verified by inspection rather than
+  needing any code change beyond the slider bound itself. Lowered
+  `min` to `0`; a zero-speed launch from an elevated `startPosition`
+  now renders as a pure vertical free-fall with no horizontal drift.
+  (`range`/`maxHeight` also picked up `description`s in this same file,
+  part of ADR 0014's rollout.) Verified: new `module.test.ts` case
+  (zero speed from `y0=15` gives `range=0` and `maxHeight=y0` exactly)
+  plus the existing 8 tests still green; live in the dev server
+  (Browser pane): set launch speed to 0 and start height to 5, played
+  the sim, and confirmed the body drops straight down to the origin
+  with the trajectory trace showing no horizontal component,
+  `R=0.00`/`H=5.00` in the readout table
 - [IDEA] **M7-5** Gravitation & Central Forces (Kepler via M1-15's root-finder, `parametric`)
 - [IDEA] **M7-6** Kinematics
 - [IDEA] **M7-7** Newton's Laws & FBDs

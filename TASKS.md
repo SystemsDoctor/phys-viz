@@ -1628,6 +1628,45 @@ projectile-motion --workers=1` passed (auto-discovered, zero test
   module adds no new colours — `ctx.palette.position`/`velocity`/
   `construction`, all already in use before this change).
 
+- [DONE] **Enhancement: Per-plane reference grid toggles** User-requested
+  (not from the M7+ backlog): three new global settings-menu checkboxes —
+  "XY grid plane", "XZ grid plane", "YZ grid plane" — each independently
+  showing/hiding a light grid of lines confined to that principal
+  coordinate plane through the origin. Separate from the existing
+  "Reference grid" toggle (`prefs.showGrid`, which controls `axes.ts`'s
+  world axes + tick marks, not a filled grid) — a new glyph,
+  `scene/glyphs/gridPlane.ts` (`createGridPlane(kind, props, host)`,
+  `kind: 'xy' | 'xz' | 'yz'`), built and owned directly by `Viewport`
+  (three retained handles, never a module `group`) exactly like
+  `axes.ts`'s own shell-owned grid. Reuses `axes.ts`'s exported
+  `niceSpacing` heuristic so grid-square size matches the axis ticks at
+  any zoom level, recomputed per rendered frame from camera distance
+  the same way. Colour is the light structural `--rule` grey (`0xc8ccd4`,
+  0.5 opacity) — deliberately not a `ctx.palette` semantic colour, same
+  reasoning as `axes.ts`'s own hardcoded `AXIS_COLOR`, since this is UI
+  furniture, not physics data. New prefs `gridPlaneXY`/`gridPlaneXZ`/
+  `gridPlaneYZ` (default `false`, opt-in — unlike `showGrid`'s default
+  `true`) get the same persisted-locally + URL-when-non-default
+  treatment as every other pref (`prefsStorage.ts`; `urlCodec.ts`'s new
+  `gxy=`/`gxz=`/`gyz=`), and are threaded through GIF export
+  (`GifExportPanel`/`capture.ts`) alongside the existing `showGrid`, so
+  an exported clip matches what the live view showed. Verified: new
+  `gridPlane.test.ts` (4 tests — lines stay confined to the declared
+  plane, spacing recomputes on a frame tick, `visible()`/`dispose()`):
+  new `SettingsMenu` test (toggling one plane's checkbox patches and
+  persists only that pref, independent of the other two); `prefsStorage.test.ts`
+  and `urlCodec.test.ts` extended for the three new fields; two
+  `AppState['prefs']` literals in `tests/contract/modules.contract.test.ts`
+  updated for the wider type. `npm run typecheck && npm run lint && npm
+run test:unit` (545 tests) `&& npm run test:contract` (178 passed/12
+  skipped, unchanged) `&& npm run build` all clean. Manually verified
+  live in the dev server (Browser pane): all three checkboxes appear in
+  the settings menu; enabling all three and orbiting to a 3D view shows
+  three light grid planes intersecting at the origin, distinct from the
+  axes/ticks; toggled prefs round-trip through `localStorage` across a
+  fresh page load exactly as written (`gridPlaneXY`/`XZ`/`YZ: true`
+  confirmed via `localStorage.getItem('phys-viz:prefs')`).
+
 ## ADRs — §23's seven questions resolved (0002–0009), including the up axis they exposed
 
 - [DONE] **ADR-1** → [`0002-markdown-for-explain-panels.md`](docs/adr/0002-markdown-for-explain-panels.md). **Plain markdown**, files named `explain.md`, KaTeX for the math; revisit only if an author demonstrates a panel genuinely better for an inline widget. Applied: the four stubs renamed, `_template`'s MDX-only `{/* … */}` comment converted to an HTML comment, and §5/§9/§18/§21, `MODULE_AUTHORING.md`, `LICENSE`, and the contract-test checklist updated. Unblocks **M3-26**

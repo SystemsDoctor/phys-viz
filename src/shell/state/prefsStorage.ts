@@ -19,6 +19,9 @@ export function loadPrefs(): AppState['prefs'] {
       theme: parsed.theme === 'dark' ? 'dark' : DEFAULT_PREFS.theme,
       projector: parsed.projector === true,
       showGrid: parsed.showGrid === undefined ? DEFAULT_PREFS.showGrid : parsed.showGrid === true,
+      gridPlaneXY: parsed.gridPlaneXY === true,
+      gridPlaneXZ: parsed.gridPlaneXZ === true,
+      gridPlaneYZ: parsed.gridPlaneYZ === true,
     };
   } catch {
     return DEFAULT_PREFS;

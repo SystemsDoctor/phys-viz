@@ -40,6 +40,19 @@ describe('SettingsMenu', () => {
     expect(JSON.parse(window.localStorage.getItem('phys-viz:prefs')!).showGrid).toBe(false);
   });
 
+  it('toggling a per-plane grid checkbox patches and persists prefs independently', async () => {
+    render(<SettingsMenu />);
+    await userEvent.click(screen.getByLabelText('Display settings'));
+    expect(screen.getByLabelText('XY grid plane')).not.toBeChecked();
+    expect(screen.getByLabelText('XZ grid plane')).not.toBeChecked();
+    expect(screen.getByLabelText('YZ grid plane')).not.toBeChecked();
+    await userEvent.click(screen.getByLabelText('XZ grid plane'));
+    expect(useAppStore.getState().prefs.gridPlaneXZ).toBe(true);
+    expect(useAppStore.getState().prefs.gridPlaneXY).toBe(false);
+    expect(useAppStore.getState().prefs.gridPlaneYZ).toBe(false);
+    expect(JSON.parse(window.localStorage.getItem('phys-viz:prefs')!).gridPlaneXZ).toBe(true);
+  });
+
   it('toggling 2D-only patches transient ui state, not prefs (ADR 0011/0012)', async () => {
     render(<SettingsMenu />);
     await userEvent.click(screen.getByLabelText('Display settings'));

@@ -42,7 +42,16 @@ export interface AppState {
     lockTo2D: boolean;
   };
   /** Viewer display preferences (ADR 0009, §13) — persisted locally, not per-module. */
-  prefs: { upAxis: 'y' | 'z'; theme: 'light' | 'dark'; projector: boolean; showGrid: boolean };
+  prefs: {
+    upAxis: 'y' | 'z';
+    theme: 'light' | 'dark';
+    projector: boolean;
+    showGrid: boolean;
+    /** Per-plane reference grid planes (xy/xz/yz), independent of `showGrid`. Each opt-in, default false. */
+    gridPlaneXY: boolean;
+    gridPlaneXZ: boolean;
+    gridPlaneYZ: boolean;
+  };
 }
 
 export const DEFAULT_CAMERA: AppState['camera'] = {
@@ -67,6 +76,9 @@ export const DEFAULT_PREFS: AppState['prefs'] = {
   theme: 'light',
   projector: false,
   showGrid: true,
+  gridPlaneXY: false,
+  gridPlaneXZ: false,
+  gridPlaneYZ: false,
 };
 
 export const DEFAULT_APP_STATE: AppState = {

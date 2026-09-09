@@ -25,6 +25,9 @@ export interface CaptureGifOptions {
   camera: CameraState;
   upAxis: UpAxis;
   showGrid: boolean;
+  gridPlaneXY: boolean;
+  gridPlaneXZ: boolean;
+  gridPlaneYZ: boolean;
   stepDt: number;
   /** Export window: [startT, startT + durationSeconds). */
   startT: number;
@@ -61,6 +64,9 @@ export async function captureGif(opts: CaptureGifOptions): Promise<Uint8Array> {
     projectorMode: true,
     reducedMotion: true,
     showGrid: opts.showGrid,
+    gridPlaneXY: opts.gridPlaneXY,
+    gridPlaneXZ: opts.gridPlaneXZ,
+    gridPlaneYZ: opts.gridPlaneYZ,
   });
   viewport.stopLoop();
   viewport.resizeTo(opts.width, opts.height);

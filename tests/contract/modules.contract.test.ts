@@ -276,7 +276,15 @@ describe('module contract', () => {
               panelsOpen: [],
               lockTo2D: true,
             },
-            prefs: { upAxis: 'y', theme: 'light', projector: false, showGrid: true },
+            prefs: {
+              upAxis: 'y',
+              theme: 'light',
+              projector: false,
+              showGrid: true,
+              gridPlaneXY: false,
+              gridPlaneXZ: false,
+              gridPlaneYZ: false,
+            },
           },
           codecCtx,
         );
@@ -323,6 +331,9 @@ describe('module contract', () => {
             theme: 'light' as const,
             projector: false,
             showGrid: true,
+            gridPlaneXY: false,
+            gridPlaneXZ: false,
+            gridPlaneYZ: false,
           },
         };
         const decoded = decodeState(encodeState(state, codecCtx), codecCtx);

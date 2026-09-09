@@ -29,6 +29,8 @@ import { worldUnitsPerPixel } from './internal/screenSpace';
 import { getProjectorAdjustments } from './theme';
 import { createAxes } from './glyphs/axes';
 import type { AxesHandle } from './glyphs/axes';
+import { createGridPlane } from './glyphs/gridPlane';
+import type { GridPlaneHandle, GridPlaneKind } from './glyphs/gridPlane';
 
 export interface ViewportOptions {
   canvas: HTMLCanvasElement;
@@ -43,6 +45,15 @@ export interface ViewportOptions {
    * `LayerDef`. Default true, matching the previous de-facto behavior.
    */
   showGrid?: boolean;
+  /**
+   * Per-plane reference grid planes (xy/xz/yz), independent of
+   * `showGrid`'s axes+ticks: also shell/Viewport-owned, driven by the
+   * global settings menu (`prefs.gridPlaneXY`/`XZ`/`YZ`). Each defaults
+   * to false — opt-in, unlike `showGrid`.
+   */
+  gridPlaneXY?: boolean;
+  gridPlaneXZ?: boolean;
+  gridPlaneYZ?: boolean;
 }
 
 export interface PickHit {
@@ -95,6 +106,7 @@ export class Viewport {
   private readonly pickScratchVec3 = new THREE.Vector3();
   private readonly pickScratchVec2 = new THREE.Vector2();
   private readonly gridHandle: AxesHandle;
+  private readonly gridPlaneHandles: Record<GridPlaneKind, GridPlaneHandle>;
 
   private readonly renderOnDemand: boolean;
   private dirty = true;
@@ -167,6 +179,18 @@ export class Viewport {
     // menu (`prefs.showGrid`, applied via setGridVisible below).
     this.gridHandle = createAxes({ extent: 5 }, host);
     this.gridHandle.visible(options.showGrid ?? true);
+
+    // Per-plane grid planes (opt-in, default off) — same shell-owned
+    // treatment as gridHandle above, built directly against the scene
+    // root rather than any module's group.
+    this.gridPlaneHandles = {
+      xy: createGridPlane('xy', { extent: 5 }, host),
+      xz: createGridPlane('xz', { extent: 5 }, host),
+      yz: createGridPlane('yz', { extent: 5 }, host),
+    };
+    this.gridPlaneHandles.xy.visible(options.gridPlaneXY ?? false);
+    this.gridPlaneHandles.xz.visible(options.gridPlaneXZ ?? false);
+    this.gridPlaneHandles.yz.visible(options.gridPlaneYZ ?? false);
 
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
     this.resizeObserver.observe(this.canvas);
@@ -250,6 +274,12 @@ export class Viewport {
   /** Global reference-grid toggle (ADR 0011, §9 settings menu). */
   setGridVisible(visible: boolean): void {
     this.gridHandle.visible(visible);
+    this.requestRender();
+  }
+
+  /** Per-plane reference grid toggle (§9 settings menu). */
+  setGridPlaneVisible(kind: GridPlaneKind, visible: boolean): void {
+    this.gridPlaneHandles[kind].visible(visible);
     this.requestRender();
   }
 
@@ -418,6 +448,7 @@ export class Viewport {
     this.disposed = true;
     cancelAnimationFrame(this.frameId);
     this.gridHandle.dispose();
+    for (const handle of Object.values(this.gridPlaneHandles)) handle.dispose();
     this.resizeObserver.disconnect();
     this.cameraChangeUnsub();
     this.camera.dispose();

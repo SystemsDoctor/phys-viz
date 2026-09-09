@@ -35,9 +35,13 @@ export function GifExportPanel(props: {
   getCamera: () => CameraState;
   upAxis: UpAxis;
   showGrid: boolean;
+  gridPlaneXY: boolean;
+  gridPlaneXZ: boolean;
+  gridPlaneYZ: boolean;
   stepDt: number;
 }): React.ReactElement {
-  const { module, getCamera, upAxis, showGrid, stepDt } = props;
+  const { module, getCamera, upAxis, showGrid, gridPlaneXY, gridPlaneXZ, gridPlaneYZ, stepDt } =
+    props;
   const isStatic = module.manifest.timeModel === 'static';
 
   const [durationSeconds, setDurationSeconds] = React.useState(3);
@@ -68,6 +72,9 @@ export function GifExportPanel(props: {
         camera: getCamera(),
         upAxis,
         showGrid,
+        gridPlaneXY,
+        gridPlaneXZ,
+        gridPlaneYZ,
         stepDt,
         startT: s.time.t,
         durationSeconds,

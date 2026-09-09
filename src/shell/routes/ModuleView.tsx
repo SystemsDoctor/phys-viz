@@ -243,6 +243,9 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       upAxis: useAppStore.getState().prefs.upAxis,
       projectorMode: useAppStore.getState().prefs.projector,
       showGrid: useAppStore.getState().prefs.showGrid,
+      gridPlaneXY: useAppStore.getState().prefs.gridPlaneXY,
+      gridPlaneXZ: useAppStore.getState().prefs.gridPlaneXZ,
+      gridPlaneYZ: useAppStore.getState().prefs.gridPlaneYZ,
       reducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
     });
     viewportRef.current = viewport;
@@ -385,6 +388,9 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     let lastUpAxis = useAppStore.getState().prefs.upAxis;
     let lastProjector = useAppStore.getState().prefs.projector;
     let lastShowGrid = useAppStore.getState().prefs.showGrid;
+    let lastGridPlaneXY = useAppStore.getState().prefs.gridPlaneXY;
+    let lastGridPlaneXZ = useAppStore.getState().prefs.gridPlaneXZ;
+    let lastGridPlaneYZ = useAppStore.getState().prefs.gridPlaneYZ;
     let lastLockTo2D = useAppStore.getState().ui.lockTo2D;
     return useAppStore.subscribe((s) => {
       const viewport = viewportRef.current;
@@ -400,6 +406,18 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       if (s.prefs.showGrid !== lastShowGrid) {
         lastShowGrid = s.prefs.showGrid;
         viewport.setGridVisible(s.prefs.showGrid);
+      }
+      if (s.prefs.gridPlaneXY !== lastGridPlaneXY) {
+        lastGridPlaneXY = s.prefs.gridPlaneXY;
+        viewport.setGridPlaneVisible('xy', s.prefs.gridPlaneXY);
+      }
+      if (s.prefs.gridPlaneXZ !== lastGridPlaneXZ) {
+        lastGridPlaneXZ = s.prefs.gridPlaneXZ;
+        viewport.setGridPlaneVisible('xz', s.prefs.gridPlaneXZ);
+      }
+      if (s.prefs.gridPlaneYZ !== lastGridPlaneYZ) {
+        lastGridPlaneYZ = s.prefs.gridPlaneYZ;
+        viewport.setGridPlaneVisible('yz', s.prefs.gridPlaneYZ);
       }
       if (s.ui.lockTo2D !== lastLockTo2D) {
         lastLockTo2D = s.ui.lockTo2D;
@@ -897,6 +915,9 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
               getCamera={() => viewportRef.current?.camera.getState() ?? state.camera}
               upAxis={state.prefs.upAxis}
               showGrid={state.prefs.showGrid}
+              gridPlaneXY={state.prefs.gridPlaneXY}
+              gridPlaneXZ={state.prefs.gridPlaneXZ}
+              gridPlaneYZ={state.prefs.gridPlaneYZ}
               stepDt={stepDt}
             />
             {explainSource && <ExplainPanel source={explainSource} />}

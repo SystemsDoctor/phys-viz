@@ -15,7 +15,12 @@
  * "Reference grid" is a genuine persisted pref (`prefs.showGrid`,
  * same treatment as up-axis/theme/projector: persisted locally via
  * ./prefsStorage, M3-42, and serialized into the URL only when it
- * differs from default — urlCodec's gr=). "2D-only" is deliberately NOT
+ * differs from default — urlCodec's gr=). The three per-plane grid
+ * toggles (`prefs.gridPlaneXY`/`XZ`/`YZ`) are separate, opt-in
+ * (default false) prefs with the same persisted/URL'd treatment
+ * (urlCodec's gxy=/gxz=/gyz=) — each shows a light grid confined to
+ * that coordinate plane, independent of "Reference grid"'s axes+ticks.
+ * "2D-only" is deliberately NOT
  * persisted/URL'd (`ui.lockTo2D`) — same transient-per-visit shape as
  * presenter/predict mode. Checked (the default, ADR 0012) restricts
  * EVERY module to a locked, orthographic x/y-plane view; unchecking it
@@ -88,6 +93,30 @@ export function SettingsMenu(): React.ReactElement {
               type="checkbox"
               checked={prefs.showGrid}
               onChange={(e) => patch({ showGrid: e.target.checked })}
+            />
+          </label>
+          <label className="pv-settings__row">
+            <span>XY grid plane</span>
+            <input
+              type="checkbox"
+              checked={prefs.gridPlaneXY}
+              onChange={(e) => patch({ gridPlaneXY: e.target.checked })}
+            />
+          </label>
+          <label className="pv-settings__row">
+            <span>XZ grid plane</span>
+            <input
+              type="checkbox"
+              checked={prefs.gridPlaneXZ}
+              onChange={(e) => patch({ gridPlaneXZ: e.target.checked })}
+            />
+          </label>
+          <label className="pv-settings__row">
+            <span>YZ grid plane</span>
+            <input
+              type="checkbox"
+              checked={prefs.gridPlaneYZ}
+              onChange={(e) => patch({ gridPlaneYZ: e.target.checked })}
             />
           </label>
           <label className="pv-settings__row">

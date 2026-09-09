@@ -12,8 +12,24 @@ describe('prefsStorage', () => {
   });
 
   it('round-trips a saved value', () => {
-    savePrefs({ upAxis: 'z', theme: 'dark', projector: true, showGrid: false });
-    expect(loadPrefs()).toEqual({ upAxis: 'z', theme: 'dark', projector: true, showGrid: false });
+    savePrefs({
+      upAxis: 'z',
+      theme: 'dark',
+      projector: true,
+      showGrid: false,
+      gridPlaneXY: true,
+      gridPlaneXZ: false,
+      gridPlaneYZ: true,
+    });
+    expect(loadPrefs()).toEqual({
+      upAxis: 'z',
+      theme: 'dark',
+      projector: true,
+      showGrid: false,
+      gridPlaneXY: true,
+      gridPlaneXZ: false,
+      gridPlaneYZ: true,
+    });
   });
 
   it('falls back to defaults for malformed stored JSON', () => {

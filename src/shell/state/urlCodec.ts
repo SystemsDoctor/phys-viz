@@ -172,6 +172,9 @@ export function encodeState(state: AppState, ctx: CodecContext): string {
   if (state.prefs.projector !== DEFAULT_PREFS.projector) query.set('pj', '1');
   if (state.prefs.showGrid !== DEFAULT_PREFS.showGrid)
     query.set('gr', state.prefs.showGrid ? '1' : '0');
+  if (state.prefs.gridPlaneXY !== DEFAULT_PREFS.gridPlaneXY) query.set('gxy', '1');
+  if (state.prefs.gridPlaneXZ !== DEFAULT_PREFS.gridPlaneXZ) query.set('gxz', '1');
+  if (state.prefs.gridPlaneYZ !== DEFAULT_PREFS.gridPlaneYZ) query.set('gyz', '1');
 
   const full = `?${query.toString()}`;
   if (full.length <= MAX_LENGTH) return full;
@@ -239,11 +242,17 @@ export function decodeState(search: string, ctx: CodecContext): DecodedState {
   const th = query.get('th');
   const pj = query.get('pj');
   const gr = query.get('gr');
+  const gxy = query.get('gxy');
+  const gxz = query.get('gxz');
+  const gyz = query.get('gyz');
   out.prefs = {
     upAxis: up === 'z' ? 'z' : DEFAULT_PREFS.upAxis,
     theme: th === 'dark' ? 'dark' : DEFAULT_PREFS.theme,
     projector: pj === '1',
     showGrid: gr === null ? DEFAULT_PREFS.showGrid : gr === '1',
+    gridPlaneXY: gxy === '1',
+    gridPlaneXZ: gxz === '1',
+    gridPlaneYZ: gyz === '1',
   };
 
   return out;

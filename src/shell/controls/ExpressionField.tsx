@@ -3,16 +3,18 @@
 // error (with its character offset) inline — never `eval`.
 import React from 'react';
 import { compileExpr, isExprError } from '@/kernel/expr';
+import { Tooltip } from '../Tooltip';
 
 export interface ExpressionFieldProps {
   label: string;
+  help?: string;
   value: string;
   vars: string[];
   onChange: (v: string) => void;
 }
 
 export function ExpressionField(props: ExpressionFieldProps): React.ReactElement {
-  const { label, value, vars, onChange } = props;
+  const { label, help, value, vars, onChange } = props;
   const id = React.useId();
   const result = compileExpr(value, vars);
   const error = isExprError(result) ? result : null;
@@ -20,7 +22,7 @@ export function ExpressionField(props: ExpressionFieldProps): React.ReactElement
   return (
     <div className="pv-field">
       <label className="pv-field__label" htmlFor={id}>
-        {label}
+        {help ? <Tooltip text={help}>{label}</Tooltip> : label}
       </label>
       <input
         id={id}

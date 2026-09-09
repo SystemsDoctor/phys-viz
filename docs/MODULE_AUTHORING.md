@@ -95,6 +95,25 @@ Explain the physics, not the notation — `"The damping ratio — how
 strongly velocity-proportional drag resists the motion; 1 is critical
 damping"`, not `"The value of zeta"`.
 
+**A param's `help` is the same tooltip, but optional.** `ParamDef.help`
+renders via the identical `Tooltip` component next to a control's own
+label in the params panel, not just in the readout table. Unlike
+`ScalarDef.description`, this is genuinely optional and NOT
+contract-enforced — `npm run test:contract` does not require it, and
+most params should skip it. A label like "Mass" or "Gravity strength"
+already says what the control does; a tooltip there is noise, not help.
+Add `help` only when something about the param isn't obvious from its
+label and control alone: a non-standard sign convention, a param that
+only takes effect in combination with something else, or a physical
+consequence worth calling out (`oscillations`'s damping-coefficient
+param: `"Viscous damping — zero is undamped (resonance amplitude
+diverges as the drive frequency approaches the natural frequency)."`;
+`projectile-motion`'s launch-speed param: `"Zero speed gives a pure
+free-fall — the body drops straight down under gravity alone, with no
+horizontal motion."`). If you find yourself writing `help` on every
+param in a module, that's a sign the params themselves need clearer
+labels, not more tooltips.
+
 **Mark exactly the scalar you want as the default plot, not every
 candidate.** `plottable: true` on more than one scalar doesn't offer a
 picker — the shell always uses the FIRST `plottable` scalar in array
@@ -262,6 +281,9 @@ Copy-paste this when starting a module:
 - [ ] `params.ts`: params, layers, scalars declared as data
 - [ ] Every scalar has a `description` (ADR 0014) — `npm run
       test:contract` fails otherwise
+- [ ] Any param whose meaning isn't obvious from its label alone has a
+      `help` string (not contract-enforced — a judgment call, not every
+      param needs one)
 - [ ] `create()` builds every handle once; `update()` only calls
       `.set()`/`.visible()` on them; `dispose()` releases every one
 - [ ] Any notion of "vertical" reads `ctx.up`, not a hardcoded axis

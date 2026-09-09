@@ -22,4 +22,22 @@ describe('Select', () => {
     await userEvent.selectOptions(select, 'para');
     expect(onChange).toHaveBeenCalledWith('para');
   });
+
+  it('wraps the label in a Tooltip only when help is given', () => {
+    const { rerender } = render(
+      <Select label="Style" value="a" options={[{ value: 'a', label: 'A' }]} onChange={vi.fn()} />,
+    );
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    rerender(
+      <Select
+        label="Style"
+        help="Only affects the drawn line."
+        value="a"
+        options={[{ value: 'a', label: 'A' }]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Only affects the drawn line.');
+  });
 });

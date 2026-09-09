@@ -1776,6 +1776,43 @@ run test:unit` (545 tests) `&& npm run test:contract` (178 passed/12
 - [DONE] **ADR-8** → [`0009-y-up-default-with-up-axis-toggle.md`](docs/adr/0009-y-up-default-with-up-axis-toggle.md). **y-up by default** (matches three.js; puts a 2D module's xy-plane straight on screen with `x` right, `y` up, composing with ADR 0007's locked ortho), **user-switchable to z-up** from a **global app settings menu**. The up axis is a scene-level convention exposed as **`ctx.up`**: the camera up vector, presets, and "iso" follow it, modules with a notion of vertical read it, orientation-free modules ignore it. Both conventions stay right-handed (ADR 0008). A `SceneContext` addition, **not** a `types.ts` change — no `MODULE_CONTRACT_VERSION` bump. Unblocks **M2-5**, adds **M2-21**, **M3-41**, **M3-42**, **M4-10**
 - [READY] **ADR-10+** Module-specific sign conventions that handedness does not imply — the sign of a bending moment, the direction of positive heel angle. One ADR per non-obvious choice, written as it arises. First instance landed as part of **M6-3**: [`0013-outward-normal-for-closed-surface-flux.md`](docs/adr/0013-outward-normal-for-closed-surface-flux.md), documenting the outward-normal parametrization `fields-gradients` already relies on for its divergence-theorem demonstration. Stays open for whichever comes next (bending moment, heel angle, or another)
 - [DONE] **ADR-14** → [`0014-scalar-description-tooltips.md`](docs/adr/0014-scalar-description-tooltips.md). **`ScalarDef.description` is now a required, contract-enforced tooltip** for every readout scalar — a hover/focus-accessible `Tooltip` component (`src/shell/Tooltip.tsx`) explains what a variable like `\zeta` or `A(\Omega)` actually means, fulfilling §16's previously-unimplemented "presenter mode suppresses tooltips" line for the first time. `MODULE_CONTRACT_VERSION` bumps 3 → 4. Every existing module backfilled; `tests/contract` now fails a module missing one. Unblocks nothing further; leaves `ParamDef.help` (a related, still-dead field) as an open follow-up
+- [DONE] **Follow-up to ADR-14: wire up `ParamDef.help`** Closes the
+  open follow-up ADR-14 itself named: `ParamDef.help` was set by five
+  modules (`oscillations`, `projectile-motion`, `non-inertial-frames`,
+  `rotational-dynamics`, `momentum-collisions`) but never read anywhere
+  in `src/shell` — dead data, the params-panel twin of the readout
+  table's `ScalarDef.description` gap ADR-14 fixed. Wired it into the
+  same `Tooltip` component (`src/shell/Tooltip.tsx`) ADR-14 built,
+  threaded through every control (`Slider`, `VectorPad`, `Toggle`,
+  `Select`, `ExpressionField`, `AngleDial`) via a new `help?: string`
+  prop each accepts and `ParamControl`'s dispatch (`shell/params/
+index.tsx`) now passes through from `ParamDef.help`. Each control
+  wraps its own existing label text in `<Tooltip>` only when `help` is
+  given, degrading to today's plain label otherwise — no visual change
+  for the many params that don't set it. Deliberately left **optional
+  and NOT contract-enforced**, unlike `ScalarDef.description`: most
+  params are already self-explanatory from their `label` ("Mass",
+  "Gravity strength"), so forcing one everywhere would be noise, not
+  help — documented as a judgment call in `MODULE_AUTHORING.md` §4 and
+  its checklist, not a mechanical requirement. Verified live in the dev
+  server (Browser pane) that a `<button>` (the Tooltip trigger) nested
+  inside `Toggle`'s own `<label for=...>` (which itself wraps the
+  checkbox) does NOT double-fire the checkbox's native label-click
+  forwarding — a real risk with any interactive element nested inside a
+  `<label>` — confirmed both via a new jsdom `userEvent.click` test
+  (`Toggle.test.tsx`) and by clicking the actual rendered tooltip label
+  in a real browser against `momentum-collisions`'s "View in
+  center-of-mass frame" toggle (pre-existing `help` text, now finally
+  visible) and reading `checkbox.checked` before/after — stayed
+  `false`. `.pv-presenter .pv-tooltip__bubble` (ADR-14's own presenter-
+  mode suppression rule) covers these for free, confirmed present in
+  the live stylesheet — no new CSS needed since it targets the shared
+  class, not a readout-specific one. Verified: `npm run typecheck &&
+npm run lint && npm run test:unit` (560 tests, +7 new — one Tooltip-
+  presence/absence test per control plus one routing test in
+  `params/index.test.tsx`) `&& npm run test:contract` (187 passed/12
+  skipped, unaffected — no new contract assertion, by design) `&& npm
+run build` all clean
 
 ## Anticipated extensions (§22) — substrate should not foreclose these; do not build yet
 

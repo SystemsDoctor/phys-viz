@@ -12,4 +12,16 @@ describe('Toggle', () => {
     await userEvent.click(box);
     expect(onChange).toHaveBeenCalledWith(true);
   });
+
+  it('renders a Tooltip next to the label when help is given, without double-toggling the checkbox on click', async () => {
+    const onChange = vi.fn();
+    render(<Toggle label="Show axes" help="Toggles the reference grid." value={false} onChange={onChange} />);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Toggles the reference grid.');
+
+    // The Tooltip's own trigger button is nested inside this control's
+    // <label> — clicking it must not ALSO fire the label's native
+    // click-forwarding to the checkbox it wraps.
+    await userEvent.click(screen.getByRole('button'));
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

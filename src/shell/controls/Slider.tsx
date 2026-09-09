@@ -1,8 +1,10 @@
 // Renders a `kind: 'number'` ParamDef, including logScale support.
 import React from 'react';
+import { Tooltip } from '../Tooltip';
 
 export interface SliderProps {
   label: string;
+  help?: string;
   min: number;
   max: number;
   step: number;
@@ -25,15 +27,16 @@ function fromSliderT(t: number, min: number, max: number): number {
 }
 
 export function Slider(props: SliderProps): React.ReactElement {
-  const { label, min, max, step, value, logScale, onChange } = props;
+  const { label, help, min, max, step, value, logScale, onChange } = props;
   const id = React.useId();
+  const labelText = help ? <Tooltip text={help}>{label}</Tooltip> : label;
 
   if (logScale) {
     const t = toSliderT(value, min, max);
     return (
       <div className="pv-field">
         <label className="pv-field__label" htmlFor={id}>
-          <span>{label}</span>
+          <span>{labelText}</span>
           <span className="pv-field__value">{value.toPrecision(3)}</span>
         </label>
         <input
@@ -53,7 +56,7 @@ export function Slider(props: SliderProps): React.ReactElement {
   return (
     <div className="pv-field">
       <label className="pv-field__label" htmlFor={id}>
-        <span>{label}</span>
+        <span>{labelText}</span>
         <span className="pv-field__value">{value}</span>
       </label>
       <input

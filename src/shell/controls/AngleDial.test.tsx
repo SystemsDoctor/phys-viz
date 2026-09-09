@@ -56,4 +56,14 @@ describe('AngleDial', () => {
     );
     expect(onChange).toHaveBeenCalledWith(1);
   });
+
+  it('wraps the label in a Tooltip only when help is given', () => {
+    const { rerender } = render(<AngleDial label="Angle" value={0} onChange={vi.fn()} />);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    rerender(
+      <AngleDial label="Angle" help="Measured from the +x axis." value={0} onChange={vi.fn()} />,
+    );
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Measured from the +x axis.');
+  });
 });

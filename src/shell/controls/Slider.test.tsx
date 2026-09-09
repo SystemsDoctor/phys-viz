@@ -12,6 +12,26 @@ describe('Slider', () => {
     expect(onChange).toHaveBeenCalledWith(7);
   });
 
+  it('wraps the label in a Tooltip when help is given, and renders it plain otherwise', () => {
+    const { rerender } = render(
+      <Slider label="Damping" min={0} max={1} step={0.1} value={0.5} onChange={vi.fn()} />,
+    );
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    rerender(
+      <Slider
+        label="Damping"
+        help="Zero is undamped."
+        min={0}
+        max={1}
+        step={0.1}
+        value={0.5}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Zero is undamped.');
+  });
+
   it('logScale maps the 0..1 slider position through log-interpolation between min/max', () => {
     const onChange = vi.fn();
     // value=10 renders at t=0.5 (log-midpoint of 1..100); move to t=1 (max)

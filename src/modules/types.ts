@@ -101,6 +101,17 @@ interface ParamBase {
   forLayer?: string;
   /** KaTeX shown next to the label, e.g. '\\vec{a}'. */
   symbol?: string;
+  /**
+   * One plain-English sentence explaining a non-obvious param — shown
+   * as the same hover/focus `Tooltip` (`src/shell/Tooltip.tsx`) that
+   * `ScalarDef.description` uses (ADR 0014). Optional and NOT
+   * contract-enforced, unlike `ScalarDef.description`: most params are
+   * self-explanatory from their `label` alone ("Mass", "Gravity
+   * strength"), so a tooltip on every one would be noise. Add one only
+   * when a param's meaning, convention, or effect genuinely isn't
+   * obvious from its label and control alone — see
+   * `docs/MODULE_AUTHORING.md` §4 for guidance and examples.
+   */
   help?: string;
 }
 

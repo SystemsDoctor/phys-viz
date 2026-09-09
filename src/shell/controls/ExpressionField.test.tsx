@@ -26,4 +26,22 @@ describe('ExpressionField', () => {
     render(<ExpressionField label="f(x)" value="y + 1" vars={['x']} onChange={vi.fn()} />);
     expect(screen.getByLabelText('f(x)')).toHaveAttribute('aria-invalid', 'true');
   });
+
+  it('wraps the label in a Tooltip only when help is given', () => {
+    const { rerender } = render(
+      <ExpressionField label="f(x)" value="x" vars={['x']} onChange={vi.fn()} />,
+    );
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    rerender(
+      <ExpressionField
+        label="f(x)"
+        help="A function of x only."
+        value="x"
+        vars={['x']}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('tooltip')).toHaveTextContent('A function of x only.');
+  });
 });

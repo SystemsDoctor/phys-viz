@@ -25,6 +25,7 @@ export function ParamControl(props: {
       return (
         <Slider
           label={def.label}
+          help={def.help}
           min={def.min}
           max={def.max}
           step={def.step}
@@ -37,17 +38,21 @@ export function ParamControl(props: {
       return (
         <VectorPad
           label={def.label}
+          help={def.help}
           value={value as [number, number, number]}
           range={def.range}
           onChange={onChange}
         />
       );
     case 'toggle':
-      return <Toggle label={def.label} value={value as boolean} onChange={onChange} />;
+      return (
+        <Toggle label={def.label} help={def.help} value={value as boolean} onChange={onChange} />
+      );
     case 'select':
       return (
         <Select
           label={def.label}
+          help={def.help}
           value={value as string}
           options={def.options}
           onChange={onChange}
@@ -57,6 +62,7 @@ export function ParamControl(props: {
       return (
         <ExpressionField
           label={def.label}
+          help={def.help}
           value={value as string}
           vars={def.vars}
           onChange={onChange}
@@ -66,6 +72,7 @@ export function ParamControl(props: {
       return (
         <AngleDial
           label={def.label}
+          help={def.help}
           value={value as number}
           min={def.min}
           max={def.max}

@@ -128,17 +128,44 @@ function formatDimensionlessMantissa(absValue: number, sigFigs: number): string 
   return str;
 }
 
+/**
+ * Below this magnitude, a value is display-indistinguishable from
+ * floating-point noise for every quantity this app models (undergraduate
+ * mechanics — nothing here is ever intentionally sub-nanometer or
+ * sub-nanosecond) and is shown as exact zero instead of being routed
+ * through the SI-prefix ladder.
+ *
+ * Without this floor, a quantity that is mathematically exactly zero at
+ * a specific instant — e.g. a closed-form velocity at a turning point,
+ * `-A * omega * Math.sin(omega * t)` — but lands on floating-point trig
+ * residue instead (`Math.sin` of a float64 approximation of a multiple
+ * of pi is essentially never exactly 0; e.g. `Math.sin(Math.PI)` is
+ * `1.2246...e-16`, not `0`) gets formatted at whatever absurd
+ * atto/zepto/yocto scale that residue happens to land in. Since the
+ * residue's MANTISSA (after dividing out that scale) is essentially
+ * arbitrary within [1, 1000), it can print as a 2-3 digit number that
+ * reads as "large" at a glance if the reader doesn't parse the
+ * accompanying prefix letter — reported live as "the reported velocity
+ * becomes a value in the hundreds" right where it should visibly settle
+ * near zero (work-energy's `speed` readout near the turning points).
+ */
+const ZERO_EPSILON = 1e-9;
+
 /** Format with SI prefixes and significant-figure control, at a fixed character width. */
 export function formatQuantity(q: Quantity, sigFigs = 3): string {
   const sign = q.value < 0 ? '-' : ' ';
   const absValue = Math.abs(q.value);
   const isDimensionless = dimEquals(q.dim, DIMENSIONLESS);
 
-  if (absValue === 0) {
+  if (absValue < ZERO_EPSILON) {
+    // No leading '-' here even if q.value was a tiny negative residue —
+    // anything this close to zero is display-indistinguishable from it,
+    // and a "-0.00" reading would look like a real (if oddly-signed)
+    // measurement rather than the "may as well be exactly zero" it is.
     const mantissaStr = (0).toFixed(Math.max(0, sigFigs - 1)).padEnd(sigFigs + 1, ' ');
     return isDimensionless
-      ? `${sign}${mantissaStr.trimEnd()}`
-      : `${sign}${mantissaStr}${SI_PREFIXES[0] || ' '}`;
+      ? ` ${mantissaStr.trimEnd()}`
+      : ` ${mantissaStr}${SI_PREFIXES[0] || ' '}`;
   }
 
   if (isDimensionless) {

@@ -1527,6 +1527,46 @@ check:budget` (10 module chunks, largest `rotational-dynamics` at 4.77
   Only the `oscillations` comment asserting the (wrong) safe-precedent
   claim was corrected in this change; the underlying behavior in all
   three modules is unchanged.
+- [DONE] **X-23** User-reported: `work-energy`'s "Speed" readout showed
+  values "in the hundreds" right where speed should visibly settle near
+  zero, at the potential surface's turning points. Root cause was in
+  `kernel/units`'s `formatQuantity`, not `work-energy`'s physics: a
+  quantity that is mathematically exactly zero at a specific instant
+  (e.g. `v = -A*omega*Math.sin(omega*t)` at a turning point, where
+  `omega*t` is a multiple of pi) almost never computes to bit-for-bit
+  `0` — `Math.sin` of a float64 APPROXIMATION of a multiple of pi is
+  essentially never exactly `0` (`Math.sin(Math.PI)` is
+  `1.2246...e-16`). The old code only special-cased `absValue === 0`;
+  any nonzero residue, however microscopic, fell through to the normal
+  SI-prefix ladder, which happily scales it down to whatever
+  atto/zepto/yocto exponent it lands in — and since the residue's
+  MANTISSA (value divided by that exponent) is essentially arbitrary
+  within `[1, 1000)`, it can print as an innocent-looking 2-3 digit
+  number (e.g. "122 a", 1.2e-16 misread at a glance as "122") right
+  where a reader expects to see zero. Fixed with a new `ZERO_EPSILON =
+  1e-9` floor: any magnitude below it (display-indistinguishable from
+  floating-point noise for every quantity this app models — nothing
+  here is intentionally sub-nanometer or sub-nanosecond) now renders as
+  exact `"0.00"` instead of being routed through the prefix ladder.
+  This is a kernel-level fix, not module-specific — it applies to every
+  scalar in every module that legitimately crosses zero (any
+  `parametric` oscillator's velocity/position, not just
+  `work-energy`'s). One existing test's expectation changed
+  deliberately as part of the fix: `1e-30` used to assert a 'y' (yocto)
+  prefix just to prove the top-end clamp didn't throw; it now asserts
+  `"0.00"`, which is the actually-correct reading for a value that
+  small in this app's domain. Verified: `kernel/units/index.test.ts`
+  (27 tests, 3 new — the updated bottom-clamp case, a value just above
+  the floor still resolving normally to "10.0n", and a regression test
+  using the literal `Math.sin(Math.PI)` residue) and a new
+  `work-energy/module.test.ts` case reproducing the exact reported
+  scenario end-to-end (a turning-point `speed` scalar formatted via
+  `formatQuantity` reads `"0.00"`, not noise) — both green;
+  `npm run test:unit` and `test:contract` unaffected; live in the dev
+  server (Browser pane) scrubbing `work-energy` near its turning points
+  shows small, correctly-scaled milli-range readings (e.g. "4.81m" =
+  0.00481 J), not an absurd reading, confirming the fix doesn't
+  overreach into legitimately small nonzero values
 - [DONE] **Enhancement: Driven Damped Oscillations — sidebar plot,
   spring visual, tooltips** User-requested (not from the M7+ backlog),
   three changes: (1) The sidebar's live time-series plot was showing

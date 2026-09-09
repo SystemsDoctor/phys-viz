@@ -5,6 +5,7 @@
 // that's specific to this module.
 import { describe, it, expect } from 'vitest';
 import type { SceneContext } from '@/scene/SceneContext';
+import { formatQuantity, VELOCITY } from '@/kernel/units';
 import module from './index';
 import type { ModuleState } from '../types';
 
@@ -90,6 +91,31 @@ describe(module.manifest.id, () => {
     const deltaKE = later.KE - start.KE;
     const deltaPE = later.PE - start.PE;
     expect(deltaKE).toBeCloseTo(-deltaPE, 8);
+  });
+
+  it('a turning-point speed reads as exact "0.00" in the readout, not floating-point trig noise misread as a large number (regression)', () => {
+    // Reported live: the sidebar's "Speed" readout showed values "in the
+    // hundreds" right where speed should visibly settle near zero, at
+    // the ends of the potential surface (the turning points). Root
+    // cause: v = -A*omega*Math.sin(omega*t) is exactly 0 mathematically
+    // at a turning point (omega*t = a multiple of pi), but Math.sin of
+    // a float64 APPROXIMATION of pi is essentially never exactly 0
+    // (Math.sin(Math.PI) = 1.2246...e-16) — kernel/units' formatQuantity
+    // used to route that residue through the SI-prefix ladder into an
+    // absurd atto/zepto/yocto scale whose mantissa could print as a
+    // misleadingly large-looking 2-3 digit number.
+    const instance = module.create(fakeCtx);
+    const mass = 1;
+    const k = 10;
+    const A = 1.5;
+    const omega = Math.sqrt(k / mass);
+    const halfPeriod = Math.PI / omega; // a turning point: x = -A, v should be exactly 0
+
+    const { speed } = instance.scalars(stateAt(halfPeriod, mass, k, A));
+    // The raw closed-form value may still carry a tiny non-zero residue
+    // — that's fine and expected; what must be fixed is the READOUT.
+    expect(speed).toBeLessThan(1e-9);
+    expect(formatQuantity({ value: speed, dim: VELOCITY }).trim()).toBe('0.00');
   });
 
   it('larger amplitude raises the total energy but leaves the period unchanged (SHM)', () => {

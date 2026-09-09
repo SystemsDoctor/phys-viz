@@ -128,9 +128,28 @@ describe('formatQuantity', () => {
     expect(() => U.formatQuantity({ value: 1e30, dim: LENGTH })).not.toThrow();
   });
 
-  it('clamps the prefix at the bottom of the supported range instead of throwing', () => {
+  it('treats a value below the floating-point noise floor as exact zero, not an absurd yocto-scale reading', () => {
+    // Regression: this used to clamp to the bottom of the SI-prefix
+    // ladder ('y', yocto) and print "1.00y" — technically non-throwing,
+    // but a value this small is never a genuine reading for anything
+    // this app models, only floating-point residue (see the next test).
     const s = U.formatQuantity({ value: 1e-30, dim: LENGTH });
-    expect(s).toContain('y');
+    expect(s.trim()).toBe('0.00');
+  });
+
+  it('a value just above the noise floor still resolves through the normal prefix ladder', () => {
+    const s = U.formatQuantity({ value: 1e-8, dim: LENGTH });
+    expect(s.trim()).toBe('10.0n');
+  });
+
+  it('collapses floating-point trig residue near a mathematical zero to "0.00" (regression: used to print as a misleadingly large-looking mantissa)', () => {
+    // Math.sin(Math.PI) is 1.2246...e-16, not exactly 0 — float64 can't
+    // represent true pi exactly. Reported live: work-energy's `speed`
+    // readout (-A*omega*Math.sin(omega*t)) showing "in the hundreds"
+    // right at a turning point, where it should read ~0.
+    const residue = Math.sin(Math.PI);
+    const s = U.formatQuantity({ value: residue, dim: VELOCITY });
+    expect(s.trim()).toBe('0.00');
   });
 
   describe('DIMENSIONLESS quantities', () => {

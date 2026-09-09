@@ -10,6 +10,7 @@ import React from 'react';
 import type { ScalarDef } from '@/modules/types';
 import { formatQuantity, DIMENSIONLESS } from '@/kernel/units';
 import { MathSpan } from '../MathSpan';
+import { Tooltip } from '../Tooltip';
 
 export function ReadoutTable(props: {
   defs: ScalarDef[];
@@ -28,10 +29,15 @@ export function ReadoutTable(props: {
             value: value ?? NaN,
             dim: def.unit ?? DIMENSIONLESS,
           });
+          const labelContent = def.symbol ? <MathSpan latex={def.symbol} /> : def.label;
           return (
             <tr key={def.key}>
               <td className="pv-readouts__label">
-                {def.symbol ? <MathSpan latex={def.symbol} /> : def.label}
+                {def.description ? (
+                  <Tooltip text={def.description}>{labelContent}</Tooltip>
+                ) : (
+                  labelContent
+                )}
               </td>
               <td className="pv-readouts__value">{formatted}</td>
             </tr>

@@ -88,10 +88,42 @@ export const layers: LayerDef[] = [
 ];
 
 export const scalars: ScalarDef[] = [
-  { key: 'v1', label: 'Velocity 1', symbol: 'v_1', unit: VELOCITY, readout: true, plottable: true },
-  { key: 'v2', label: 'Velocity 2', symbol: 'v_2', unit: VELOCITY, readout: true, plottable: true },
-  { key: 'p1', label: 'Momentum 1', symbol: 'p_1', unit: MOMENTUM, readout: true, plottable: true },
-  { key: 'p2', label: 'Momentum 2', symbol: 'p_2', unit: MOMENTUM, readout: true, plottable: true },
+  {
+    key: 'v1',
+    label: 'Velocity 1',
+    symbol: 'v_1',
+    unit: VELOCITY,
+    readout: true,
+    plottable: true,
+    description: 'Cart 1’s velocity — its initial value before the collision, its post-collision value after, set by the masses and the restitution coefficient.',
+  },
+  {
+    key: 'v2',
+    label: 'Velocity 2',
+    symbol: 'v_2',
+    unit: VELOCITY,
+    readout: true,
+    plottable: true,
+    description: 'Cart 2’s velocity — its initial value before the collision, its post-collision value after, set by the masses and the restitution coefficient.',
+  },
+  {
+    key: 'p1',
+    label: 'Momentum 1',
+    symbol: 'p_1',
+    unit: MOMENTUM,
+    readout: true,
+    plottable: true,
+    description: 'Cart 1’s momentum, the product of its mass and velocity.',
+  },
+  {
+    key: 'p2',
+    label: 'Momentum 2',
+    symbol: 'p_2',
+    unit: MOMENTUM,
+    readout: true,
+    plottable: true,
+    description: 'Cart 2’s momentum, the product of its mass and velocity.',
+  },
   {
     key: 'pTotal',
     label: 'Total momentum',
@@ -99,6 +131,7 @@ export const scalars: ScalarDef[] = [
     unit: MOMENTUM,
     readout: true,
     plottable: true,
+    description: 'The combined momentum of both carts — conserved through the collision no matter what the restitution coefficient is set to.',
   },
   {
     key: 'KE',
@@ -107,6 +140,7 @@ export const scalars: ScalarDef[] = [
     unit: ENERGY,
     readout: true,
     plottable: true,
+    description: 'The combined kinetic energy of both carts — conserved only when the collision is perfectly elastic; some is lost as the restitution coefficient drops below 1.',
   },
   {
     key: 'vcm',
@@ -115,5 +149,6 @@ export const scalars: ScalarDef[] = [
     unit: VELOCITY,
     readout: true,
     plottable: false,
+    description: 'The velocity of the two-cart system’s center of mass — constant throughout the collision regardless of the restitution coefficient.',
   },
 ];

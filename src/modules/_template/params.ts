@@ -43,5 +43,14 @@ export const params: ParamDef[] = [
 export const layers: LayerDef[] = [{ key: 'main', urlKey: 'm', label: 'Vector', default: true }];
 
 export const scalars: ScalarDef[] = [
-  { key: 'magnitude', label: 'Magnitude', symbol: '|v|', readout: true },
+  {
+    key: 'magnitude',
+    label: 'Magnitude',
+    symbol: '|v|',
+    readout: true,
+    // Every scalar needs a description (ADR 0014) — tests/contract
+    // enforces it. Replace this with a real one-sentence explanation of
+    // what the variable means; don't just describe the symbol.
+    description: 'The length of the example vector.',
+  },
 ];

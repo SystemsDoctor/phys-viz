@@ -1527,6 +1527,45 @@ check:budget` (10 module chunks, largest `rotational-dynamics` at 4.77
   Only the `oscillations` comment asserting the (wrong) safe-precedent
   claim was corrected in this change; the underlying behavior in all
   three modules is unchanged.
+- [DONE] **Enhancement: Driven Damped Oscillations — sidebar plot,
+  spring visual, tooltips** User-requested (not from the M7+ backlog),
+  three changes: (1) The sidebar's live time-series plot was showing
+  "Natural frequency" (`omega0`) — a constant of the current params,
+  so it traced a flat, uninteresting line — because ModuleView's
+  generic time-series/Sweep-Plot default both pick the FIRST scalar
+  flagged `plottable` in declaration order (`params.ts`), and `omega0`
+  happened to be first. Moved `plottable: true` onto `x` (displacement)
+  instead, the module's actual oscillating quantity — the sidebar now
+  traces a genuine sinusoid while the sim runs, matching what a "time
+  series" plot should show. Documented the tradeoff this exposes in
+  `index.ts`'s own comment: since Sweep Plot shares the same "first
+  plottable" picker, its default also moved from `omega0` to `x`,
+  meaning the module's own long-standing claim of a zero-code
+  "amplitude-vs-drive-frequency resonance curve" was never actually
+  live (`omega0` doesn't depend on `omegaDrive`, so it would have
+  plotted a flat line too) — a reader wanting that curve specifically
+  still can, by reading `amplitude` off the readout table by hand while
+  sweeping `omegaDrive`, until a per-plot scalar picker exists (not
+  built here — out of scope for this change). (2) The spring visual:
+  `scene/glyphs/body.ts`'s `'spring'` body kind (used only by this
+  module) had its helix/tube radii shrunk (0.3->0.18, 0.04->0.02) for a
+  less bulky coil, and `index.ts`'s `update()` now terminates the
+  coil's drawn length at the mass box's top face
+  (`yMass + MASS_SIZE/2`) instead of the box's center — the mass's own
+  position (the actual physics point of motion) is completely
+  untouched, only the coil's visual endpoint moved so it no longer
+  visibly plunges through half the box. (3) Tooltips: see **ADR-14**
+  above — this module's own six scalars were the first backfilled with
+  `description`s as part of that change. Verified: `oscillations/
+module.test.ts` (8 tests, unchanged — none of these three changes
+  touch closed-form physics) plus the full suite (`typecheck`, `lint`,
+  `test:unit`, `test:contract`, `build`) green; live in the dev server
+  (Browser pane): played the sim and confirmed the sidebar chart traces
+  a visible sine wave labeled "Displacement"; screenshotted the
+  spring/mass at rest and mid-oscillation, confirming a visibly thinner
+  coil ending flush with the box's top face rather than sunk into its
+  center; hovered a readout label and confirmed a dark tooltip popover
+  appears with the scalar's description text
 - [IDEA] **M7-5** Gravitation & Central Forces (Kepler via M1-15's root-finder, `parametric`)
 - [IDEA] **M7-6** Kinematics
 - [IDEA] **M7-7** Newton's Laws & FBDs
@@ -1678,6 +1717,7 @@ run test:unit` (545 tests) `&& npm run test:contract` (178 passed/12
 - [DONE] **ADR-7** → [`0008-right-handed-coordinates.md`](docs/adr/0008-right-handed-coordinates.md). **All coordinate systems are right-handed**, everywhere: Cartesian (`x̂ × ŷ = ẑ`), polar/cylindrical `(r, θ, z)` with `θ` from `+x` toward `+y`, spherical `(r, θ, φ)` in the physics convention (`θ` polar from `+z`). Positive angles are counter-clockwise viewed from the positive side of the axis; pseudovectors (`ω`, `α`, `τ = r × F`, `L = r × p`) follow the right-hand rule and keep the `doubleHead` marking. Recorded in full in `PHYSICS_CONVENTIONS.md`, which closes that doc's live `TODO`. A module may **not** flip a sign locally to make a picture look nicer
 - [DONE] **ADR-8** → [`0009-y-up-default-with-up-axis-toggle.md`](docs/adr/0009-y-up-default-with-up-axis-toggle.md). **y-up by default** (matches three.js; puts a 2D module's xy-plane straight on screen with `x` right, `y` up, composing with ADR 0007's locked ortho), **user-switchable to z-up** from a **global app settings menu**. The up axis is a scene-level convention exposed as **`ctx.up`**: the camera up vector, presets, and "iso" follow it, modules with a notion of vertical read it, orientation-free modules ignore it. Both conventions stay right-handed (ADR 0008). A `SceneContext` addition, **not** a `types.ts` change — no `MODULE_CONTRACT_VERSION` bump. Unblocks **M2-5**, adds **M2-21**, **M3-41**, **M3-42**, **M4-10**
 - [READY] **ADR-10+** Module-specific sign conventions that handedness does not imply — the sign of a bending moment, the direction of positive heel angle. One ADR per non-obvious choice, written as it arises. First instance landed as part of **M6-3**: [`0013-outward-normal-for-closed-surface-flux.md`](docs/adr/0013-outward-normal-for-closed-surface-flux.md), documenting the outward-normal parametrization `fields-gradients` already relies on for its divergence-theorem demonstration. Stays open for whichever comes next (bending moment, heel angle, or another)
+- [DONE] **ADR-14** → [`0014-scalar-description-tooltips.md`](docs/adr/0014-scalar-description-tooltips.md). **`ScalarDef.description` is now a required, contract-enforced tooltip** for every readout scalar — a hover/focus-accessible `Tooltip` component (`src/shell/Tooltip.tsx`) explains what a variable like `\zeta` or `A(\Omega)` actually means, fulfilling §16's previously-unimplemented "presenter mode suppresses tooltips" line for the first time. `MODULE_CONTRACT_VERSION` bumps 3 → 4. Every existing module backfilled; `tests/contract` now fails a module missing one. Unblocks nothing further; leaves `ParamDef.help` (a related, still-dead field) as an open follow-up
 
 ## Anticipated extensions (§22) — substrate should not foreclose these; do not build yet
 

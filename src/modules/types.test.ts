@@ -11,6 +11,6 @@ import { MODULE_CONTRACT_VERSION } from './types';
  */
 describe('MODULE_CONTRACT_VERSION (drift guard)', () => {
   it('matches the recorded expectation', () => {
-    expect(MODULE_CONTRACT_VERSION).toBe(3);
+    expect(MODULE_CONTRACT_VERSION).toBe(4);
   });
 });

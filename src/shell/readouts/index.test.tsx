@@ -41,4 +41,19 @@ describe('ReadoutTable', () => {
     const cells = screen.getAllByRole('cell');
     expect(cells.length).toBeGreaterThan(0);
   });
+
+  it('wraps a label in a Tooltip when the scalar declares a description (ADR 0014)', () => {
+    const withDescription: ScalarDef[] = [
+      { key: 'x', label: 'Displacement', readout: true, description: 'How far from equilibrium.' },
+    ];
+    render(<ReadoutTable defs={withDescription} values={{ x: 1 }} />);
+    expect(screen.getByRole('tooltip', { hidden: true })).toHaveTextContent(
+      'How far from equilibrium.',
+    );
+  });
+
+  it('renders a plain label with no Tooltip when a scalar has no description', () => {
+    render(<ReadoutTable defs={defs} values={{ dot: 3.5, hidden: 1, plain: 2 }} />);
+    expect(screen.queryByRole('tooltip', { hidden: true })).not.toBeInTheDocument();
+  });
 });

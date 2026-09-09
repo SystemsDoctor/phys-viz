@@ -28,8 +28,15 @@ import type { SceneContext } from '@/scene/SceneContext';
  * existing module needed a change to keep working, the shell falls back
  * to the pre-existing flat-list/independent-checkbox rendering when
  * either is absent.
+ *
+ * Bumped 3 -> 4 for `ScalarDef.description` (see ADR 0014) — additive
+ * and optional in the type (existing modules keep compiling and
+ * rendering exactly as before, just without a tooltip), but the
+ * contract suite treats it as a real per-scalar authoring requirement
+ * going forward: every registered module's `readout !== false` scalars
+ * must all carry a non-empty `description`.
  */
-export const MODULE_CONTRACT_VERSION = 3;
+export const MODULE_CONTRACT_VERSION = 4;
 
 /** How a module relates to time. Prefer 'parametric' over 'stepped'. */
 export type TimeModel =
@@ -155,6 +162,17 @@ export interface ScalarDef {
   readout?: boolean;
   /** Offer as a plottable series. */
   plottable?: boolean;
+  /**
+   * One plain-English sentence explaining what this variable is, shown
+   * as a hover/focus tooltip on its readout-table label (ADR 0014, §16
+   * — "quickly check what a variable is referring to"). REQUIRED for
+   * every scalar in every module going forward: `tests/contract`
+   * asserts every `readout !== false` scalar across every registered
+   * module has a non-empty `description`. Optional in the type only
+   * because TypeScript has no "required after this version" concept —
+   * every shipped module already satisfies it.
+   */
+  description?: string;
 }
 
 /* ---------- The module itself ---------- */

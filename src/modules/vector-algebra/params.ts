@@ -98,16 +98,53 @@ export const layers: LayerDef[] = [
 ];
 
 export const scalars: ScalarDef[] = [
-  { key: 'dot', label: 'a · b', symbol: '\\vec{a}\\cdot\\vec{b}', readout: true },
-  { key: 'theta', label: 'Angle', symbol: '\\theta', readout: true },
-  { key: 'xmag', label: '|a × b|', symbol: '|\\vec{a}\\times\\vec{b}|', readout: true },
+  {
+    key: 'dot',
+    label: 'a · b',
+    symbol: '\\vec{a}\\cdot\\vec{b}',
+    readout: true,
+    description: 'The dot product of a and b — how much one vector points along the other, scaled by both lengths.',
+  },
+  {
+    key: 'theta',
+    label: 'Angle',
+    symbol: '\\theta',
+    readout: true,
+    description: 'The angle between vectors a and b, in degrees, as measured from tip to tip through the origin.',
+  },
+  {
+    key: 'xmag',
+    label: '|a × b|',
+    symbol: '|\\vec{a}\\times\\vec{b}|',
+    readout: true,
+    description: 'The length of the cross product of a and b, equal to the area of the parallelogram they span.',
+  },
   {
     key: 'volume',
     label: 'Triple product volume',
     symbol: '\\vec{a}\\cdot(\\vec{b}\\times\\vec{c})',
     readout: true,
+    description: 'The volume of the parallelepiped spanned by a, b, and c — zero whenever the three vectors are coplanar.',
   },
-  { key: 'cosAlpha', label: 'Direction cosine (x)', symbol: '\\cos\\alpha', readout: true },
-  { key: 'cosBeta', label: 'Direction cosine (y)', symbol: '\\cos\\beta', readout: true },
-  { key: 'cosGamma', label: 'Direction cosine (z)', symbol: '\\cos\\gamma', readout: true },
+  {
+    key: 'cosAlpha',
+    label: 'Direction cosine (x)',
+    symbol: '\\cos\\alpha',
+    readout: true,
+    description: 'The cosine of the angle a makes with the x-axis — how much of a’s length points along x.',
+  },
+  {
+    key: 'cosBeta',
+    label: 'Direction cosine (y)',
+    symbol: '\\cos\\beta',
+    readout: true,
+    description: 'The cosine of the angle a makes with the y-axis — how much of a’s length points along y.',
+  },
+  {
+    key: 'cosGamma',
+    label: 'Direction cosine (z)',
+    symbol: '\\cos\\gamma',
+    readout: true,
+    description: 'The cosine of the angle a makes with the z-axis — how much of a’s length points along z.',
+  },
 ];

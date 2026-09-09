@@ -84,6 +84,28 @@ your `scalars(state)` function returns must appear in this `ScalarDef[]`
 array, and vice versa — they describe the same set of outputs from two
 different angles.
 
+**Every scalar needs a `description` (ADR 0014).** One plain-English
+sentence explaining what the variable actually is — shown as a
+hover/focus tooltip next to its label in the readout table, so a
+student can check what `\zeta` or `A(\Omega)` means without leaving the
+page. This is not optional polish: `tests/contract` asserts every
+`readout !== false` scalar in every registered module has a non-empty
+`description`, and a module missing one fails the contract suite.
+Explain the physics, not the notation — `"The damping ratio — how
+strongly velocity-proportional drag resists the motion; 1 is critical
+damping"`, not `"The value of zeta"`.
+
+**Mark exactly the scalar you want as the default plot, not every
+candidate.** `plottable: true` on more than one scalar doesn't offer a
+picker — the shell always uses the FIRST `plottable` scalar in array
+order, for both the sidebar's live time-series trace (plotted against
+running time, so it needs something genuinely time-varying) and the
+generic Sweep Plot's default y-axis (plotted against a swept param, at
+the current instant). If those two would want different scalars, there
+is no way to have both yet — pick the one that makes a better live
+trace while the sim runs; a reader after the other curve can still get
+it by reading the two scalars off the readout table by hand.
+
 **Tie a param to the layer it belongs to.** If a `ParamDef` only matters
 once a particular `LayerDef` is checked (e.g. a "spin rate" number that
 does nothing until the "Precession" layer is on), set
@@ -238,6 +260,8 @@ Copy-paste this when starting a module:
       to `<id>`
 - [ ] `manifest.ts` filled in; `id` matches the folder name
 - [ ] `params.ts`: params, layers, scalars declared as data
+- [ ] Every scalar has a `description` (ADR 0014) — `npm run
+      test:contract` fails otherwise
 - [ ] `create()` builds every handle once; `update()` only calls
       `.set()`/`.visible()` on them; `dispose()` releases every one
 - [ ] Any notion of "vertical" reads `ctx.up`, not a hardcoded axis

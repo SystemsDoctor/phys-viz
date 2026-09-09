@@ -50,10 +50,10 @@ function buildGeometry(kind: BodyKind): THREE.BufferGeometry {
       for (let i = 0; i <= totalPoints; i++) {
         const t = i / totalPoints;
         const angle = t * turns * Math.PI * 2;
-        points.push(new THREE.Vector3(Math.cos(angle) * 0.3, t - 0.5, Math.sin(angle) * 0.3));
+        points.push(new THREE.Vector3(Math.cos(angle) * 0.18, t - 0.5, Math.sin(angle) * 0.18));
       }
       const curve = new THREE.CatmullRomCurve3(points);
-      return new THREE.TubeGeometry(curve, totalPoints, 0.04, 6, false);
+      return new THREE.TubeGeometry(curve, totalPoints, 0.02, 6, false);
     }
   }
 }

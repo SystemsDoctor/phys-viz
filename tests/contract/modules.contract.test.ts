@@ -116,6 +116,15 @@ describe('module contract', () => {
         for (const k of keys) expect(k.length).toBeLessThanOrEqual(4);
       });
 
+      it('every readout scalar declares a non-empty description (ADR 0014)', async () => {
+        const module = await loadModule(manifest.id);
+        for (const s of module.scalars) {
+          if (s.readout === false) continue;
+          expect(s.description, `scalar "${s.key}" is missing a description`).toBeTruthy();
+          expect(s.description?.trim().length ?? 0).toBeGreaterThan(0);
+        }
+      });
+
       it('every numeric param default lies within [min, max]', async () => {
         const module = await loadModule(manifest.id);
         for (const p of module.params) {

@@ -99,6 +99,14 @@ export const scalars: ScalarDef[] = [
     symbol: '|\\vec{p}|',
     readout: true,
     plottable: true,
+    description: 'The length of the example point p, updated live as its draggable components change.',
   },
-  { key: 'fValue', label: 'f(k)', symbol: 'f(k)', readout: true, plottable: true },
+  {
+    key: 'fValue',
+    label: 'f(k)',
+    symbol: 'f(k)',
+    readout: true,
+    plottable: true,
+    description: 'The user-typed expression f(x) evaluated at x set to the current stiffness slider value k.',
+  },
 ];

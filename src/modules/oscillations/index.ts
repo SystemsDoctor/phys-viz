@@ -13,13 +13,22 @@
 // says to keep this `parametric`, not reach for `kernel/ode`, and this is
 // the scope that keeps it that way (ARCHITECTURE.md §2).
 //
-// The resonance curve itself needs no bespoke plotting code: `omegaDrive`
-// is an ordinary `number` param and `amplitude`/`phaseLag` are ordinary
-// declared scalars, so the shell's existing generic Sweep Plot (§9 —
-// "pick a parameter, sweep it across its range, evaluate a declared
-// scalar at each value" — built for exactly this) already produces the
-// textbook amplitude-vs-drive-frequency resonance curve with zero
-// module-specific plotting code.
+// A resonance curve needs no bespoke plotting code: `omegaDrive` is an
+// ordinary `number` param and `amplitude` an ordinary declared scalar,
+// so the shell's generic Sweep Plot (§9 — "pick a parameter, sweep it
+// across its range, evaluate a declared scalar at each value") is
+// capable of an amplitude-vs-drive-frequency curve with zero
+// module-specific plotting code. ModuleView's Sweep Plot and its sidebar
+// time-series trace both default to the same thing, though — the FIRST
+// scalar flagged `plottable` (there is no per-module "which scalar for
+// which plot" declaration yet) — and the time series needs a genuinely
+// time-varying scalar to draw a live trace while the sim runs, which
+// `amplitude` (constant at a given param set) is not. `x`, the
+// oscillator's actual position, is the one scalar marked `plottable`
+// (params.ts) so it wins both defaults; a reader wanting the resonance
+// curve specifically should sweep `omegaDrive` against `amplitude` by
+// hand via the readout table (both already declared here) until a
+// per-plot scalar picker exists.
 //
 // This module DOES have a notion of "vertical" (a mass hanging under a
 // fixed anchor) and reads `ctx.up`, same idiom as
@@ -194,8 +203,17 @@ const module: PhysicsModule = {
 
         anchor.visible(systemOn);
 
-        const springLength = Y_ANCHOR - yMass;
-        const springMidY = (Y_ANCHOR + yMass) / 2;
+        // The spring's own physics endpoint is the mass's CENTER (yMass —
+        // that's what steady.x/steady.v are computed against), but
+        // drawing the coil all the way to that center used to bury its
+        // bottom turns inside the box, reading as a bulkier, messier
+        // overlap than the schematic warrants. Terminating the coil at
+        // the box's top face (yMass + half its edge length) instead is a
+        // purely visual shortening — the mass's own position, and the
+        // physics behind it, are untouched.
+        const yBoxTop = yMass + MASS_SIZE / 2;
+        const springLength = Y_ANCHOR - yBoxTop;
+        const springMidY = (Y_ANCHOR + yBoxTop) / 2;
         spring.set({ position: toWorld(0, springMidY), scale: [1, springLength, 1] });
         spring.visible(systemOn);
 

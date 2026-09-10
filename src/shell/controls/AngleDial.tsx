@@ -2,10 +2,11 @@
 // focus it and use arrow keys (role="slider", full keyboard reachability
 // per ARCHITECTURE.md §16).
 import React from 'react';
-import { Tooltip } from '../Tooltip';
+import { ParamLabel } from './ParamLabel';
 
 export interface AngleDialProps {
   label: string;
+  symbol?: string;
   help?: string;
   value: number;
   min?: number;
@@ -21,7 +22,7 @@ function clampAngle(v: number, min?: number, max?: number): number {
 }
 
 export function AngleDial(props: AngleDialProps): React.ReactElement {
-  const { label, help, value, min, max, onChange } = props;
+  const { label, symbol, help, value, min, max, onChange } = props;
   const faceRef = React.useRef<HTMLDivElement>(null);
   const id = React.useId();
 
@@ -61,7 +62,7 @@ export function AngleDial(props: AngleDialProps): React.ReactElement {
   return (
     <div className="pv-field">
       <label className="pv-field__label" id={id}>
-        {help ? <Tooltip text={help}>{label}</Tooltip> : label}
+        <ParamLabel label={label} symbol={symbol} help={help} />
       </label>
       <div className="pv-angle-dial">
         <div

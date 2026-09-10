@@ -44,4 +44,11 @@ describe('ExpressionField', () => {
     );
     expect(screen.getByRole('tooltip')).toHaveTextContent('A function of x only.');
   });
+
+  it('renders a KaTeX symbol next to the label when given', () => {
+    const { container } = render(
+      <ExpressionField label="f(x)" symbol="f" value="x" vars={['x']} onChange={vi.fn()} />,
+    );
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+  });
 });

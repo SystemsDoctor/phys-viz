@@ -95,6 +95,19 @@ Explain the physics, not the notation — `"The damping ratio — how
 strongly velocity-proportional drag resists the motion; 1 is critical
 damping"`, not `"The value of zeta"`.
 
+**A param's `symbol` appends to its label, unlike a scalar's.**
+`ParamDef.symbol` renders as KaTeX right next to the control's label
+(`"Mass  m"`, `"Vector a  \vec{a}"`) via the same `MathSpan` the
+readout table uses — but it APPENDS rather than replacing, unlike
+`ScalarDef.symbol` on the readout side. A readout is read alongside a
+textbook formula, where the bare symbol is the more useful name; a
+param control is something a student directly drags a slider or types
+into, where the descriptive label is what tells them what the control
+DOES. Set it whenever a param corresponds to a symbol used in
+`explain.md`'s equations, so a student can connect the two — skip it
+for params that don't appear in any formula (a `select` "Style"
+dropdown, say).
+
 **A param's `help` is the same tooltip, but optional.** `ParamDef.help`
 renders via the identical `Tooltip` component next to a control's own
 label in the params panel, not just in the readout table. Unlike

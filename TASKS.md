@@ -1813,6 +1813,45 @@ npm run lint && npm run test:unit` (560 tests, +7 new — one Tooltip-
   `params/index.test.tsx`) `&& npm run test:contract` (187 passed/12
   skipped, unaffected — no new contract assertion, by design) `&& npm
 run build` all clean
+- [DONE] **Follow-up to ADR-14: wire up `ParamDef.symbol`** A third
+  declared-but-unrendered field in the same family as `ScalarDef.
+description` and `ParamDef.help` (both above): `grep -rn "def.symbol"
+  src/shell` returned nothing before this change, even though most
+  modules set it. Rendered via a new shared `ParamLabel` component
+  (`src/shell/controls/ParamLabel.tsx`) that every control (`Slider`,
+  `VectorPad`, `Toggle`, `Select`, `ExpressionField`, `AngleDial`) now
+  delegates its label rendering to, replacing each control's own
+  inline `help`-only ternary from the previous entry — centralizes how
+  `label`/`symbol`/`help` compose instead of duplicating the same
+  three-way logic six times. Styled via `.pv-field__symbol`
+  (`shell.css`) — already present, declared alongside `.pv-field__label`/
+`.pv-field__value` back when the field layout was first built, but
+  never applied to an element until now (the same "CSS shipped ahead
+  of the feature" shape as `ParamDef.help`'s dead field). Deliberately
+  **appends** the symbol next to the label rather than replacing it —
+  the opposite of `ReadoutTable`'s `ScalarDef.symbol` handling — since
+  a param control is something a student directly manipulates and
+  needs to identify by its descriptive name, not just its notation;
+  documented the distinction in both `types.ts`'s doc comments and
+  `MODULE_AUTHORING.md` §4. When both `symbol` and `help` are set, the
+  `Tooltip` wraps the label AND the rendered symbol together as one
+  unit, confirmed by `ParamLabel.test.tsx`'s dedicated composition
+  tests (label alone / symbol appended / help alone / both together,
+  asserting exactly one tooltip trigger and one `.katex` node, not one
+  per piece). Verified: `npm run typecheck && npm run lint && npm run
+test:unit` (572 tests, +12 new — `ParamLabel.test.tsx`'s 4 plus one
+  "renders symbol" smoke test per control plus one routing test in
+  `params/index.test.tsx`) `&& npm run test:contract` (187 passed/12
+  skipped, unaffected) `&& npm run build` all clean; `npx playwright
+test tests/e2e/smoke.spec.ts` (33/33) confirms no regression across
+  every registered module's rendered control panel. Live in the dev
+  server (Browser pane): `vector-algebra`'s "Vector a"/"Vector b"
+  controls now show `\vec{a}`/`\vec{b}` next to their labels;
+  `oscillations`'s five numeric params all show their equation symbols
+  (`m`, `k`, `c`, `F_0`, `\Omega`); hovering "Damping coefficient c"
+  (which sets both `symbol` and `help`) shows the tooltip popover
+  covering the label+symbol together, unchanged from before this
+  entry's refactor
 
 ## Anticipated extensions (§22) — substrate should not foreclose these; do not build yet
 

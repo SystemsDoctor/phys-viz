@@ -3,10 +3,11 @@
 // picking (M2-15) — that wiring lives in ModuleView (M3-6), not here;
 // both paths just write to the same store key, so they stay in sync.
 import React from 'react';
-import { Tooltip } from '../Tooltip';
+import { ParamLabel } from './ParamLabel';
 
 export interface VectorPadProps {
   label: string;
+  symbol?: string;
   help?: string;
   value: [number, number, number];
   range: number;
@@ -63,7 +64,7 @@ function AxisInput(props: {
 }
 
 export function VectorPad(props: VectorPadProps): React.ReactElement {
-  const { label, help, value, range, onChange } = props;
+  const { label, symbol, help, value, range, onChange } = props;
   const id = React.useId();
 
   function setComponent(index: 0 | 1 | 2, n: number): void {
@@ -75,7 +76,7 @@ export function VectorPad(props: VectorPadProps): React.ReactElement {
   return (
     <div className="pv-field">
       <span className="pv-field__label" id={id}>
-        {help ? <Tooltip text={help}>{label}</Tooltip> : label}
+        <ParamLabel label={label} symbol={symbol} help={help} />
       </span>
       <div className="pv-vector-pad" role="group" aria-labelledby={id}>
         {AXIS_LABELS.map((axis, i) => (

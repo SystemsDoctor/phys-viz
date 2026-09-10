@@ -66,4 +66,11 @@ describe('AngleDial', () => {
     );
     expect(screen.getByRole('tooltip')).toHaveTextContent('Measured from the +x axis.');
   });
+
+  it('renders a KaTeX symbol next to the label when given', () => {
+    const { container } = render(
+      <AngleDial label="Angle" symbol="\theta" value={0} onChange={vi.fn()} />,
+    );
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+  });
 });

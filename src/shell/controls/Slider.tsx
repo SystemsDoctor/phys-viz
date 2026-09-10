@@ -1,9 +1,10 @@
 // Renders a `kind: 'number'` ParamDef, including logScale support.
 import React from 'react';
-import { Tooltip } from '../Tooltip';
+import { ParamLabel } from './ParamLabel';
 
 export interface SliderProps {
   label: string;
+  symbol?: string;
   help?: string;
   min: number;
   max: number;
@@ -27,9 +28,9 @@ function fromSliderT(t: number, min: number, max: number): number {
 }
 
 export function Slider(props: SliderProps): React.ReactElement {
-  const { label, help, min, max, step, value, logScale, onChange } = props;
+  const { label, symbol, help, min, max, step, value, logScale, onChange } = props;
   const id = React.useId();
-  const labelText = help ? <Tooltip text={help}>{label}</Tooltip> : label;
+  const labelText = <ParamLabel label={label} symbol={symbol} help={help} />;
 
   if (logScale) {
     const t = toSliderT(value, min, max);

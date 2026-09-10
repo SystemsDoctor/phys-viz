@@ -35,4 +35,11 @@ describe('VectorPad', () => {
     );
     expect(screen.getByRole('tooltip')).toHaveTextContent('A world-space vector.');
   });
+
+  it('renders a KaTeX symbol next to the label when given', () => {
+    const { container } = render(
+      <VectorPad label="a" symbol="\vec{a}" value={[0, 0, 0]} range={5} onChange={vi.fn()} />,
+    );
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+  });
 });

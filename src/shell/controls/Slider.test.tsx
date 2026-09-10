@@ -32,6 +32,36 @@ describe('Slider', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Zero is undamped.');
   });
 
+  it('renders a KaTeX symbol next to the label when given, appended not replacing it', () => {
+    const { container } = render(
+      <Slider label="Mass" symbol="m" min={0} max={10} step={1} value={4} onChange={vi.fn()} />,
+    );
+    expect(screen.getByText('Mass')).toBeInTheDocument();
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+  });
+
+  it('wraps both the label and its symbol in one Tooltip when both are given', () => {
+    render(
+      <Slider
+        label="Mass"
+        symbol="m"
+        help="Inertial mass of the block."
+        min={0}
+        max={10}
+        step={1}
+        value={4}
+        onChange={vi.fn()}
+      />,
+    );
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Inertial mass of the block.');
+    // The trigger (not the tooltip bubble) is what actually contains the
+    // label text and the rendered symbol together.
+    const trigger = screen.getByRole('button');
+    expect(trigger).toHaveTextContent('Mass');
+    expect(trigger.querySelector('.katex')).toBeInTheDocument();
+  });
+
   it('logScale maps the 0..1 slider position through log-interpolation between min/max', () => {
     const onChange = vi.fn();
     // value=10 renders at t=0.5 (log-midpoint of 1..100); move to t=1 (max)

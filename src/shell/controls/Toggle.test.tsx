@@ -24,4 +24,11 @@ describe('Toggle', () => {
     await userEvent.click(screen.getByRole('button'));
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('renders a KaTeX symbol next to the label when given', () => {
+    const { container } = render(
+      <Toggle label="On" symbol="\theta" value={false} onChange={vi.fn()} />,
+    );
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+  });
 });

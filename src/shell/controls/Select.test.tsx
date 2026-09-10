@@ -40,4 +40,17 @@ describe('Select', () => {
     );
     expect(screen.getByRole('tooltip')).toHaveTextContent('Only affects the drawn line.');
   });
+
+  it('renders a KaTeX symbol next to the label when given', () => {
+    const { container } = render(
+      <Select
+        label="Style"
+        symbol="\phi"
+        value="a"
+        options={[{ value: 'a', label: 'A' }]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+  });
 });

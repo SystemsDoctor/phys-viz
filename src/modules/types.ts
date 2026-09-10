@@ -99,7 +99,15 @@ interface ParamBase {
    * always draws).
    */
   forLayer?: string;
-  /** KaTeX shown next to the label, e.g. '\\vec{a}'. */
+  /**
+   * KaTeX shown next to the label in the control panel, e.g. '\\vec{a}'
+   * (`src/shell/controls/ParamLabel.tsx`) — a hint for cross-referencing
+   * `explain.md`'s equations, not a replacement for `label`: unlike
+   * `ScalarDef.symbol` (which REPLACES a readout row's label), a param
+   * control keeps its descriptive label and appends the symbol next to
+   * it, since a control is something a student directly manipulates and
+   * needs to identify by name, not just by notation.
+   */
   symbol?: string;
   /**
    * One plain-English sentence explaining a non-obvious param — shown

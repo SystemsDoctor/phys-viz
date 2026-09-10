@@ -1,9 +1,10 @@
 // Renders a `kind: 'select'` ParamDef.
 import React from 'react';
-import { Tooltip } from '../Tooltip';
+import { ParamLabel } from './ParamLabel';
 
 export interface SelectProps {
   label: string;
+  symbol?: string;
   help?: string;
   value: string;
   options: { value: string; label: string }[];
@@ -11,12 +12,12 @@ export interface SelectProps {
 }
 
 export function Select(props: SelectProps): React.ReactElement {
-  const { label, help, value, options, onChange } = props;
+  const { label, symbol, help, value, options, onChange } = props;
   const id = React.useId();
   return (
     <div className="pv-field">
       <label className="pv-field__label" htmlFor={id}>
-        {help ? <Tooltip text={help}>{label}</Tooltip> : label}
+        <ParamLabel label={label} symbol={symbol} help={help} />
       </label>
       <select
         id={id}

@@ -67,4 +67,13 @@ describe('ParamPanel', () => {
     render(<ParamPanel defs={withHelp} values={{ x: 5, a: [0, 0, 0], on: true }} onChange={vi.fn()} />);
     expect(screen.getByRole('tooltip')).toHaveTextContent('Zero is undamped.');
   });
+
+  it("passes a ParamDef's symbol through to its control, appended next to the label", () => {
+    const withSymbol: ParamDef[] = [{ ...defs[0], symbol: 'x_0' }, defs[1], defs[2]];
+    const { container } = render(
+      <ParamPanel defs={withSymbol} values={{ x: 5, a: [0, 0, 0], on: true }} onChange={vi.fn()} />,
+    );
+    expect(screen.getByText('X')).toBeInTheDocument();
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+  });
 });

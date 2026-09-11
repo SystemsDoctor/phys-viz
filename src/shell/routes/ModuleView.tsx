@@ -35,7 +35,8 @@ import type { AppState, ParamValue } from '../state/store';
 import { encodeState, decodeState } from '../state/urlCodec';
 import { runMigrations } from '../state/migrations';
 import { useHashSearch, navigateHash } from './hashRouter';
-import { formatQuantity, DIMENSIONLESS } from '@/kernel/units';
+import { DIMENSIONLESS } from '@/kernel/units';
+import { formatQuantityWithUnit } from '../unitSymbol';
 
 const URL_SYNC_DEBOUNCE_MS = 250; // §14 hardening note, applies to every field written on this path, not just camera
 const CAMERA_CYCLE = ['iso', '+x', '+y', '+z'] as const; // V key (§16)
@@ -741,7 +742,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     .filter((s) => s.readout !== false)
     .map(
       (s) =>
-        `${s.label}: ${formatQuantity({ value: scalars[s.key] ?? NaN, dim: s.unit ?? DIMENSIONLESS }).trim()}`,
+        `${s.label}: ${formatQuantityWithUnit({ value: scalars[s.key] ?? NaN, dim: s.unit ?? DIMENSIONLESS })}`,
     )
     .join(', ');
 

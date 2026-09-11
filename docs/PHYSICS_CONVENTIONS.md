@@ -140,3 +140,32 @@ Only write a literal `Dimension` tuple for a quantity not in that list,
 and add it to `kernel/units` if a second module ends up needing the same
 one. An `angle`-kind param has no `unit` field at all — radians are
 implicit (see above), not a unit to declare.
+
+### Displayed unit symbols
+
+`kernel/units`' `formatQuantity` is deliberately prefix-and-numeral
+only ("1.23 k", not "1.23 km") — deriving a unit *symbol* from a
+`Dimension` is a Layer 2/3 concern, done by `src/shell/unitSymbol.ts`'s
+`unitSymbolOf`/`formatQuantityWithUnit` and applied everywhere a reading
+reaches a user (`ReadoutTable`, the canvas `aria-label`). Without it, an
+SI-prefix letter and a base-unit symbol can collide in a reader's head —
+"847m" for a `LENGTH` value is the "milli" prefix, not literally
+"847 meters" — `formatQuantityWithUnit` resolves this to the
+unambiguous "847 mm".
+
+Two things worth knowing if you touch this:
+
+- **`ENERGY` and `TORQUE` share one `Dimension`** (both `[1,2,-2,0,0,0,0]`
+  — a torque genuinely has the same dimension as energy) but print
+  differently: "J" for energy, "N·m" for torque, per the usual
+  convention of not calling a torque a joule. `unitSymbolOf` tells them
+  apart by object REFERENCE, which is exactly why `kernel/units` keeps
+  `TORQUE` as its own array literal instead of `= ENERGY` — a
+  value-keyed lookup could never make this distinction.
+- **Kilogram is the one SI base unit whose name already carries a
+  prefix** ("kilo-gram"), so a bare `MASS` value outside `[1, 1000)`
+  would print a non-standard compound like "mkg" instead of the
+  conventional "g" if naively prefixed. Not currently reachable (every
+  `MASS`-dimensioned field today is a `ParamDef`, shown as a plain
+  number — no registered module has a `MASS`-dimensioned `ScalarDef`),
+  so `unitSymbolOf` doesn't special-case it; revisit if that changes.

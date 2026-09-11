@@ -60,6 +60,51 @@ describe('divQ', () => {
   });
 });
 
+describe('TORQUE and ENERGY', () => {
+  it('are dimensionally equal but distinct objects (so a display-symbol lookup can tell them apart)', () => {
+    expect(U.dimEquals(U.ENERGY, U.TORQUE)).toBe(true);
+    expect(U.TORQUE).not.toBe(U.ENERGY);
+  });
+});
+
+describe('chooseSIPrefix', () => {
+  it('picks no prefix for a magnitude already in [1, 1000)', () => {
+    expect(U.chooseSIPrefix(4.56)).toEqual({ prefixExp: 0, mantissa: 4.56, prefixChar: '' });
+  });
+
+  it('picks kilo for thousands', () => {
+    const { prefixExp, prefixChar, mantissa } = U.chooseSIPrefix(4560);
+    expect(prefixExp).toBe(3);
+    expect(prefixChar).toBe('k');
+    expect(mantissa).toBeCloseTo(4.56, 10);
+  });
+
+  it('picks milli for small values', () => {
+    const { prefixExp, prefixChar, mantissa } = U.chooseSIPrefix(0.00456);
+    expect(prefixExp).toBe(-3);
+    expect(prefixChar).toBe('m');
+    expect(mantissa).toBeCloseTo(4.56, 10);
+  });
+
+  it('agrees with formatQuantity on the prefix letter chosen for the same magnitude', () => {
+    for (const value of [4.56, 4560, 0.00456, 0.0000123, 999999.9999999999, 999.96]) {
+      const { prefixChar } = U.chooseSIPrefix(value);
+      const formatted = U.formatQuantity({ value, dim: LENGTH }).trim();
+      if (prefixChar) {
+        expect(formatted.endsWith(prefixChar)).toBe(true);
+      } else {
+        // No prefix: the trimmed string ends in a digit, not a letter.
+        expect(formatted.slice(-1)).toMatch(/[0-9]/);
+      }
+    }
+  });
+
+  it('clamps at the top and bottom of the supported range instead of going out of bounds', () => {
+    expect(U.chooseSIPrefix(1e30).prefixExp).toBe(24);
+    expect(U.chooseSIPrefix(1e-30).prefixExp).toBe(-24);
+  });
+});
+
 describe('formatQuantity', () => {
   it('formats a simple value with no prefix', () => {
     expect(U.formatQuantity({ value: 4.56, dim: LENGTH }).trim()).toBe('4.56');

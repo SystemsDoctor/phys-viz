@@ -8,7 +8,8 @@
  */
 import React from 'react';
 import type { ScalarDef } from '@/modules/types';
-import { formatQuantity, DIMENSIONLESS } from '@/kernel/units';
+import { DIMENSIONLESS } from '@/kernel/units';
+import { formatQuantityWithUnit } from '../unitSymbol';
 import { MathSpan } from '../MathSpan';
 import { Tooltip } from '../Tooltip';
 
@@ -25,7 +26,7 @@ export function ReadoutTable(props: {
       <tbody>
         {rows.map((def) => {
           const value = values[def.key];
-          const formatted = formatQuantity({
+          const formatted = formatQuantityWithUnit({
             value: value ?? NaN,
             dim: def.unit ?? DIMENSIONLESS,
           });

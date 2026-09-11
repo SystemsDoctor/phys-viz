@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ReadoutTable } from './index';
 import type { ScalarDef } from '@/modules/types';
+import { LENGTH, DIMENSIONLESS } from '@/kernel/units';
 
 const defs: ScalarDef[] = [
   { key: 'dot', label: 'Dot product', symbol: '\\vec{a}\\cdot\\vec{b}', readout: true },
@@ -55,5 +56,17 @@ describe('ReadoutTable', () => {
   it('renders a plain label with no Tooltip when a scalar has no description', () => {
     render(<ReadoutTable defs={defs} values={{ dot: 3.5, hidden: 1, plain: 2 }} />);
     expect(screen.queryByRole('tooltip', { hidden: true })).not.toBeInTheDocument();
+  });
+
+  it('appends a unit symbol to a dimensioned scalar, unambiguous unlike a bare SI-prefix letter', () => {
+    const withUnit: ScalarDef[] = [{ key: 'x', label: 'Displacement', unit: LENGTH }];
+    render(<ReadoutTable defs={withUnit} values={{ x: 0.847 }} />);
+    expect(screen.getByText('847 mm')).toBeInTheDocument();
+  });
+
+  it('shows no unit suffix for a DIMENSIONLESS scalar', () => {
+    const dimensionless: ScalarDef[] = [{ key: 'r', label: 'Ratio', unit: DIMENSIONLESS }];
+    render(<ReadoutTable defs={dimensionless} values={{ r: 0.949 }} />);
+    expect(screen.getByText('0.949')).toBeInTheDocument();
   });
 });

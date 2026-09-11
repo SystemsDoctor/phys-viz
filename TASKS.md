@@ -1852,6 +1852,77 @@ test tests/e2e/smoke.spec.ts` (33/33) confirms no regression across
   (which sets both `symbol` and `help`) shows the tooltip popover
   covering the label+symbol together, unchanged from before this
   entry's refactor
+- [DONE] **X-24 (follow-up to X-23): readouts never showed a base unit
+  symbol** Discovered while fixing X-23's near-zero `formatQuantity`
+  bug (same file): `formatQuantity` is deliberately prefix-and-numeral
+  only ("847m"), and nothing downstream ever appended a base-unit
+  symbol either, so a `LENGTH`-dimensioned reading like "847m" is
+  genuinely ambiguous between "847 milli-(unit)" and a literal
+  "847 meters" — the SI "milli" prefix letter and the SI abbreviation
+  for "meters" happen to be the same character. Fixed with a new Layer
+  2/3 helper, `src/shell/unitSymbol.ts`: `unitSymbolOf(dim)` derives a
+  display symbol two ways — a small reference-keyed table for named
+  quantities where the idiomatic symbol isn't a plain composition
+  (`FORCE`->"N", `ENERGY`->"J", `ANGULAR_VELOCITY`->"rad/s") or where
+  two exports share a Dimension and need telling apart (`ENERGY` vs
+  `TORQUE`, both `[1,2,-2,0,0,0,0]` — kept as two distinct array
+  literals in `kernel/units` specifically so a reference-keyed `Map`
+  can tell them apart; a value-keyed lookup never could), falling back
+  to composing straight from the seven base SI symbols otherwise (e.g.
+  `VELOCITY`->"m/s", `MOMENT_OF_INERTIA`->"kg·m²"). `formatQuantityWithUnit(q)`
+  composes this onto `formatQuantity`'s own output, placing the symbol
+  directly after whatever SI-prefix letter was chosen (so "milli" +
+  "meter" reads as the one compound "mm" it should) — which needed a
+  new `kernel/units` export, `chooseSIPrefix(absValue, sigFigs)`,
+  factoring the prefix-selection math (including its own rounding-
+  artifact corrections, e.g. 999.96 bumping into the next prefix group)
+  out of `formatQuantity` so both functions stay in agreement by
+  construction rather than by two independently-maintained copies of
+  the same logic — verified via a dedicated test that both agree on
+  every existing boundary-rounding test case. Wired into both places a
+  reading reaches a user: `ReadoutTable` and `ModuleView`'s canvas
+  `aria-label`. `DIMENSIONLESS` values are unaffected —
+  `unitSymbolOf(DIMENSIONLESS)` returns `''`, so no spurious suffix.
+  Known, deliberately unhandled limitation (documented in
+  `unitSymbol.ts` and `PHYSICS_CONVENTIONS.md`'s new "Displayed unit
+  symbols" section): kilogram is the one SI base unit whose name
+  already carries a prefix, so a bare `MASS` value outside `[1, 1000)`
+  would print a non-standard "mkg" instead of the conventional "g" —
+  not fixed, since no currently-registered module has a
+  `MASS`-dimensioned `ScalarDef` (every `MASS` field today is a
+  `ParamDef`, shown as a plain number via `Slider`, never through
+  `formatQuantity`) — YAGNI, revisit if that changes. A COMPOUND unit
+  that happens to contain a mass factor (e.g. `MOMENT_OF_INERTIA`,
+  "kg·m²") is NOT specially handled either and can show the same kind
+  of unconventional prefixed compound (confirmed live:
+  `rotational-dynamics`'s "Principal moment I₁" read "445 mkg·m²" for a
+  sub-1 kg·m² value) — still strictly more informative than the
+  original bare "445m" with no unit at all, just not fully idiomatic;
+  flagged rather than solved, since correctly prefixing an arbitrary
+  compound unit is a substantially harder, unbounded problem than the
+  one this fix actually targets. Verified: new `chooseSIPrefix`/`TORQUE`-
+  vs-`ENERGY` tests in `kernel/units/index.test.ts` (33 tests, +6 new,
+  all pre-existing ones unchanged byte-for-byte — confirming the
+  `formatQuantity` refactor is behavior-preserving); new
+  `unitSymbol.test.ts` (16 tests covering DIMENSIONLESS, every named
+  override, generic composition incl. the ambiguous-multi-denominator
+  fallback, and `formatQuantityWithUnit`'s prefix-placement/near-zero/
+  sign/custom-sigFigs behavior); `readouts/index.test.tsx` extended
+  (+2). `npm run typecheck && npm run lint && npm run test:unit` (596
+  tests) `&& npm run test:contract` (187 passed/12 skipped, unaffected)
+  `&& npm run build` all clean; `npx playwright test
+  tests/e2e/smoke.spec.ts` (33/33). Live in the dev server (Browser
+  pane) across three modules spanning most of the named dimensions:
+  `work-energy` (U/K/E all correctly "... J", speed "0.00 m/s" at a
+  turning point, period "1.99 s", turning point "1.50 m"),
+  `rotational-dynamics` (torque "1.40 N·m" distinct from an energy
+  reading elsewhere in the same table, moment of inertia "3.82 kg·m²",
+  precession rates "... rad/s", angular momentum "0.00 kg·m²/s", and a
+  genuinely dimensionless angle-between-vectors readout showing plainly
+  as "6.29" with no suffix), and `vector-algebra` (all seven scalars —
+  dot product, angle, cross product magnitude, triple product volume,
+  three direction cosines — are dimensionless and correctly show no
+  unit at all)
 
 ## Anticipated extensions (§22) — substrate should not foreclose these; do not build yet
 

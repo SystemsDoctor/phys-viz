@@ -1544,7 +1544,7 @@ check:budget` (10 module chunks, largest `rotational-dynamics` at 4.77
   within `[1, 1000)`, it can print as an innocent-looking 2-3 digit
   number (e.g. "122 a", 1.2e-16 misread at a glance as "122") right
   where a reader expects to see zero. Fixed with a new `ZERO_EPSILON =
-  1e-9` floor: any magnitude below it (display-indistinguishable from
+1e-9` floor: any magnitude below it (display-indistinguishable from
   floating-point noise for every quantity this app models — nothing
   here is intentionally sub-nanometer or sub-nanosecond) now renders as
   exact `"0.00"` instead of being routed through the prefix ladder.
@@ -1816,7 +1816,7 @@ run build` all clean
 - [DONE] **Follow-up to ADR-14: wire up `ParamDef.symbol`** A third
   declared-but-unrendered field in the same family as `ScalarDef.
 description` and `ParamDef.help` (both above): `grep -rn "def.symbol"
-  src/shell` returned nothing before this change, even though most
+src/shell` returned nothing before this change, even though most
   modules set it. Rendered via a new shared `ParamLabel` component
   (`src/shell/controls/ParamLabel.tsx`) that every control (`Slider`,
   `VectorPad`, `Toggle`, `Select`, `ExpressionField`, `AngleDial`) now
@@ -1825,7 +1825,7 @@ description` and `ParamDef.help` (both above): `grep -rn "def.symbol"
   `label`/`symbol`/`help` compose instead of duplicating the same
   three-way logic six times. Styled via `.pv-field__symbol`
   (`shell.css`) — already present, declared alongside `.pv-field__label`/
-`.pv-field__value` back when the field layout was first built, but
+  `.pv-field__value` back when the field layout was first built, but
   never applied to an element until now (the same "CSS shipped ahead
   of the feature" shape as `ParamDef.help`'s dead field). Deliberately
   **appends** the symbol next to the label rather than replacing it —
@@ -1911,7 +1911,7 @@ test tests/e2e/smoke.spec.ts` (33/33) confirms no regression across
   (+2). `npm run typecheck && npm run lint && npm run test:unit` (596
   tests) `&& npm run test:contract` (187 passed/12 skipped, unaffected)
   `&& npm run build` all clean; `npx playwright test
-  tests/e2e/smoke.spec.ts` (33/33). Live in the dev server (Browser
+tests/e2e/smoke.spec.ts` (33/33). Live in the dev server (Browser
   pane) across three modules spanning most of the named dimensions:
   `work-energy` (U/K/E all correctly "... J", speed "0.00 m/s" at a
   turning point, period "1.99 s", turning point "1.50 m"),

@@ -89,7 +89,8 @@ export const scalars: ScalarDef[] = [
     symbol: '\\omega_0',
     unit: ANGULAR_VELOCITY,
     readout: true,
-    description: 'The frequency this mass-spring system would oscillate at on its own, undriven and undamped: sqrt(k/m).',
+    description:
+      'The frequency this mass-spring system would oscillate at on its own, undriven and undamped: sqrt(k/m).',
   },
   {
     key: 'zeta',
@@ -97,7 +98,8 @@ export const scalars: ScalarDef[] = [
     symbol: '\\zeta',
     unit: DIMENSIONLESS,
     readout: true,
-    description: 'How strongly velocity-proportional drag resists the motion, relative to critical damping — 1 is critically damped, below 1 the free system would oscillate.',
+    description:
+      'How strongly velocity-proportional drag resists the motion, relative to critical damping — 1 is critically damped, below 1 the free system would oscillate.',
   },
   {
     key: 'amplitude',
@@ -105,7 +107,8 @@ export const scalars: ScalarDef[] = [
     symbol: 'A(\\Omega)',
     unit: LENGTH,
     readout: true,
-    description: 'The peak displacement of the steady-state (long-after-transient) response at the current drive frequency — largest near resonance, where the drive frequency matches the natural frequency.',
+    description:
+      'The peak displacement of the steady-state (long-after-transient) response at the current drive frequency — largest near resonance, where the drive frequency matches the natural frequency.',
   },
   {
     key: 'phaseLag',
@@ -113,7 +116,8 @@ export const scalars: ScalarDef[] = [
     symbol: '\\delta',
     unit: DIMENSIONLESS,
     readout: true,
-    description: 'How far behind the driving force the mass’s motion lags, in radians — near 0 well below resonance, pi/2 at resonance, approaching pi well above it.',
+    description:
+      'How far behind the driving force the mass’s motion lags, in radians — near 0 well below resonance, pi/2 at resonance, approaching pi well above it.',
   },
   {
     // The sole `plottable` scalar: ModuleView's generic sidebar time
@@ -129,7 +133,8 @@ export const scalars: ScalarDef[] = [
     unit: LENGTH,
     readout: true,
     plottable: true,
-    description: 'The mass’s current position, measured from equilibrium — this is what actually oscillates in time.',
+    description:
+      'The mass’s current position, measured from equilibrium — this is what actually oscillates in time.',
   },
   {
     key: 'v',
@@ -137,6 +142,7 @@ export const scalars: ScalarDef[] = [
     symbol: 'v(t)',
     unit: VELOCITY,
     readout: true,
-    description: 'The mass’s current velocity — the time-derivative of displacement, 90 degrees out of phase with it.',
+    description:
+      'The mass’s current velocity — the time-derivative of displacement, 90 degrees out of phase with it.',
   },
 ];

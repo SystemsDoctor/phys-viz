@@ -62,7 +62,8 @@ export const scalars: ScalarDef[] = [
     unit: ENERGY,
     readout: true,
     plottable: true,
-    description: 'The spring’s stored energy at the mass’s current position, U = ½kx² — zero at equilibrium, maximum at the turning points.',
+    description:
+      'The spring’s stored energy at the mass’s current position, U = ½kx² — zero at equilibrium, maximum at the turning points.',
   },
   {
     key: 'KE',
@@ -71,7 +72,8 @@ export const scalars: ScalarDef[] = [
     unit: ENERGY,
     readout: true,
     plottable: true,
-    description: 'The mass’s energy of motion, K = E − U — maximum at equilibrium where speed peaks, zero at the turning points where it momentarily stops.',
+    description:
+      'The mass’s energy of motion, K = E − U — maximum at equilibrium where speed peaks, zero at the turning points where it momentarily stops.',
   },
   {
     key: 'E',
@@ -80,7 +82,8 @@ export const scalars: ScalarDef[] = [
     unit: ENERGY,
     readout: true,
     plottable: true,
-    description: 'The conserved sum of kinetic and potential energy, fixed by the amplitude (E = ½kA²) — this is what the shaded total-energy plane marks.',
+    description:
+      'The conserved sum of kinetic and potential energy, fixed by the amplitude (E = ½kA²) — this is what the shaded total-energy plane marks.',
   },
   {
     key: 'speed',
@@ -89,7 +92,8 @@ export const scalars: ScalarDef[] = [
     unit: VELOCITY,
     readout: true,
     plottable: true,
-    description: 'The mass’s instantaneous speed — zero at the turning points (x = ±A), maximum while passing through equilibrium.',
+    description:
+      'The mass’s instantaneous speed — zero at the turning points (x = ±A), maximum while passing through equilibrium.',
   },
   {
     key: 'period',
@@ -98,7 +102,8 @@ export const scalars: ScalarDef[] = [
     unit: TIME,
     readout: true,
     plottable: false,
-    description: 'The time for one full back-and-forth cycle, T = 2π/ω — set entirely by mass and spring constant, independent of amplitude.',
+    description:
+      'The time for one full back-and-forth cycle, T = 2π/ω — set entirely by mass and spring constant, independent of amplitude.',
   },
   {
     key: 'turningPoint',
@@ -107,6 +112,7 @@ export const scalars: ScalarDef[] = [
     unit: LENGTH,
     readout: true,
     plottable: false,
-    description: 'The distance from equilibrium where the mass momentarily stops and reverses — equal to the amplitude, magnitude only.',
+    description:
+      'The distance from equilibrium where the mass momentarily stops and reverses — equal to the amplitude, magnitude only.',
   },
 ];

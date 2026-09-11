@@ -95,7 +95,8 @@ export const scalars: ScalarDef[] = [
     unit: VELOCITY,
     readout: true,
     plottable: true,
-    description: 'Cart 1’s velocity — its initial value before the collision, its post-collision value after, set by the masses and the restitution coefficient.',
+    description:
+      'Cart 1’s velocity — its initial value before the collision, its post-collision value after, set by the masses and the restitution coefficient.',
   },
   {
     key: 'v2',
@@ -104,7 +105,8 @@ export const scalars: ScalarDef[] = [
     unit: VELOCITY,
     readout: true,
     plottable: true,
-    description: 'Cart 2’s velocity — its initial value before the collision, its post-collision value after, set by the masses and the restitution coefficient.',
+    description:
+      'Cart 2’s velocity — its initial value before the collision, its post-collision value after, set by the masses and the restitution coefficient.',
   },
   {
     key: 'p1',
@@ -131,7 +133,8 @@ export const scalars: ScalarDef[] = [
     unit: MOMENTUM,
     readout: true,
     plottable: true,
-    description: 'The combined momentum of both carts — conserved through the collision no matter what the restitution coefficient is set to.',
+    description:
+      'The combined momentum of both carts — conserved through the collision no matter what the restitution coefficient is set to.',
   },
   {
     key: 'KE',
@@ -140,7 +143,8 @@ export const scalars: ScalarDef[] = [
     unit: ENERGY,
     readout: true,
     plottable: true,
-    description: 'The combined kinetic energy of both carts — conserved only when the collision is perfectly elastic; some is lost as the restitution coefficient drops below 1.',
+    description:
+      'The combined kinetic energy of both carts — conserved only when the collision is perfectly elastic; some is lost as the restitution coefficient drops below 1.',
   },
   {
     key: 'vcm',
@@ -149,6 +153,7 @@ export const scalars: ScalarDef[] = [
     unit: VELOCITY,
     readout: true,
     plottable: false,
-    description: 'The velocity of the two-cart system’s center of mass — constant throughout the collision regardless of the restitution coefficient.',
+    description:
+      'The velocity of the two-cart system’s center of mass — constant throughout the collision regardless of the restitution coefficient.',
   },
 ];

@@ -15,7 +15,14 @@ describe('Toggle', () => {
 
   it('renders a Tooltip next to the label when help is given, without double-toggling the checkbox on click', async () => {
     const onChange = vi.fn();
-    render(<Toggle label="Show axes" help="Toggles the reference grid." value={false} onChange={onChange} />);
+    render(
+      <Toggle
+        label="Show axes"
+        help="Toggles the reference grid."
+        value={false}
+        onChange={onChange}
+      />,
+    );
     expect(screen.getByRole('tooltip')).toHaveTextContent('Toggles the reference grid.');
 
     // The Tooltip's own trigger button is nested inside this control's

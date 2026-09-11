@@ -293,7 +293,7 @@ Copy-paste this when starting a module:
 - [ ] `manifest.ts` filled in; `id` matches the folder name
 - [ ] `params.ts`: params, layers, scalars declared as data
 - [ ] Every scalar has a `description` (ADR 0014) — `npm run
-      test:contract` fails otherwise
+test:contract` fails otherwise
 - [ ] Any param whose meaning isn't obvious from its label alone has a
       `help` string (not contract-enforced — a judgment call, not every
       param needs one)

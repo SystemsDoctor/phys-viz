@@ -289,7 +289,8 @@ export const scalars: ScalarDef[] = [
     symbol: '|\\vec\\tau|',
     unit: TORQUE,
     readout: true,
-    description: 'How hard the applied force twists the body about the pivot — the strength of r × F.',
+    description:
+      'How hard the applied force twists the body about the pivot — the strength of r × F.',
   },
   {
     key: 'momentArm',
@@ -297,7 +298,8 @@ export const scalars: ScalarDef[] = [
     symbol: 'd',
     unit: LENGTH,
     readout: true,
-    description: 'The perpendicular distance from the pivot to the force’s line of action — torque equals force times this distance.',
+    description:
+      'The perpendicular distance from the pivot to the force’s line of action — torque equals force times this distance.',
   },
   {
     key: 'parallelAxisI',
@@ -305,35 +307,40 @@ export const scalars: ScalarDef[] = [
     symbol: 'I_{d}',
     unit: MOMENT_OF_INERTIA,
     readout: true,
-    description: 'The body’s moment of inertia about an axis offset from its center of mass — always larger than the moment about the parallel axis through the center of mass.',
+    description:
+      'The body’s moment of inertia about an axis offset from its center of mass — always larger than the moment about the parallel axis through the center of mass.',
   },
   {
     key: 'angleLOmega',
     label: 'Angle between L and ω',
     symbol: '\\angle(L,\\omega)',
     readout: true,
-    description: 'How far the angular momentum vector tips away from the spin axis when spinning about an axis that is not one of the body’s principal axes.',
+    description:
+      'How far the angular momentum vector tips away from the spin axis when spinning about an axis that is not one of the body’s principal axes.',
   },
   {
     key: 'I1',
     label: 'Principal moment I₁',
     unit: MOMENT_OF_INERTIA,
     readout: true,
-    description: 'The smallest of the body’s three principal moments of inertia — resistance to rotation about the axis it spins most easily around.',
+    description:
+      'The smallest of the body’s three principal moments of inertia — resistance to rotation about the axis it spins most easily around.',
   },
   {
     key: 'I2',
     label: 'Principal moment I₂',
     unit: MOMENT_OF_INERTIA,
     readout: true,
-    description: 'The middle of the body’s three principal moments of inertia — rotation about this intermediate axis is the one that is dynamically unstable.',
+    description:
+      'The middle of the body’s three principal moments of inertia — rotation about this intermediate axis is the one that is dynamically unstable.',
   },
   {
     key: 'I3',
     label: 'Principal moment I₃',
     unit: MOMENT_OF_INERTIA,
     readout: true,
-    description: 'The largest of the body’s three principal moments of inertia — resistance to rotation about the axis it spins least easily around.',
+    description:
+      'The largest of the body’s three principal moments of inertia — resistance to rotation about the axis it spins least easily around.',
   },
   {
     key: 'precessionRate',
@@ -341,7 +348,8 @@ export const scalars: ScalarDef[] = [
     symbol: '\\Omega_p',
     unit: ANGULAR_VELOCITY,
     readout: true,
-    description: 'The idealized steady-precession rate a fast top would sweep around the vertical if gravity torque were balanced with no nutation at all.',
+    description:
+      'The idealized steady-precession rate a fast top would sweep around the vertical if gravity torque were balanced with no nutation at all.',
   },
   {
     key: 'precessionRateSecular',
@@ -349,13 +357,15 @@ export const scalars: ScalarDef[] = [
     symbol: '\\bar\\Omega_p',
     unit: ANGULAR_VELOCITY,
     readout: true,
-    description: 'The top’s actual time-averaged precession rate once the nutation wobble is correctly coupled into the motion, rather than the idealized bare rate.',
+    description:
+      'The top’s actual time-averaged precession rate once the nutation wobble is correctly coupled into the motion, rather than the idealized bare rate.',
   },
   {
     key: 'nutationCouplingRatio',
     label: 'Nutation coupling ratio (<1 wavy, ≈1 cusped, >1 looping)',
     readout: true,
-    description: 'How large the nutation wobble is relative to the secular precession — below 1 the tip traces a wavy path, near 1 a cusped one, above 1 it loops as precession briefly reverses.',
+    description:
+      'How large the nutation wobble is relative to the secular precession — below 1 the tip traces a wavy path, near 1 a cusped one, above 1 it loops as precession briefly reverses.',
   },
   {
     key: 'rollingSpeed',
@@ -363,21 +373,24 @@ export const scalars: ScalarDef[] = [
     symbol: 'v',
     unit: VELOCITY,
     readout: true,
-    description: 'The speed of the wheel’s center as it rolls without slipping, equal to its angular speed times its radius.',
+    description:
+      'The speed of the wheel’s center as it rolls without slipping, equal to its angular speed times its radius.',
   },
   {
     key: 'dzKineticEnergy',
     label: 'Kinetic energy (tumbling)',
     unit: ENERGY,
     readout: true,
-    description: 'The tumbling box’s rotational kinetic energy, conserved throughout the torque-free Dzhanibekov motion.',
+    description:
+      'The tumbling box’s rotational kinetic energy, conserved throughout the torque-free Dzhanibekov motion.',
   },
   {
     key: 'dzAngularMomentumMag',
     label: '|L| (tumbling)',
     unit: ANGULAR_MOMENTUM,
     readout: true,
-    description: 'The magnitude of the tumbling box’s angular momentum, conserved throughout the torque-free motion even as its direction in body coordinates wanders.',
+    description:
+      'The magnitude of the tumbling box’s angular momentum, conserved throughout the torque-free motion even as its direction in body coordinates wanders.',
   },
   {
     key: 'dzOmegaIntermediate',
@@ -385,6 +398,7 @@ export const scalars: ScalarDef[] = [
     unit: ANGULAR_VELOCITY,
     readout: true,
     plottable: true,
-    description: 'The spin rate about the body’s intermediate-inertia axis — its growth and repeated flips are the signature of the unstable Dzhanibekov tumble.',
+    description:
+      'The spin rate about the body’s intermediate-inertia axis — its growth and repeated flips are the signature of the unstable Dzhanibekov tumble.',
   },
 ];

@@ -59,12 +59,10 @@ describe('ParamPanel', () => {
   });
 
   it("passes a ParamDef's help text through to its control as a Tooltip", () => {
-    const withHelp: ParamDef[] = [
-      { ...defs[0], help: 'Zero is undamped.' },
-      defs[1],
-      defs[2],
-    ];
-    render(<ParamPanel defs={withHelp} values={{ x: 5, a: [0, 0, 0], on: true }} onChange={vi.fn()} />);
+    const withHelp: ParamDef[] = [{ ...defs[0], help: 'Zero is undamped.' }, defs[1], defs[2]];
+    render(
+      <ParamPanel defs={withHelp} values={{ x: 5, a: [0, 0, 0], on: true }} onChange={vi.fn()} />,
+    );
     expect(screen.getByRole('tooltip')).toHaveTextContent('Zero is undamped.');
   });
 

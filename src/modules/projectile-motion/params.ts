@@ -118,7 +118,8 @@ export const scalars: ScalarDef[] = [
     unit: LENGTH,
     readout: true,
     plottable: true,
-    description: 'The horizontal distance travelled from launch to landing back at the world’s vertical-zero reference plane.',
+    description:
+      'The horizontal distance travelled from launch to landing back at the world’s vertical-zero reference plane.',
   },
   {
     key: 'maxHeight',
@@ -127,6 +128,7 @@ export const scalars: ScalarDef[] = [
     unit: LENGTH,
     readout: true,
     plottable: true,
-    description: 'The highest point the body reaches above the vertical-zero reference plane, from its start height plus any upward coasting.',
+    description:
+      'The highest point the body reaches above the vertical-zero reference plane, from its start height plus any upward coasting.',
   },
 ];

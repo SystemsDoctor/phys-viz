@@ -144,7 +144,7 @@ implicit (see above), not a unit to declare.
 ### Displayed unit symbols
 
 `kernel/units`' `formatQuantity` is deliberately prefix-and-numeral
-only ("1.23 k", not "1.23 km") — deriving a unit *symbol* from a
+only ("1.23 k", not "1.23 km") — deriving a unit _symbol_ from a
 `Dimension` is a Layer 2/3 concern, done by `src/shell/unitSymbol.ts`'s
 `unitSymbolOf`/`formatQuantityWithUnit` and applied everywhere a reading
 reaches a user (`ReadoutTable`, the canvas `aria-label`). Without it, an

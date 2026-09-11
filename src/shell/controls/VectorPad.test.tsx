@@ -27,11 +27,19 @@ describe('VectorPad', () => {
   });
 
   it('wraps the label in a Tooltip only when help is given', () => {
-    const { rerender } = render(<VectorPad label="a" value={[0, 0, 0]} range={5} onChange={vi.fn()} />);
+    const { rerender } = render(
+      <VectorPad label="a" value={[0, 0, 0]} range={5} onChange={vi.fn()} />,
+    );
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
 
     rerender(
-      <VectorPad label="a" help="A world-space vector." value={[0, 0, 0]} range={5} onChange={vi.fn()} />,
+      <VectorPad
+        label="a"
+        help="A world-space vector."
+        value={[0, 0, 0]}
+        range={5}
+        onChange={vi.fn()}
+      />,
     );
     expect(screen.getByRole('tooltip')).toHaveTextContent('A world-space vector.');
   });

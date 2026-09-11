@@ -185,7 +185,8 @@ export const scalars: ScalarDef[] = [
     label: '|∇f| at probe',
     symbol: '|\\nabla f|',
     readout: true,
-    description: 'How steeply the heightmap f rises at the probe point — the length of the gradient vector, largest where the surface is steepest.',
+    description:
+      'How steeply the heightmap f rises at the probe point — the length of the gradient vector, largest where the surface is steepest.',
   },
   {
     key: 'dirDeriv',
@@ -193,20 +194,23 @@ export const scalars: ScalarDef[] = [
     symbol: 'D_{\\hat u}f',
     readout: true,
     plottable: true,
-    description: 'The rate f changes at the probe if you move in the chosen direction û — positive climbing, negative descending, zero along a level curve.',
+    description:
+      'The rate f changes at the probe if you move in the chosen direction û — positive climbing, negative descending, zero along a level curve.',
   },
   {
     key: 'divAtBox',
     label: 'div F at box center',
     symbol: '\\nabla\\cdot\\vec F',
     readout: true,
-    description: 'How strongly the vector field F is expanding outward (source) or converging inward (sink) right at the box center.',
+    description:
+      'How strongly the vector field F is expanding outward (source) or converging inward (sink) right at the box center.',
   },
   {
     key: 'fluxThroughBox',
     label: 'Flux through box',
     readout: true,
-    description: 'The net amount of the field F passing outward through all six faces of the box, summed together.',
+    description:
+      'The net amount of the field F passing outward through all six faces of the box, summed together.',
   },
   {
     key: 'fluxOverVolume',
@@ -214,7 +218,8 @@ export const scalars: ScalarDef[] = [
     symbol: '\\Phi/V',
     readout: true,
     plottable: true,
-    description: 'The box’s outward flux divided by its volume — as the box shrinks this converges onto the divergence at its center, the limit definition of divergence.',
+    description:
+      'The box’s outward flux divided by its volume — as the box shrinks this converges onto the divergence at its center, the limit definition of divergence.',
   },
   {
     key: 'divVolumeIntegral',
@@ -227,32 +232,37 @@ export const scalars: ScalarDef[] = [
     label: '|flux − ∫div F dV|',
     readout: true,
     plottable: true,
-    description: 'How much the box’s measured surface flux and its volume integral of divergence disagree — near zero confirms the divergence theorem numerically.',
+    description:
+      'How much the box’s measured surface flux and its volume integral of divergence disagree — near zero confirms the divergence theorem numerically.',
   },
   {
     key: 'curlMag',
     label: '|curl F| at probe',
     symbol: '|\\nabla\\times\\vec F|',
     readout: true,
-    description: 'How strongly the field F rotates locally around the curl probe — the paddlewheel spins faster the larger this is.',
+    description:
+      'How strongly the field F rotates locally around the curl probe — the paddlewheel spins faster the larger this is.',
   },
   {
     key: 'circulation',
     label: 'Circulation ∮F·dl',
     readout: true,
-    description: 'The total push the field F gives something traveling once around the cap’s fixed boundary circle.',
+    description:
+      'The total push the field F gives something traveling once around the cap’s fixed boundary circle.',
   },
   {
     key: 'curlFluxThroughCap',
     label: '∫∫ (curl F)·dA',
     readout: true,
-    description: 'The curl of F summed (integrated) over the entire curved cap surface stretched across the boundary circle.',
+    description:
+      'The curl of F summed (integrated) over the entire curved cap surface stretched across the boundary circle.',
   },
   {
     key: 'stokesGap',
     label: '|circulation − curl flux|',
     readout: true,
     plottable: true,
-    description: 'How much the boundary circulation and the cap’s curl flux disagree — near zero confirms Stokes’ theorem regardless of how the cap is bowled.',
+    description:
+      'How much the boundary circulation and the cap’s curl flux disagree — near zero confirms Stokes’ theorem regardless of how the cap is bowled.',
   },
 ];

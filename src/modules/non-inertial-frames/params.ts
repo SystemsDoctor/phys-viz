@@ -100,7 +100,8 @@ export const scalars: ScalarDef[] = [
     unit: VELOCITY,
     readout: true,
     plottable: true,
-    description: 'The puck’s speed as measured by an observer standing on the spinning platform, rather than by the stationary lab observer.',
+    description:
+      'The puck’s speed as measured by an observer standing on the spinning platform, rather than by the stationary lab observer.',
   },
   {
     key: 'aCoriolis',
@@ -109,7 +110,8 @@ export const scalars: ScalarDef[] = [
     unit: ACCEL,
     readout: true,
     plottable: true,
-    description: 'The fictitious acceleration the rotating observer must invoke because the puck is moving relative to their spinning frame — perpendicular to its velocity in that frame.',
+    description:
+      'The fictitious acceleration the rotating observer must invoke because the puck is moving relative to their spinning frame — perpendicular to its velocity in that frame.',
   },
   {
     key: 'aCentrifugal',
@@ -118,7 +120,8 @@ export const scalars: ScalarDef[] = [
     unit: ACCEL,
     readout: true,
     plottable: true,
-    description: 'The fictitious outward-pointing acceleration the rotating observer must invoke purely because their frame itself is spinning, regardless of the puck’s own motion.',
+    description:
+      'The fictitious outward-pointing acceleration the rotating observer must invoke purely because their frame itself is spinning, regardless of the puck’s own motion.',
   },
   {
     key: 'aRelative',
@@ -127,7 +130,8 @@ export const scalars: ScalarDef[] = [
     unit: ACCEL,
     readout: true,
     plottable: true,
-    description: 'The puck’s acceleration as the rotating observer actually sees it, after the fictitious Coriolis and centrifugal terms are added to explain the curving path.',
+    description:
+      'The puck’s acceleration as the rotating observer actually sees it, after the fictitious Coriolis and centrifugal terms are added to explain the curving path.',
   },
   {
     key: 'residual',
@@ -136,6 +140,7 @@ export const scalars: ScalarDef[] = [
     unit: ACCEL,
     readout: true,
     plottable: false,
-    description: 'How far the observed, Coriolis, and centrifugal accelerations fail to sum back to zero — should read numerically zero everywhere, since the puck feels no real force.',
+    description:
+      'How far the observed, Coriolis, and centrifugal accelerations fail to sum back to zero — should read numerically zero everywhere, since the puck feels no real force.',
   },
 ];

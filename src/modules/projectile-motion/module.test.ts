@@ -12,14 +12,17 @@ import type { ModuleState } from '../types';
 // than importing MockSceneContext — modules may not import a sibling
 // module (or `modules/testing`) via any path (ARCHITECTURE.md §6).
 const noopHandle = { set: () => {}, visible: () => {}, dispose: () => {} };
-const fakeCtx = new Proxy({} as SceneContext, {
-  get(_target, prop) {
-    if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
-    if (prop === 'up') return 'y';
-    if (prop === 'group') return (name: string) => ({ id: name });
-    return () => noopHandle;
-  },
-});
+function makeFakeCtx(upAxisRef: { current: 'y' | 'z' }): SceneContext {
+  return new Proxy({} as SceneContext, {
+    get(_target, prop) {
+      if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+      if (prop === 'up') return upAxisRef.current;
+      if (prop === 'group') return (name: string) => ({ id: name });
+      return () => noopHandle;
+    },
+  });
+}
+const fakeCtx = makeFakeCtx({ current: 'y' });
 
 type V3 = [number, number, number];
 
@@ -74,9 +77,11 @@ describe(module.manifest.id, () => {
     const speed = 20;
     const elevation = Math.PI / 4;
     const g = 9.8;
-    const { range, maxHeight } = instance.scalars(angleState(0, speed, elevation, g));
+    const { timeOfFlight, range, maxHeight } = instance.scalars(angleState(0, speed, elevation, g));
 
-    // R = v0^2 * sin(2*theta) / g, H = (v0*sin(theta))^2 / (2*g).
+    // t_flight = 2 * v0 * sin(theta) / g, R = v0^2 * sin(2*theta) / g,
+    // H = (v0*sin(theta))^2 / (2*g).
+    expect(timeOfFlight).toBeCloseTo((2 * speed * Math.sin(elevation)) / g, 10);
     expect(range).toBeCloseTo((speed * speed * Math.sin(2 * elevation)) / g, 10);
     expect(maxHeight).toBeCloseTo((speed * Math.sin(elevation)) ** 2 / (2 * g), 10);
     // At 45 degrees range and 4*maxHeight coincide exactly (sin(90) = 1,
@@ -176,5 +181,60 @@ describe(module.manifest.id, () => {
     const { range, maxHeight } = instance.scalars(vectorState(0, [1, vy0, 0], g, [0, y0, 0]));
     expect(range).toBe(0); // flight = 0, so horizSpeed * flight = 0 exactly
     expect(maxHeight).toBeCloseTo(y0 + (vy0 * vy0) / (2 * g), 10);
+  });
+
+  it('a genuinely 3D launch (nonzero x, y, AND z) matches independently-derived closed-form values, under z-up (TASKS.md X-22 regression case)', () => {
+    // The reported bug case: startPosition (0,0,50), launch vector
+    // (20,15,10), g=9.8, "up" being z. Values below are derived
+    // independently of sceneAt()'s helpers, straight from
+    // r(t) = r0 + v0*t - 1/2 g t^2 upHat and vy(t) = vy0 - g*t.
+    const upAxis = { current: 'z' as const };
+    const instance = module.create(makeFakeCtx(upAxis));
+    const g = 9.8;
+    const r0: V3 = [0, 0, 50];
+    const v0: V3 = [20, 15, 10];
+    const { timeOfFlight, range, maxHeight } = instance.scalars(vectorState(0, v0, g, r0));
+
+    // 0.5*g*t^2 - vy0*t - y0 = 0 with vy0=10, y0=50 -> quadratic formula.
+    const expectedFlight = (10 + Math.sqrt(10 * 10 + 2 * g * 50)) / g;
+    const expectedRange = Math.hypot(20, 15) * expectedFlight; // horizontal speed * flight
+    const expectedMaxHeight = 50 + (10 * 10) / (2 * g); // vy0 > 0
+
+    expect(timeOfFlight).toBeCloseTo(expectedFlight, 10);
+    expect(range).toBeCloseTo(expectedRange, 8);
+    expect(maxHeight).toBeCloseTo(expectedMaxHeight, 10);
+  });
+
+  it('a live up-axis switch (Settings -> Up axis) is reflected on the very next scalars()/update() call, not frozen at create()-time (TASKS.md X-22)', () => {
+    // ctx.up is documented as LIVE (SceneContext.ts). Before the fix,
+    // this module read ctx.up once in create() and cached it — so
+    // switching axes on an already-mounted instance silently kept using
+    // the stale axis. Same v0/r0/g, only the axis interpretation changes.
+    const upAxis: { current: 'y' | 'z' } = { current: 'y' };
+    const instance = module.create(makeFakeCtx(upAxis));
+    const g = 9.8;
+    const r0: V3 = [0, 50, 0]; // "vertical" only under y-up
+    const v0: V3 = [20, 10, 15]; // vertical component is index 1 (y) or 2 (z)
+
+    const underYUp = instance.scalars(vectorState(0, v0, g, r0));
+
+    upAxis.current = 'z'; // simulate a live Settings -> Up axis switch
+    const underZUp = instance.scalars(vectorState(0, v0, g, r0));
+
+    // Under y-up: y0=50, vy0=10 (component 1). Under z-up: y0=0, vy0=15
+    // (component 2) — a completely different flight, because r0/v0 here
+    // were deliberately chosen so the "vertical" component differs
+    // between the two axes. If the axis read were still stale, these
+    // would be identical instead.
+    expect(underZUp.timeOfFlight).not.toBeCloseTo(underYUp.timeOfFlight, 1);
+    expect(underZUp.range).not.toBeCloseTo(underYUp.range, 1);
+    expect(underZUp.maxHeight).not.toBeCloseTo(underYUp.maxHeight, 1);
+
+    const expectedZUpFlight = (2 * 15) / g; // y0=0 under z-up -> 2*vy0/g
+    const expectedZUpRange = Math.hypot(20, 10) * expectedZUpFlight;
+    const expectedZUpMaxHeight = (15 * 15) / (2 * g);
+    expect(underZUp.timeOfFlight).toBeCloseTo(expectedZUpFlight, 10);
+    expect(underZUp.range).toBeCloseTo(expectedZUpRange, 8);
+    expect(underZUp.maxHeight).toBeCloseTo(expectedZUpMaxHeight, 10);
   });
 });

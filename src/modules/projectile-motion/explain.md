@@ -61,8 +61,10 @@ $$ \vec{v}_0 = v_0\Big(\cos\theta\big(\cos\phi\, \hat{f} + \sin\phi\, \hat{s}\bi
 
 where $\hat{u}$ is the up axis, $\hat{f}$ is the fixed horizontal
 reference direction ($\phi = 0$), and $\hat{s} = \hat{u}\times\hat{f}$
-is the other horizontal axis. Range and max height (measured from the
-ground reference plane) follow from solving for when the vertical
-component returns to zero:
+is the other horizontal axis. Time of flight, range, and max height
+(measured from the ground reference plane) follow from solving for
+when the vertical component returns to zero:
+
+$$ t_{\text{flight}} = \frac{v_{0,\text{vertical}} + \sqrt{v_{0,\text{vertical}}^2 + 2 g y_0}}{g} $$
 
 $$ R = |\vec{v}_{0,\text{horizontal}}| \cdot t_{\text{flight}} \qquad\quad H = y_0 + \frac{v_{0,\text{vertical}}^2}{2g} $$

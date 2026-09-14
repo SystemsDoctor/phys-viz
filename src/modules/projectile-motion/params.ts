@@ -15,7 +15,7 @@
 // needed (MODULE_AUTHORING.md: bump only when a param's MEANING changes,
 // not when a new, independently-defaulted param is added alongside it).
 import type { ParamDef, LayerDef, ScalarDef } from '../types';
-import { LENGTH, VELOCITY, ACCEL } from '@/kernel/units';
+import { LENGTH, TIME, VELOCITY, ACCEL } from '@/kernel/units';
 
 export const params: ParamDef[] = [
   {
@@ -25,7 +25,7 @@ export const params: ParamDef[] = [
     label: 'Start position',
     symbol: '\\vec{r}_0',
     default: [0, 0, 0],
-    range: 10,
+    range: 50,
     draggable: true,
     unit: LENGTH,
   },
@@ -111,6 +111,15 @@ export const layers: LayerDef[] = [
 ];
 
 export const scalars: ScalarDef[] = [
+  {
+    key: 'timeOfFlight',
+    label: 'Time of flight',
+    symbol: 't_f',
+    unit: TIME,
+    readout: true,
+    description:
+      'The total elapsed time from launch until the body returns to the world’s vertical-zero reference plane.',
+  },
   {
     key: 'range',
     label: 'Range',

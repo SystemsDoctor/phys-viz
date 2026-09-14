@@ -92,6 +92,16 @@ function timeToGround(y0: number, vy0: number, g: number): number {
   return Math.max(0, (-b - sq) / (2 * a), (-b + sq) / (2 * a));
 }
 
+/** Resolve the current up-axis vector. `ctx.up` is documented as LIVE
+ * (SceneContext.ts: "a later up-axis switch must be visible on the next
+ * read") — must be re-read on every update()/scalars() call, never
+ * cached once in create(), or a live axis switch (Settings -> Up axis)
+ * silently leaves this module's gravity/range/height math on the old
+ * axis while the camera reorients out from under it (TASKS.md X-22). */
+function upVectorOf(ctx: SceneContext): Vec3 {
+  return ctx.up === 'y' ? Y_HAT : Z_HAT;
+}
+
 /** World-space launch velocity for whichever mode is active. */
 function launchVelocityOf(state: ModuleState, upVec: Vec3): Vec3 {
   if (state.layers.vectorMode ?? false) {
@@ -128,9 +138,9 @@ const module: PhysicsModule = {
   create(ctx: SceneContext) {
     // This module has a notion of "vertical" (gravity), so it reads
     // ctx.up instead of hardcoding +y — see PHYSICS_CONVENTIONS.md,
-    // "Which axis is up."
-    const upVec: Vec3 = ctx.up === 'y' ? Y_HAT : Z_HAT;
-
+    // "Which axis is up." `ctx.up` is read fresh via `upVectorOf(ctx)`
+    // inside update()/scalars() below, never cached here — see that
+    // function's doc comment for why (TASKS.md X-22).
     const gProjectile = ctx.group('projectile');
     const gTrace = ctx.group('trace');
 
@@ -162,6 +172,7 @@ const module: PhysicsModule = {
 
     return {
       update(state: ModuleState) {
+        const upVec = upVectorOf(ctx);
         const projectileOn = state.layers.projectile ?? true;
         const traceOn = state.layers.trace ?? true;
 
@@ -192,10 +203,11 @@ const module: PhysicsModule = {
       // update() — scalars() must stay pure, same pattern as every other
       // parametric module in this library.
       scalars(state: ModuleState) {
+        const upVec = upVectorOf(ctx);
         const { v0, g, y0, vy0, flight } = sceneAt(state, upVec);
         const range = norm(horizontalComponent(v0, upVec)) * flight;
         const maxHeight = y0 + (vy0 > 0 ? (vy0 * vy0) / (2 * g) : 0);
-        return { range, maxHeight };
+        return { timeOfFlight: flight, range, maxHeight };
       },
 
       dispose() {

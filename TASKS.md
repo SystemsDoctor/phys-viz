@@ -1527,6 +1527,15 @@ check:budget` (10 module chunks, largest `rotational-dynamics` at 4.77
   Only the `oscillations` comment asserting the (wrong) safe-precedent
   claim was corrected in this change; the underlying behavior in all
   three modules is unchanged.
+  **Update (see the "Bug fix: `projectile-motion` 3D Range/Height" entry
+  further down):** `projectile-motion` took option (a) and is fixed —
+  confirmed live, not just by code inspection, this time. Still `READY`
+  for `oscillations` and `rotational-dynamics`; the cross-cutting
+  decision this entry asks for (a per-module (a)-style fix everywhere,
+  vs. shell-level option (b)) is still not made, so whoever picks either
+  of those up should still read this entire entry first rather than
+  assuming `projectile-motion`'s module-local fix sets a shell-wide
+  precedent.
 - [DONE] **X-23** User-reported: `work-energy`'s "Speed" readout showed
   values "in the hundreds" right where speed should visibly settle near
   zero, at the potential surface's turning points. Root cause was in
@@ -1923,6 +1932,87 @@ tests/e2e/smoke.spec.ts` (33/33). Live in the dev server (Browser
   dot product, angle, cross product magnitude, triple product volume,
   three direction cosines — are dimensionless and correctly show no
   unit at all)
+
+- [DONE] **Bug fix: `projectile-motion` 3D Range/Height, plus a Time of
+  flight readout** User-reported: a genuinely 3D launch — start position
+  `(0,0,50)`, launch vector `(20,15,10)`, `g=9.8`, up axis set to z — gave
+  Range/Height that looked wrong. Root-caused to **two independent, real
+  bugs**, not one:
+  1. **X-22, confirmed live for this module for the first time** (it had
+     previously only been established by code inspection): `create()`
+     read `ctx.up` once and closed over it as `upVec`, but `SceneContext.
+ts` documents `ctx.up` as LIVE ("a later up-axis switch must be visible
+     on the next read"). Switching Settings -> Up axis while
+     `projectile-motion` was already mounted left `update()`/`scalars()`
+     silently computing gravity/range/height/flight-time against the
+     STALE axis while the camera visibly reoriented out from under it —
+     exactly X-22's mechanism. Fixed with X-22's option (a) from that
+     entry's own writeup (recompute in `update()`/`scalars()` instead of
+     caching in `create()`), scoped to this module only: added
+     `upVectorOf(ctx)`, called fresh on every `update()`/`scalars()` call
+     instead of once. Deliberately did NOT take X-22's option (b) (a
+     shell-level forced remount) — that is a cross-cutting call affecting
+     `oscillations`/`rotational-dynamics` too and still needs the
+     decision X-22 itself asks for; this fix only closes the gap for
+     `projectile-motion`, so X-22 stays `READY` for the other two
+     modules.
+  2. **A second, previously-unlogged bug**, found while reproducing the
+     report live rather than by code review alone: `VectorPad`'s
+     `AxisInput` (`shell/controls/VectorPad.tsx`) clamps a typed value to
+     `+/-range` and commits the CLAMPED number, but kept displaying the
+     raw, unclamped text the user typed — the input box silently
+     disagreed with the value the module actually received, with no
+     indication a clamp had even happened. This is what actually produced
+     the reported numbers: `startPosition`'s `range` was `10`, so typing
+     `50` for the z-component silently committed `10` while the box kept
+     showing "50" forever (the component's own resync-from-`value` check
+     never fires once its internal `lastCommitted` ref is pre-set to the
+     clamped number). Confirmed live in the dev server before fixing:
+     typing `(0,0,50)` produced `R=69.4, H=15.1` — exactly the closed-form
+     values for `y0=10` (the silently-clamped height), not `y0=50`. Fixed
+     in `AxisInput.handleChange`: a fully-parseable out-of-range number
+     now sets the displayed text to the clamped value being committed,
+     not the raw typed string — still-in-progress typing (a bare `-`, a
+     trailing `.`, an emptied field, per UI-6) is unaffected, since that
+     path already returns before any clamping happens. This is a
+     shell/controls fix, not a module patch, per CLAUDE.md's "add a
+     capability every module can use" guidance — every `kind: 'vector'`
+     param in every module had this same latent bug. Also bumped
+     `projectile-motion`'s `startPosition.range` from `10` to `50` so the
+     reported scenario (and similar tall-drop setups) is actually
+     reachable rather than merely honestly clamped.
+     Also added the **Time of flight** scalar the user requested, shown
+     ahead of Range/Height in the sidebar (readout order follows
+     `scalars: ScalarDef[]`'s array order, so it's simply the first entry):
+     `key: 'timeOfFlight'`, symbol `t_f`, unit `TIME`, not `plottable` (so
+     `range` — the module's pre-existing first plottable scalar — stays the
+     sidebar's default sweep/time-series series, unchanged). `scalars()`
+     already computed this internally as `flight`; it was just never
+     exposed. `explain.md` gained the closed-form
+     `t_flight = (v0_vertical + sqrt(v0_vertical^2 + 2*g*y0)) / g` line
+     ahead of the existing R/H line. Verified: `module.test.ts` (11 tests,
+     up from 8) adds a `timeOfFlight` assertion to the existing 45°
+     golden-value case, an independently-hand-derived-formula regression
+     test for the exact reported `(0,0,50)`/`(20,15,10)`/z-up scenario, and
+     a live-axis-switch regression test (mutates a `{current: 'y'|'z'}` ref
+     the fake `ctx.up` getter reads, proving `scalars()` picks up the change
+     on its very next call with no new `create()`); `VectorPad.test.tsx` (6
+     tests, up from 4) adds a clamped-display regression test using a new
+     `ControlledVectorPad` wrapper (a real `useState`-backed parent, since a
+     fixed `value` prop can't distinguish "the parent hasn't round-tripped
+     yet" from "an external change happened," the same ambiguity
+     `AxisInput`'s own resync check has to live with). Full sweep: `npm run
+typecheck && npm run lint && npm run test:unit` (599 tests) `&& npm run
+test:contract` (187 passed/12 skipped, unaffected) `&& npm run build &&
+npm run check:budget` (`projectile-motion` chunk 1.85 KB gzipped, still
+     far under budget) `&& npm run format:check` all clean. Live in the dev
+     server (Browser pane): reproduced the original bug (wrong R/H, stale
+     displayed "50"), then confirmed the fix end-to-end — typing
+     `(0,0,50)`/`(20,15,10)` under z-up now reads `t_f=4.37 s, R=109 m,
+H=55.1 m` (matching the independently hand-computed closed-form
+     values), and switching Up axis -> Y-up live (module stays mounted)
+     correctly recomputes to `t_f=3.06 s, R=68.5 m, H=11.5 m` instead of
+     staying frozen at the z-up numbers.
 
 ## Anticipated extensions (§22) — substrate should not foreclose these; do not build yet
 

@@ -41,10 +41,22 @@ function AxisInput(props: {
   }
 
   function handleChange(raw: string): void {
-    setText(raw);
     const n = Number(raw);
-    if (raw.trim() === '' || Number.isNaN(n)) return;
+    if (raw.trim() === '' || Number.isNaN(n)) {
+      // Genuinely in-progress typing (a bare "-", a trailing ".", an
+      // emptied field) — keep showing exactly what was typed; there is
+      // no committed number yet to reconcile against.
+      setText(raw);
+      return;
+    }
     const clamped = Math.min(range, Math.max(-range, n));
+    // Show the value that's actually being committed, not the raw typed
+    // text — otherwise typing something outside +/-range commits the
+    // clamped number while the box keeps displaying the unclamped one
+    // forever (lastCommitted.current below already matches the prop on
+    // its next render, so the box's resync-from-`value` check at the top
+    // of this component never fires to correct it).
+    setText(String(clamped));
     lastCommitted.current = clamped;
     onCommit(clamped);
   }

@@ -1888,7 +1888,7 @@ playwright test` (39/39, including the auto-discovered per-module smoke
   WebGL context on navigate-away) green. Manually driven live in the dev
   server (Browser pane): confirmed the readout table at default params
   (`mu=8, a=2, e=0.5`) reads `r=1.00m, v=3.46m/s, T=6.28s,
-  specificEnergy=-2.00 m^2/s^2, h=3.46 m^2/s, g=8.00 m/s^2` — exact
+specificEnergy=-2.00 m^2/s^2, h=3.46 m^2/s, g=8.00 m/s^2` — exact
   hand-computed matches; pressed play and watched the body accelerate
   through periapsis and the readouts update live; toggled the angular
   momentum layer on and confirmed it renders as a foreshortened point at

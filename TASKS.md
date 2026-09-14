@@ -1830,7 +1830,83 @@ module.test.ts` (8 tests, unchanged — none of these three changes
   the sim, and confirmed the body drops straight down to the origin
   with the trajectory trace showing no horizontal component,
   `R=0.00`/`H=5.00` in the readout table
-- [IDEA] **M7-5** Gravitation & Central Forces (Kepler via M1-15's root-finder, `parametric`)
+- [DONE] **M7-5** Gravitation & Central Forces. New `src/modules/gravitation/`
+  (scaffolded via `npm run new:module -- gravitation`): a body orbiting a
+  fixed central mass under Newtonian gravity, the restricted two-body
+  ("test particle") problem — every scalar is per unit mass (specific
+  energy, specific angular momentum) rather than carrying an actual
+  orbiting-body mass, which is exactly what keeps this closed-form
+  (`timeModel: 'parametric'`). Position/velocity at time `t` come from
+  solving Kepler's equation `M = E - e*sin(E)` for the eccentric anomaly
+  via `kernel/ode`'s `findRoot` (M1-15's Newton-Raphson/bisection
+  root-finder — the literal thing this task was scoped around) — one
+  algebraic root-solve per `update()` call, never an ODE integration.
+  `[M - e - margin, M + e + margin]` always brackets the root since `f`
+  is strictly increasing and `|E - M| <= e`; proved in a doc comment,
+  not just asserted. Params: `mu` (gravitational parameter `GM`, a new
+  literal `Dimension` — not one of `kernel/units`' named exports), `a`
+  (semi-major axis), `e` (eccentricity), `omega` (argument of periapsis,
+  `angle` kind), `inclination` (`angle` kind, tilts the orbital plane out
+  of the reference x/y plane about the world x-axis — the longitude of
+  ascending node is deliberately omitted/pinned to 0 to keep the param
+  count in line with the rest of the library). Three layers (central
+  mass/orbit/body; position+velocity+gravity vectors; angular momentum,
+  off by default to avoid clutter). Scalars: `r`, `speed` (the sole
+  `plottable` one — genuinely time-varying, traces Kepler's second law
+  live), `trueAnomaly`, `period`, `specificEnergy`, `h` (specific angular
+  momentum), `accel`. Deliberately ignores `ctx.up` — like
+  `vector-algebra`/`fields-gradients`, this module has no notion of
+  "vertical" tied to the viewer's up-axis setting; the orbital plane's
+  tilt is its own `inclination` param instead (documented inline,
+  consistent with PHYSICS_CONVENTIONS.md's "which axis is up"). Colours:
+  `position` for the orbiting body and its radius vector, `velocity` for
+  `v`, `accel` for the gravity-pull vector (it's an acceleration, not a
+  force — no mass param exists to convert it), `angular` +`doubleHead`
+  for the conserved pseudovector `h`, `construction` for the central
+  mass and the static orbit-outline guide. Verified: 10 new
+  `module.test.ts` golden-value tests, each cross-checked against an
+  independent closed-form formula rather than re-reading the same code
+  path back — periapsis/apoapsis distance+speed at exact `t=0`/`t=T/2`
+  (clean algebraic values, not approximations, since `E=0`/`E=pi` solve
+  Kepler's equation exactly at those instants), Kepler's third law,
+  vis-viva energy conservation at 5 sampled `t` (both against the
+  closed-form `-mu/2a` and against a raw `speed^2/2 - mu/r` recomputation
+  from the returned scalars), specific-angular-momentum conservation at 4
+  sampled `t` against `sqrt(mu*a*(1-e^2))`, distance cross-checked
+  against the independent polar-conic formula `r = p/(1+e*cos(nu))`,
+  `accel = mu/r^2` at both apses (confirms periapsis > apoapsis), a
+  circular-orbit (`e=0`) constant-radius/constant-speed/linear-sweep
+  check, and a high-eccentricity (`e=0.9`) finiteness check. Also: full
+  `npm run typecheck && lint && test:unit` (617 tests, 70 files) &&
+  `test:contract` (all module-contract checks pass for `gravitation`
+  under both `ctx.up` settings — moot here since the module ignores
+  `ctx.up`, but the suite doesn't know that and runs it anyway) &&
+  `build` && `check:budget` (gravitation's chunk: 2.58 KB gzipped, well
+  under the 80 KB module budget) && `format:check`, all green; `npx
+playwright test` (39/39, including the auto-discovered per-module smoke
+  test: renders, no console errors, every layer toggles, disposes its
+  WebGL context on navigate-away) green. Manually driven live in the dev
+  server (Browser pane): confirmed the readout table at default params
+  (`mu=8, a=2, e=0.5`) reads `r=1.00m, v=3.46m/s, T=6.28s,
+  specificEnergy=-2.00 m^2/s^2, h=3.46 m^2/s, g=8.00 m/s^2` — exact
+  hand-computed matches; pressed play and watched the body accelerate
+  through periapsis and the readouts update live; toggled the angular
+  momentum layer on and confirmed it renders as a foreshortened point at
+  `inclination=0` (physically correct — it's pointing straight at the
+  camera) and as a clearly visible tilted double-headed arrow once
+  inclination is raised; unlocked "2D-only" and orbited freely, confirming
+  the tilted ellipse, body, and all three vectors render correctly in
+  full 3D, not just the locked planar view; checked at 320px width
+  (controls stack, canvas fills width, no overflow); toggled projector
+  mode (inherits the shell-owned mechanism for free, same as X-6's
+  `vector-algebra` precedent — this module uses only `ctx.palette.*` and
+  stock glyphs, confirmed zero raw hex literals); zero console errors
+  throughout. `prefers-reduced-motion` not separately browser-tested —
+  same X-5 precedent (`vector-algebra`): this module introduces no
+  camera or layer-visibility code of its own, so it inherits the
+  already-tested shell-owned motion paths (camera easing M2-5, layer
+  fades M3-8) for free, verified by inspection that no module-local
+  motion code exists to half-implement that.
 - [IDEA] **M7-6** Kinematics
 - [IDEA] **M7-7** Newton's Laws & FBDs
 - [IDEA] **M7-8** Statics & Trusses

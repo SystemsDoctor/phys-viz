@@ -149,11 +149,11 @@ chat history.
 M0 through M6.5 (ARCHITECTURE.md §20) are all `DONE` — the layered
 substrate (kernel/scene/shell), the module-authoring path, and the
 offline/GIF-export platform features are built and deployed at
-`https://systemsdoctor.github.io/phys-viz/`. Nine modules are
+`https://systemsdoctor.github.io/phys-viz/`. Ten modules are
 registered: `vector-algebra`, `rotational-dynamics`,
 `fields-gradients`, `projectile-motion`, `control-showcase`,
 `work-energy`, `momentum-collisions`, `non-inertial-frames`,
-`oscillations`. Nothing in
+`oscillations`, `gravitation`. Nothing in
 `src/kernel`, `src/scene`, or `src/shell` should still be a
 `throw new Error('not implemented ...')` stub; if you find one, treat
 it as a bug, not expected scaffold state. What remains is tracked in

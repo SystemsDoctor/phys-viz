@@ -191,6 +191,24 @@ rather than adding more UI machinery to one.
   handle's lifetime — pass their final value at `create()` time, not in
   `update()`.
 
+  **Gotcha (TASKS.md X-17): never give a `surface`/`patch` its only
+  "thickness" along the axis the locked 2D view looks down.** Every
+  module is viewed through the "2D-only" lock (ADR 0012) by default,
+  camera on `+z`, looking straight down world `z`. If your `parametric`
+  function ties in-plane position (`x`/`y`) to one parameter only and
+  routes the OTHER parameter exclusively into `z` (e.g. `(u, v) =>
+[f(u), g(u), thickness * v]` — using `v` purely to fake a bit of
+  extruded depth), every triangle in the mesh ends up with two vertices
+  that share the exact same screen position under that view (they
+  differ only in `z`, the axis being viewed edge-on), which is a
+  zero-area triangle — invisible, not just thin. Unlocking "2D-only"
+  and orbiting away makes it reappear, which reads like a camera/
+  clipping bug but isn't one: it's the same reason a sheet of paper
+  disappears when you sight down its edge. The fix is to route any
+  deliberate "thickness" into the SAME in-plane axes your shape already
+  varies over (e.g. a thin band in `y` alongside the curve's own `y`,
+  the way `work-energy`'s ribbon does it), never into `z` alone.
+
 - `ctx.palette` gives you the 8 project-wide semantic colours —
   `position`, `velocity`, `accel`, `force`, `angular`, `field`,
   `energy`, `construction` — instead of a raw hex. Colour is data

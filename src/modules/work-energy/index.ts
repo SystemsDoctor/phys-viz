@@ -19,15 +19,16 @@
 // readouts stay in real physical units throughout.
 //
 // Every glyph stays exactly in the canonical (x/up) plane — z = 0 in
-// world space — rather than gaining a cosmetic depth extrusion: the
+// world space — rather than gaining a cosmetic depth extrusion: TASKS.md
+// X-17 root-caused why that would have been invisible under the
 // "2D-only" locked orthographic view (checked by default for every
-// module, ADR 0012) does not render `surface`/`patch` geometry that
-// extends off that plane, even by a fraction of a world unit (confirmed
-// empirically; likely a near-plane clipping edge case in
-// src/scene/camera, flagged as X-18 in TASKS.md for someone to dig into
-// — out of scope to chase down here). The ribbon's and plane's visible
+// module, ADR 0012) — not a camera/clipping bug, but a degenerate-
+// triangle artifact from tying a surface's only in-plane shape to one
+// parameter while routing "thickness" exclusively into z, the exact
+// axis that view looks straight down (see MODULE_AUTHORING.md §5's
+// gotcha for the general pattern). The ribbon's and plane's visible
 // "thickness" comes from a small band in η instead, which stays on the
-// canonical plane and is unaffected by the issue.
+// canonical plane and sidesteps the issue entirely.
 import type { PhysicsModule, ModuleState } from '../types';
 import type { SceneContext } from '@/scene/SceneContext';
 import manifest from './manifest';

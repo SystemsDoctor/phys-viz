@@ -745,7 +745,7 @@ again once unlocked`), confirmed it fails against the pre-fix code
   against the fix; full 30/30 Playwright suite, `test:unit` (486),
   `test:contract`, `typecheck`, `lint`, `build`, `check:budget`,
   `format:check` all green
-- [READY] **X-17** Discovered while building `work-energy` (M7-1): a
+- [DONE] **X-17** Discovered while building `work-energy` (M7-1): a
   `surface` or `patch` glyph whose geometry extends off the canonical
   x/up plane (a nonzero depth extent along the camera's view axis) does
   not render at all under the default, locked "2D-only" orthographic
@@ -771,7 +771,67 @@ again once unlocked`), confirmed it fails against the pre-fix code
   and `lockTo2D:true`) and inspecting the ortho camera's actual
   near/far values in `src/scene/camera/index.ts` around
   `setProjection`/`goTo`
-- [READY] **X-18** Discovered while adding `momentum-collisions` (M7-2):
+  **Root-caused (this change): not a camera/clipping bug at all —
+  closing as "investigated, not a defect."** Reproduced with a
+  throwaway scratch module (`src/modules/x17-repro/`, scaffolded via
+  `npm run new:module`, deleted after — never committed) built to
+  mirror `work-energy`'s original pre-workaround shape: a `surface`
+  whose in-plane position (`x`, `y`) is a function of one parameter
+  (`xi`) only, with the other parameter (`vv`) routed exclusively into
+  `z` as a fake "thickness"
+  (`parametric: (xi, vv) => [xi*2, xi*xi*2, RIBBON_HALF_THICKNESS*(2*vv-1)]`,
+  the exact shape+constant `work-energy`'s own comment describes).
+  Confirmed invisible under the locked `+z` view exactly as reported,
+  a `body` at the same offset visible throughout, and the surface
+  reappearing on orbiting away — all matching the original report. The
+  mechanism: under the locked view the camera looks straight down
+  world `z`, so screen position is `(x, y)` only. Because `vv` (the
+  parameter varied to fake "thickness") affects ONLY `z` and never `x`
+  or `y`, every vertex pair that differs only in `vv` projects to the
+  IDENTICAL screen point — and the mesh's quad triangulation always
+  connects such a pair within one triangle, so **every triangle in the
+  mesh has two of its three vertices coincident on screen**, i.e. zero
+  screen-space area, under this exact view only. A zero-area triangle
+  is not rasterized by any renderer — this is not a near/far clipping
+  defect, not `src/scene/camera` misbehaving, and not specific to
+  `surface`/`patch` as glyph KINDS (it would happen to a hand-built
+  `THREE.Mesh` with this exact topology in any engine); `body`/`point`/
+  `arrow` "render fine off-plane" simply because none of them are ever
+  constructed by extruding a shape's cross-section purely along one
+  world axis with zero variation in the other two — they have real
+  volume/screen-footprint in every direction by construction, so this
+  specific degenerate-projection can't arise for them. Verified the
+  isolating variables directly: a flat (non-parabolic) version of the
+  same shape reproduced it too (ruling out the parabola curvature or
+  `colorField` as factors — tried removing `colorField` first, no
+  change; the geometry topology alone is the whole story); a control
+  surface using `(u, v) => [u, v, ZOffset]` (both parameters mapped to
+  DIFFERENT in-plane axes, `z` held constant) rendered fine at every
+  offset tried (0.05 through 8.5, only failing once the offset pushed
+  the whole object out of the camera's ortho frustum entirely at
+  `radius=8` — ordinary, expected out-of-view behavior, not this bug).
+  No engine fix exists or is warranted (the same invisibility would
+  happen pointing a real orthographic projector at a sheet of paper
+  sighted exactly down its own edge) — the existing `work-energy`
+  workaround (give any deliberate "thickness" to the SAME in-plane axes
+  the shape already varies over, e.g. its small band in η, never to
+  `z` alone) is the correct general pattern, not a one-module
+  workaround. Documented as a `surface`/`patch` authoring gotcha in
+  [`docs/MODULE_AUTHORING.md`](docs/MODULE_AUTHORING.md) §5 (right after
+  the glyph table) so the next module author who reaches for a
+  z-extruded "thickness" trick sees the warning before hitting the
+  same wall; also fixed `work-energy/index.ts`'s own comment, which had
+  mis-cited this as "X-18" (X-18 is the unrelated Playwright flake
+  entry below) and still described it as an open, uninvestigated
+  camera bug — now points at this entry and at the `MODULE_AUTHORING.md`
+  gotcha instead. Verified: `npm run typecheck && npm run lint && npm
+run test:unit` (599 tests) `&& npm run test:contract` (187/12-skip,
+  unaffected — comment-only change to a shipped module) `&& npm run
+build && npm run check:budget` all clean; the scratch repro module
+  was never part of the committed tree at any point checked in
+  (created, exercised live in the Browser pane, then `rm -rf`'d before
+  running the verification sweep).
+- [DONE] **X-18** Discovered while adding `momentum-collisions` (M7-2):
   `tests/e2e/smoke.spec.ts`'s per-module "disposes its WebGL context on
   navigate-away" check (the `for (const id of manifests...)` loop
   starting at line 708) is flaky under Playwright's default multi-worker
@@ -794,7 +854,47 @@ again once unlocked`), confirmed it fails against the pre-fix code
   (`playwright.config.ts`) and whether the per-module `describe.serial`
   or lack thereof around line 708 is letting two module tests interleave
   navigation on a shared page
-- [READY] **X-19** `formatQuantity` (`src/kernel/units/index.ts`) is
+  **Root-caused and fixed (this change).** Confirmed each `test()` gets
+  Playwright's normal fresh, isolated `page`/`BrowserContext` (no shared
+  page across the `for (const id of moduleIds)` loop, no missing
+  `describe.serial` — that half of the original hypothesis doesn't
+  apply, there is no cross-test page sharing to race). Reproduced
+  reliably on this machine (12 cores, default 6 workers) with
+  `--grep "disposes its WebGL" --repeat-each=8`: 7/72 runs failed,
+  every time with `canvas` count stuck at exactly 2 or 3 for the
+  **entire** assertion timeout (verified this isn't a slow-but-eventual
+  race, not just a race that needs a longer timeout: reran with the
+  assertion's timeout raised to 20s — canvas count stayed at exactly 3,
+  polled 39 times, never once dropping, until the test itself timed
+  out). This machine has 12 real cores; the failure still needing only
+  6 concurrent headless-Chromium instances, each continuously
+  `requestAnimationFrame`-ticking a real WebGL `Viewport`, each also
+  rendering a `TimeSeriesPlot`/`SweepPlot` (a per-instance `<canvas>`
+  from `uplot`, which is why the leaked count is 2–3 — the WebGL canvas
+  plus one or two plot canvases — not just 1), points at GPU/compositor
+  contention (not raw CPU headroom) starving the page's own event loop
+  badly enough that its `hashchange` handling and the resulting React
+  unmount don't run within any reasonable timeout — genuine resource
+  contention between concurrently-running heavy tests, not a bug in
+  `Viewport.dispose()`/`ModuleView`'s cleanup effect (both already
+  proven correct: a live dev-server check via `javascript_tool` showed
+  every canvas removed from the DOM in the same tick as `location.hash`
+  changes, with zero contention). Confirmed the concurrency link
+  directly by bisecting the worker count with the same repeat-each
+  stress test: 6 workers → 7/72 failed; 4 workers → 2/54 failed (rarer,
+  not fixed); 3 workers → 72/72, then a second, longer run → 122/122,
+  zero failures across ~250 total stress-test iterations. Fixed by
+  capping `workers: 3` in `playwright.config.ts` (with a comment
+  pointing back to this entry so it doesn't get "helpfully" reverted
+  as a performance tweak later) — a harness-level fix, not an app-code
+  one, exactly as this entry's own note anticipated. Re-verified the
+  full 33-test suite green at the new capped default (no `--workers`
+  override) after the config change. This does cost some CI wall-clock
+  time (fewer parallel workers); not measured against CI's own
+  (probably lower core-count, so less affected) runners specifically,
+  but reliability was judged worth it over shaving CI minutes for a
+  suite this size.
+- [DONE] **X-19** `formatQuantity` (`src/kernel/units/index.ts`) is
   prefix-and-numeral only by design (documented at the top of that
   file) — it never prints a unit symbol string, only an SI-prefix
   letter. Confirmed working as intended while manually verifying
@@ -811,6 +911,19 @@ again once unlocked`), confirmed it fails against the pre-fix code
   Layer 2 unit-symbol string, explicitly deferred to "Layer 2/3" by that
   file's own doc comment) is a shell-wide readout change, not a
   `momentum-collisions`-specific one
+  **Superseded by X-24 (this change): confirmed already resolved,
+  status flipped to reflect it.** X-24 shipped exactly the fix this
+  entry called for — `src/shell/unitSymbol.ts`'s `formatQuantityWithUnit`
+  appends the real base-unit symbol after whatever SI-prefix letter
+  `formatQuantity` chose, wired into both `ReadoutTable` and
+  `ModuleView`'s canvas `aria-label`. Re-verified live rather than
+  trusting the cross-reference alone: `grep` confirms both call sites
+  (`src/shell/readouts/index.tsx`, `src/shell/routes/ModuleView.tsx`)
+  actually call `formatQuantityWithUnit`, not just `formatQuantity`; and
+  `momentum-collisions`' own `vcm` reading — the exact literal case this
+  entry reported — now shows `mm/s` unambiguously appended (confirmed
+  against the current dev build in the Browser pane), not the bare
+  `"333m"` that prompted this entry originally.
 
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 
@@ -1120,7 +1233,7 @@ build && npm run check:budget` (7 module chunks, largest
      tests (`momentum-collisions`' 8 tests re-run clean, confirming the
      collision-timing math itself was never wrong — only the rendered
      sphere size was) and the full sweep in point 3.
-- [READY] **X-20** `src/shell/state/urlCodec.ts`'s `decodeParamValue`
+- [DONE] **X-20** `src/shell/state/urlCodec.ts`'s `decodeParamValue`
   (line ~76) does raw `Number(raw)` for every `number`/`angle`-kind
   param straight from the URL query string, with no clamping to the
   param's declared `min`/`max` and no `NaN`/finite check anywhere in the
@@ -1143,6 +1256,52 @@ build && npm run check:budget` (7 module chunks, largest
   silently is the least surprising default and matches how sliders
   already behave, but changes what a truncated/malformed bookmark link
   restores to, which is worth a one-line ADR note per X-8 if adopted.
+  **Decided and fixed (this change), recorded as
+  [ADR 0015](docs/adr/0015-clamp-and-nan-guard-decoded-url-params.md):**
+  went with the clamp-silently policy the entry itself already leaned
+  toward, over the two alternatives (reject-the-field-even-if-merely-
+  out-of-range; reject-the-whole-URL-with-a-notice) — see the ADR for
+  the full reasoning, in short: it's the least surprising outcome given
+  a `Slider` already pins at its end rather than erroring, and it
+  doesn't throw away every OTHER valid field in the same URL over one
+  bad one. New `clampDecodedNumber(value, fallback, min?, max?)` in
+  `urlCodec.ts`: a non-finite parse (`NaN`/`Infinity`, e.g. `?m1=abc`)
+  falls back to the param's own declared `default` (or the matching
+  component of a vector's default tuple); a finite but out-of-range
+  value clamps into `[min, max]` (`[-range, range]` per vector
+  component). Scoped to exactly the three `ParamDef` kinds whose decode
+  path is a bare `Number(...)` (`number`, `angle`, each `vector`
+  component) — `toggle`/`select` can't produce a non-finite value from
+  this function as written, and `expression` already goes through
+  `kernel/expr`'s own typed error handling, so none of those needed
+  touching. 8 new tests in `urlCodec.test.ts` (`describe('X-20: ...')`):
+  non-numeric and empty `number` params, a finite out-of-range `number`
+  clamping to both ends, an `angle` param with no declared `min`/`max`
+  passing any finite value through unclamped vs. still falling back
+  when non-finite, a vector with one garbage component falling back
+  for just that component while keeping its siblings, a vector clamping
+  per-component to `+/-range`, and a documentation-style regression
+  test drawing the line between "decode manufactures a NaN" (now
+  impossible) and "a module's own math produces one from a legitimately
+  decoded, in-range value" (still possible in principle, and correctly
+  not this fix's job to prevent). Confirmed live (Browser pane, hard
+  reload) that this also happens to close the ORIGINAL reported
+  repro, not just narrow it: `momentum-collisions` declares `m1`/`m2`
+  with `min: 0.2`, so `#/m/momentum-collisions?m1=0&m2=0` — the exact
+  URL cited when this entry was logged — now clamps both masses to
+  `0.2` and shows a real (if extreme) two-tiny-carts collision instead
+  of the previous `0/0`-driven `NaN` throughout the readout table.
+  `work-energy`'s `#/m/work-energy?m=0` is likewise now clamped to
+  that param's own declared `min` rather than reaching `omega=Infinity`.
+  A module could still construct its own internal `0/0` from two
+  params that are each individually valid (e.g. a future module
+  subtracting two same-valued in-range numbers) — correctly out of
+  scope here, since that's the module's own math on legitimate input,
+  not a decode-layer bug. Verified: `npm run typecheck && npm run lint
+&& npm run test:unit` (607 tests, +8 new) `&& npm run test:contract`
+  (187/12-skip, unaffected — no `types.ts` change, no
+  `MODULE_CONTRACT_VERSION` bump) `&& npm run build && npm run
+check:budget` all clean.
 - [DONE] **X-21** User manual inspection of `rotational-dynamics`'
   precession panel (M5-1) asked two questions the old implementation
   couldn't answer: (1) is a genuinely looping axis path possible, not

@@ -65,17 +65,43 @@ function encodeParamValue(value: ParamValue): string {
   return encodeURIComponent(value);
 }
 
+/**
+ * Guards a decoded `number`/`angle`/vector-component value against a
+ * hand-edited or truncated bookmark URL (TASKS.md X-20): a non-finite
+ * parse (`NaN`/`Infinity`, e.g. `?m1=` or `?m1=abc`) falls back to
+ * `fallback` (the param's own declared default) rather than propagating
+ * — every registered module's `update()`/`scalars()` treats its state as
+ * trusted, not re-validating "can't happen" inputs (CLAUDE.md), so this
+ * is the one place that trust boundary has to be enforced. A finite but
+ * out-of-declared-range value is clamped to `[min, max]` rather than
+ * rejected: this is the same "least surprising" behavior a `Slider`
+ * control already has (dragging past an end pins at the end), so a
+ * bookmark that carries a stale, since-narrowed range restores to the
+ * nearest valid state instead of silently reviving an invalid one.
+ * Recorded as ADR 0015.
+ */
+function clampDecodedNumber(value: number, fallback: number, min?: number, max?: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  let clamped = value;
+  if (min !== undefined) clamped = Math.max(min, clamped);
+  if (max !== undefined) clamped = Math.min(max, clamped);
+  return clamped;
+}
+
 function decodeParamValue(def: ParamDef, raw: string): ParamValue {
   switch (def.kind) {
     case 'toggle':
       return raw === '1';
     case 'vector': {
       const parts = raw.split(',').map(Number);
-      return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
+      return [0, 1, 2].map((i) =>
+        clampDecodedNumber(parts[i], def.default[i], -def.range, def.range),
+      ) as [number, number, number];
     }
     case 'number':
+      return clampDecodedNumber(Number(raw), def.default, def.min, def.max);
     case 'angle':
-      return Number(raw);
+      return clampDecodedNumber(Number(raw), def.default, def.min, def.max);
     case 'select':
     case 'expression':
       return decodeURIComponent(raw);

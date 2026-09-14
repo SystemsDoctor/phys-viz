@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { encodeState, decodeState } from './urlCodec';
 import { DEFAULT_APP_STATE, DEFAULT_CAMERA } from './store';
-import type { AppState } from './store';
+import type { AppState, ParamValue } from './store';
 import type { ParamDef, LayerDef } from '@/modules/types';
 
 const params: ParamDef[] = [
@@ -164,5 +164,57 @@ describe('encodeState / decodeState round-trip', () => {
     const encoded = encodeState(baseState({ params: { ...baseState().params, n: 3 } }), ctx);
     const withoutQ = encoded.slice(1);
     expect(decodeState(withoutQ, ctx)).toEqual(decodeState(encoded, ctx));
+  });
+});
+
+describe('X-20: a hand-edited or malformed URL never produces NaN/Infinity state', () => {
+  // decodeState's return type widens `params` to optional (it extends
+  // `Partial<AppState>`), even though its own doc comment guarantees every
+  // field is always fully resolved — this helper asserts that guarantee
+  // once here instead of a `!` at every call site below.
+  function paramsOf(search: string): Record<string, ParamValue> {
+    const params = decodeState(search, ctx).params;
+    if (!params) throw new Error('decodeState did not resolve params');
+    return params;
+  }
+
+  it('a non-numeric number param falls back to its declared default', () => {
+    expect(paramsOf('?v=1&n=abc').n).toBe(5);
+  });
+
+  it("an empty number param decodes as 0 (JS's own Number('') === 0), clamped into range like any other value", () => {
+    expect(paramsOf('?v=1&n=').n).toBe(0); // min: 0, so 0 is already in-range
+  });
+
+  it('a finite but out-of-range number param clamps to min/max, not rejected', () => {
+    expect(paramsOf('?v=1&n=999').n).toBe(10);
+    expect(paramsOf('?v=1&n=-50').n).toBe(0);
+  });
+
+  it('an angle param with no declared min/max passes any finite value through unclamped', () => {
+    expect(paramsOf('?v=1&ag=123.5').ang).toBe(123.5);
+  });
+
+  it('an angle param still falls back to its default when non-finite', () => {
+    expect(paramsOf('?v=1&ag=notanumber').ang).toBe(0);
+  });
+
+  it("a vector with one garbage component falls back to just that component's default, keeping the others", () => {
+    expect(paramsOf('?v=1&a=1,abc,3').a).toEqual([1, 1, 3]); // default is [3, 1, 0]; only the middle (garbage) component falls back
+  });
+
+  it('a vector with an out-of-range component clamps to +/-range per component', () => {
+    expect(paramsOf('?v=1&a=100,-100,0').a).toEqual([6, -6, 0]); // range: 6
+  });
+
+  it('division-by-a-decoded-zero downstream stays a plain number, never silently NaN from the decode step itself', () => {
+    // Regression for the exact X-20 report: #/m/momentum-collisions?m1=0&m2=0
+    // makes every downstream scalar NaN via 0/0 — but that NaN comes from
+    // the MODULE's own math on a legitimately-decoded 0, not from decode
+    // itself, since 0 is a perfectly finite, in-range value. This test
+    // documents that boundary: decodeState must never MANUFACTURE a NaN
+    // that wasn't already implied by a truly non-finite raw token.
+    expect(paramsOf('?v=1&n=0').n).toBe(0);
+    expect(Number.isFinite(paramsOf('?v=1&n=0').n as number)).toBe(true);
   });
 });

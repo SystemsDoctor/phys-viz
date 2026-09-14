@@ -1486,7 +1486,7 @@ check:budget` (10 module chunks, largest `rotational-dynamics` at 4.77
      `body`/`point`/`arrow`/`path`/`label`), so neither provides a new
      data point on X-17's off-plane rendering bug — still `READY`,
      unowned, same as every checkpoint since it was logged.
-- [READY] **X-22** A live up-axis switch (Settings menu -> Up axis, or
+- [DONE] **X-22** A live up-axis switch (Settings menu -> Up axis, or
   the `V` keymap) does not update a module's own `ctx.up`-derived scene
   geometry, even though the camera itself DOES re-tween to the new axis
   (`CameraController.setUpAxis`, M2-21/M3-41). Discovered during the QA
@@ -1536,6 +1536,44 @@ check:budget` (10 module chunks, largest `rotational-dynamics` at 4.77
   of those up should still read this entire entry first rather than
   assuming `projectile-motion`'s module-local fix sets a shell-wide
   precedent.
+  **Update 2 (this change): `oscillations` and `rotational-dynamics` both
+  took option (a) too, closing this out.** Went with (a) rather than
+  reopening the (a)-vs-(b) decision, since `projectile-motion` had
+  already established it works and shipped it, and re-litigating the
+  camera-tween-vs-remount trade-off (b) would still carry — see the
+  "Update" paragraph above — was not warranted by two more modules
+  hitting the same, already-diagnosed mechanism. Not treated as a new
+  shell-level ADR (per X-8, only a _behavior change to the shell_
+  needs one) — this is three independent module-local fixes following
+  the same already-precedented pattern, not a contract or shell change.
+  `oscillations`: `upVectorOf(ctx)`/`springOrientationOf(ctx)`/
+  `makeToWorld(ctx)` (renamed from the old create()-only
+  `upVec`/`springOrientation`/`toWorld` locals) are now called fresh at
+  the top of `update()` every call instead of once in `create()`; two
+  handles that were previously never touched again after construction
+  now get live `.set()` calls every frame so they actually pick up the
+  new values — `anchor.set({ position: toWorld(0, Y_ANCHOR) })` and
+  `spring.set({ orientation: springOrientation, ... })` (the spring's
+  orientation had no update()-time `.set()` call at all before this).
+  `rotational-dynamics`: `upVectorOf(ctx)` recomputed at the top of
+  `update()`; two more previously-static values needed a live `.set()`
+  added for the first time — `precessionArc`'s `axis` (was only set in
+  `create()`) and `rollWheel`'s `orientation` (ditto, since the wheel's
+  tilt to lie flat in the horizontal-and-up plane is itself a function
+  of `upVec`). Confirmed live in the dev server (Browser pane), not just
+  by code inspection, for both: `oscillations` mounted at default y-up,
+  switched Settings -> Up axis -> Z-up without navigating away, orbited
+  — spring/mass/arrows now correctly re-orient along the new z-up axis
+  instead of collapsing to a silhouette; `rotational-dynamics` same
+  check on both the "Precession & nutation" panel (flywheel/pivot
+  arm/precession arc all correctly follow y-up -> z-up -> y-up) and the
+  "Rolling" panel (wheel/velocity arrow stay sane through the switch,
+  no console errors either time). Verified: `npm run typecheck && npm
+run lint && npm run test:unit` (599 tests) `&& npm run test:contract`
+  (187 passed/12 skipped, unaffected — no module-shape change) `&& npm
+run build && npm run check:budget` (all 9 module chunks still well
+  under the 80 KB budget, `rotational-dynamics` at 5.52 KB gzipped, up
+  slightly from the extra live `.set()` calls) all clean.
 - [DONE] **X-23** User-reported: `work-energy`'s "Speed" readout showed
   values "in the hundreds" right where speed should visibly settle near
   zero, at the potential surface's turning points. Root cause was in

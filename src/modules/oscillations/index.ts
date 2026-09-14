@@ -36,6 +36,17 @@
 // glyph stays in the plane spanned by the horizontal axis and `ctx.up`
 // (the canonical x/up plane — X-17 in TASKS.md), so no off-plane
 // `surface`/`patch` risk; this module doesn't use either glyph anyway.
+//
+// `ctx.up` is documented as LIVE (SceneContext.ts: "a later up-axis
+// switch must be visible on the next read"), so `upVectorOf`/
+// `springOrientationOf`/`makeToWorld` below are called fresh on every
+// `update()` call rather than cached once in `create()` — the same fix
+// `projectile-motion` took for this exact bug (TASKS.md X-22, option
+// (a) from that entry: recompute in update()/scalars() instead of
+// caching). Caching them in `create()` left the spring/mass/arrows
+// oriented along the OLD axis while a live Settings -> Up axis switch
+// re-tweened the camera out from under them, collapsing the whole
+// vertical apparatus into a silhouette — confirmed live before this fix.
 import type { PhysicsModule, ModuleState } from '../types';
 import type { SceneContext } from '@/scene/SceneContext';
 import { fromAxisAngle } from '@/kernel/math';
@@ -64,21 +75,31 @@ function mutQ(q: Quat): [number, number, number, number] {
 // The `spring` glyph's own local axis of extension is its geometry's Y
 // axis — identity when the world's up axis already IS y; a 90-degree
 // rotation about X (local Y -> world Z) when the viewer has switched to
-// z-up. Computed once in `create()`, same idiom as
-// projectile-motion/rotational-dynamics's own `ctx.up` handling — NOTE
-// this is only correct for the axis in effect when the module mounts: a
-// LIVE up-axis switch from the settings menu while this module stays
-// mounted does NOT get picked up (the shell only re-tweens the camera;
-// it does not call `create()` again), so the spring/mass/arrows would
-// stay oriented along the old axis while the camera reorients out from
-// under them. Logged as a cross-cutting gap (X-22 in TASKS.md) shared
-// with the other two `ctx.up`-reading modules, not fixed here — the
-// options (recompute per `update()`, or have the shell remount on
-// switch) trade off against the camera's own deliberately-animated
-// up-axis transition (M2-21/M3-41), so it needs a real decision, not a
-// one-module patch.
+// z-up. See `springOrientationOf` below — resolved fresh from `ctx.up`
+// on every call, not cached (TASKS.md X-22).
 const Z_UP_SPRING_ORIENTATION = mutQ(fromAxisAngle([1, 0, 0], Math.PI / 2));
 const IDENTITY_ORIENTATION: [number, number, number, number] = [0, 0, 0, 1];
+
+/** Resolve the current up-axis vector. Must be re-read on every
+ * update()/scalars() call, never cached once in create() — see the
+ * module-level comment above (TASKS.md X-22). */
+function upVectorOf(ctx: SceneContext): V3 {
+  return ctx.up === 'y' ? Y_HAT : Z_HAT;
+}
+
+function springOrientationOf(ctx: SceneContext): [number, number, number, number] {
+  return ctx.up === 'y' ? IDENTITY_ORIENTATION : Z_UP_SPRING_ORIENTATION;
+}
+
+/** `toWorld(horiz, vert)` for whichever up-axis is live right now. */
+function makeToWorld(ctx: SceneContext): (horiz: number, vert: number) => V3 {
+  const upVec = upVectorOf(ctx);
+  return (horiz: number, vert: number): V3 => [
+    X_HAT[0] * horiz + upVec[0] * vert,
+    X_HAT[1] * horiz + upVec[1] * vert,
+    X_HAT[2] * horiz + upVec[2] * vert,
+  ];
+}
 
 interface SteadyState {
   amplitude: number;
@@ -137,15 +158,12 @@ const module: PhysicsModule = {
   defaultView: { preset: '+z', projection: 'ortho' },
 
   create(ctx: SceneContext) {
-    const upVec: V3 = ctx.up === 'y' ? Y_HAT : Z_HAT;
-    const horizAxis: V3 = X_HAT;
-    const springOrientation = ctx.up === 'y' ? IDENTITY_ORIENTATION : Z_UP_SPRING_ORIENTATION;
-
-    const toWorld = (horiz: number, vert: number): V3 => [
-      horizAxis[0] * horiz + upVec[0] * vert,
-      horizAxis[1] * horiz + upVec[1] * vert,
-      horizAxis[2] * horiz + upVec[2] * vert,
-    ];
+    // Used only to seed the handles' initial construction props below —
+    // update() recomputes toWorld/springOrientation fresh from ctx.up on
+    // every call (TASKS.md X-22), so a live axis switch is picked up
+    // immediately rather than needing this initial value to be correct.
+    const toWorld = makeToWorld(ctx);
+    const springOrientation = springOrientationOf(ctx);
 
     const gSystem = ctx.group('system');
     const gDrive = ctx.group('drive');
@@ -194,6 +212,8 @@ const module: PhysicsModule = {
 
     return {
       update(state: ModuleState) {
+        const toWorld = makeToWorld(ctx);
+        const springOrientation = springOrientationOf(ctx);
         const systemOn = state.layers.system ?? true;
         const driveOn = state.layers.drive ?? true;
 
@@ -201,6 +221,7 @@ const module: PhysicsModule = {
         const yMass = Y_EQUILIBRIUM + steady.x;
         const massPos = toWorld(0, yMass);
 
+        anchor.set({ position: toWorld(0, Y_ANCHOR) });
         anchor.visible(systemOn);
 
         // The spring's own physics endpoint is the mass's CENTER (yMass —
@@ -214,7 +235,11 @@ const module: PhysicsModule = {
         const yBoxTop = yMass + MASS_SIZE / 2;
         const springLength = Y_ANCHOR - yBoxTop;
         const springMidY = (Y_ANCHOR + yBoxTop) / 2;
-        spring.set({ position: toWorld(0, springMidY), scale: [1, springLength, 1] });
+        spring.set({
+          position: toWorld(0, springMidY),
+          orientation: springOrientation,
+          scale: [1, springLength, 1],
+        });
         spring.visible(systemOn);
 
         mass.set({ position: massPos });

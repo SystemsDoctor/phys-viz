@@ -53,6 +53,17 @@ function mutQ(q: Quat): [number, number, number, number] {
   return [q[0], q[1], q[2], q[3]];
 }
 
+/** Resolve the current up-axis vector. `ctx.up` is documented as LIVE
+ * (SceneContext.ts: "a later up-axis switch must be visible on the next
+ * read") — must be re-read on every update() call, never cached once in
+ * create(), or a live axis switch (Settings -> Up axis) silently leaves
+ * this module's parallel-axis/precession/rolling geometry on the old
+ * axis while the camera reorients out from under it (TASKS.md X-22,
+ * same fix `projectile-motion` already took for this bug). */
+function upVectorOf(ctx: SceneContext): V3 {
+  return ctx.up === 'y' ? Y_HAT : [0, 0, 1];
+}
+
 /** Rotation taking unit vector `from` to unit vector `to` (shortest arc). */
 function quatFromTo(from: V3, to: V3): Quat {
   const f = normalize(from);
@@ -164,9 +175,11 @@ const module: PhysicsModule = {
   defaultView: { preset: 'iso', projection: 'persp' },
 
   create(ctx: SceneContext) {
-    const upVec: V3 = ctx.up === 'y' ? Y_HAT : [0, 0, 1];
     const horizAxis: V3 = X_HAT; // perpendicular to both up conventions
     const rollDir: V3 = X_HAT;
+    // Seeds the initial construction props below only — update()
+    // recomputes upVectorOf(ctx) fresh on every call (TASKS.md X-22).
+    const upVec = upVectorOf(ctx);
 
     const gTorque = ctx.group('torque');
     const gParallelAxis = ctx.group('parallelAxis');
@@ -404,6 +417,7 @@ const module: PhysicsModule = {
 
     return {
       update(s: ModuleState) {
+        const upVec = upVectorOf(ctx);
         const boxSize = s.params.boxSize as V3;
         const boxMass = s.params.boxMass as number;
 
@@ -497,7 +511,7 @@ const module: PhysicsModule = {
         flywheel.set({ position: mut3(flywheelPos), orientation: mutQ(quatFromTo(Y_HAT, topDir)) });
         spinArrow.set({ from: flywheelPos, to: add(flywheelPos, scale(topDir, 0.6)) });
         const precessionRadius = topArmLength * Math.sin(topTiltAngle);
-        precessionArc.set({ radius: Math.max(0.05, precessionRadius) });
+        precessionArc.set({ radius: Math.max(0.05, precessionRadius), axis: mut3(upVec) });
         const TRACE_POINTS = 60;
         const traceDt =
           (2 * Math.PI) / Math.max(COUPLING_EPS, Math.abs(pc.secularPrecessionRate)) / 30;
@@ -514,7 +528,10 @@ const module: PhysicsModule = {
         const rollOmega = s.params.rollOmega as number;
         const v = rollOmega * rollRadius;
         const center = add(scale(rollDir, v * s.t), scale(upVec, rollRadius));
-        rollWheel.set({ position: mut3(center) });
+        rollWheel.set({
+          position: mut3(center),
+          orientation: mutQ(quatFromTo(Y_HAT, normalize(cross(upVec, rollDir)))),
+        });
         const contact = sub(center, scale(upVec, rollRadius));
         instAxisPoint.set({ position: mut3(contact) });
         cmVelocityArrow.set({ from: center, to: add(center, scale(rollDir, v)) });

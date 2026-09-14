@@ -15,11 +15,29 @@ import type { ModuleState } from '../types';
 // than importing MockSceneContext — modules may not import a sibling
 // module (or `modules/testing`) via any path (ARCHITECTURE.md §6).
 const noopHandle = { set: () => {}, visible: () => {}, dispose: () => {} };
+// Captures the orbit-outline path's points so the drawn SHAPE (not just
+// orbitAt()'s own point-body motion) can be checked — this is exactly
+// the function that had a real bug (a `cardioid`-like outline instead
+// of an ellipse) that every other test here missed, since they only
+// ever sampled orbitAt()/scalars(), never this separate path glyph.
+let capturedPathPoints: readonly [number, number, number][] = [];
 const fakeCtx = new Proxy({} as SceneContext, {
   get(_target, prop) {
     if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
     if (prop === 'up') return 'y';
     if (prop === 'group') return (name: string) => ({ id: name });
+    if (prop === 'path') {
+      return (props: { points: readonly [number, number, number][] }) => {
+        capturedPathPoints = props.points;
+        return {
+          set: (next: { points?: readonly [number, number, number][] }) => {
+            if (next.points) capturedPathPoints = next.points;
+          },
+          visible: () => {},
+          dispose: () => {},
+        };
+      };
+    }
     return () => noopHandle;
   },
 });
@@ -140,6 +158,35 @@ describe(module.manifest.id, () => {
     const quarterPeriod = Math.PI / 2 / n;
     const { trueAnomaly } = instance.scalars(stateAt(quarterPeriod, mu, a, 0));
     expect(trueAnomaly).toBeCloseTo(Math.PI / 2, 8);
+  });
+
+  it('the drawn orbit outline traces a true ellipse, not a distorted curve, at nonzero eccentricity', () => {
+    const instance = module.create(fakeCtx);
+    const mu = 8;
+    const a = 2;
+    const e = 0.5;
+    const p = a * (1 - e * e);
+    instance.update(stateAt(0, mu, a, e));
+    expect(capturedPathPoints.length).toBeGreaterThan(50);
+    // omega=inclination=0, so these points sit directly in the orbital
+    // plane with no rotation applied — check every one against the same
+    // polar conic equation (r = p / (1 + e*cos(true anomaly))) the
+    // "distance is consistent with..." test above already validates
+    // orbitAt() against, catching a bug in the SEPARATE outline-sampling
+    // code path rather than re-checking orbitAt() a second time.
+    for (const [x, y] of capturedPathPoints) {
+      const r = Math.hypot(x, y);
+      const nu = Math.atan2(y, x);
+      expect(r).toBeCloseTo(p / (1 + e * Math.cos(nu)), 8);
+    }
+    // The central mass sits at one FOCUS, not the ellipse's center — so
+    // the outline's own x-extent either side of the origin must differ:
+    // periapsis (nu=0) at +a(1-e) on one side, apoapsis (nu=pi) at
+    // -a(1+e) on the other — not the symmetric +-a a center-parametrized
+    // (or the reported cardioid-shaped) outline would produce.
+    const xs = capturedPathPoints.map(([x]) => x);
+    expect(Math.max(...xs)).toBeCloseTo(a * (1 - e), 6);
+    expect(Math.min(...xs)).toBeCloseTo(-a * (1 + e), 6);
   });
 
   it('stays finite at a high eccentricity, near periapsis where curvature is sharpest', () => {

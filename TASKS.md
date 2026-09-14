@@ -1907,6 +1907,39 @@ specificEnergy=-2.00 m^2/s^2, h=3.46 m^2/s, g=8.00 m/s^2` — exact
   already-tested shell-owned motion paths (camera easing M2-5, layer
   fades M3-8) for free, verified by inspection that no module-local
   motion code exists to half-implement that.
+- [DONE] **X-25** User-reported (immediately after M7-5 shipped): the
+  `gravitation` module's orbit-outline trace looked like a cardioid
+  rather than an ellipse whenever eccentricity was nonzero. Root cause:
+  `orbitPathPoints()` (the function drawing the static background
+  ellipse — NOT `orbitAt()`, which drives the orbiting body itself and
+  was always correct) sampled the eccentric anomaly `E` but computed
+  `xp = r * cos(E)` where `r = a*(1 - e*cos(E))` — a formula that is
+  neither the true-anomaly polar form (`r = p/(1+e*cos(nu))`,
+  `x = r*cos(nu)`) nor the correct eccentric-anomaly center-shifted form
+  (`x = a*(cos(E) - e)`), just a nonsense hybrid of the two that
+  distorts into a cardioid-like curve at any `e > 0`. Every existing
+  golden test sampled `orbitAt()`/`scalars()` only, never this separate
+  path-glyph code path, so the bug shipped past all of them. Fixed by
+  rewriting `orbitPathPoints()` to sample uniformly in TRUE anomaly and
+  apply the same `r = p/(1+e*cos(nu))` polar conic equation `orbitAt()`
+  and the module's own "distance is consistent with the polar conic
+  equation" golden test already rely on — same formula, now used
+  consistently in both places, rather than reintroducing a second
+  independent (and, as it turned out, wrong) derivation. Verified: new
+  `module.test.ts` case captures the actual points passed to
+  `ctx.path().set()` (via a capturing stand-in added to the module's
+  local fake `SceneContext`, since the previous no-op stand-in discarded
+  every glyph prop) and checks every one against the polar conic
+  equation directly, plus asserts the outline's x-extent is asymmetric
+  around the origin (`+a(1-e)` at periapsis, `-a(1+e)` at apoapsis) —
+  the literal signature of a focus-centered ellipse, which a
+  center-parametrized or cardioid-shaped curve would fail; this test
+  would have caught the original bug (11 module tests total, up from
+  10). Confirmed live in the dev server (Browser pane) at `e=0.8`: the
+  outline now renders as a clean ellipse with the central mass correctly
+  offset toward one focus, not the previous distorted shape. Full
+  `npm run typecheck && lint && test:unit` (618 tests) `&&
+test:contract && build && check:budget && format:check` all green.
 - [IDEA] **M7-6** Kinematics
 - [IDEA] **M7-7** Newton's Laws & FBDs
 - [IDEA] **M7-8** Statics & Trusses

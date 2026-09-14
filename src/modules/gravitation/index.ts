@@ -135,15 +135,23 @@ function orbitPathPoints(a: number, e: number, omega: number, inclination: numbe
   const qOmega = fromAxisAngle(Z_HAT, omega);
   const qInc = fromAxisAngle(X_HAT, inclination);
   const toWorld = (v: Vec3): Vec3 => rotateVec3(qInc, rotateVec3(qOmega, v));
+  const p = a * (1 - e * e); // semi-latus rectum
   const points: [number, number, number][] = [];
   for (let i = 0; i <= ORBIT_PATH_SAMPLES; i++) {
-    const E = (2 * Math.PI * i) / ORBIT_PATH_SAMPLES;
-    const r = a * (1 - e * Math.cos(E));
-    const xp = r * Math.cos(E);
-    // E is the eccentric, not true, anomaly, but cos(E)/sin(E) trace the
-    // same ellipse shape up to a per-axis scale — fine for a shape-only
-    // outline that never needs to line up point-for-point with orbitAt().
-    const yp = a * Math.sqrt(Math.max(0, 1 - e * e)) * Math.sin(E);
+    // Sample uniformly in TRUE anomaly and use the polar conic equation
+    // directly — the same r(nu) relation orbitAt() and this module's own
+    // golden test rely on (module.test.ts: "consistent with the polar
+    // conic equation"). A samples-in-eccentric-anomaly version of this
+    // used to compute `xp = r * cos(E)` — neither the true-anomaly polar
+    // form nor the correct eccentric-anomaly center-shifted form
+    // (`a*(cos(E) - e)`) — which drew a cardioid-like curve instead of an
+    // ellipse at any nonzero eccentricity (reported live, not caught by
+    // the existing tests since they only ever sampled orbitAt(), never
+    // this separate outline function).
+    const nu = (2 * Math.PI * i) / ORBIT_PATH_SAMPLES;
+    const r = p / (1 + e * Math.cos(nu));
+    const xp = r * Math.cos(nu);
+    const yp = r * Math.sin(nu);
     points.push(toMut(toWorld([xp, yp, 0])));
   }
   return points;

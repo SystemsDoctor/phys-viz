@@ -40,6 +40,7 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 import type { ParamDef, LayerDef } from '@/modules/types';
 import type { AppState, ParamValue } from './store';
 import { DEFAULT_CAMERA, DEFAULT_PREFS } from './store';
+import { DEFAULT_MAX_T } from '../timeline';
 
 export interface CodecContext {
   schemaVersion: number;
@@ -102,7 +103,14 @@ function decodeParamValue(def: ParamDef, raw: string): ParamValue {
       return clampDecodedNumber(Number(raw), def.default, def.min, def.max);
     case 'angle':
       return clampDecodedNumber(Number(raw), def.default, def.min, def.max);
-    case 'select':
+    case 'select': {
+      // X-35: a hand-edited/stale value that no longer matches any
+      // declared option falls back to the default, same as an
+      // out-of-range number — never propagated as an opaque string a
+      // module's Select control (and any switch on it) never expected.
+      const decoded = decodeURIComponent(raw);
+      return def.options.some((o) => o.value === decoded) ? decoded : def.default;
+    }
     case 'expression':
       return decodeURIComponent(raw);
   }
@@ -159,11 +167,22 @@ function decodeCamera(raw: string, defaultCamera: AppState['camera']): AppState[
     };
   }
   const parts = body.split(',').map(Number);
+  // X-35: `?? default` only catches a MISSING component (undefined); a
+  // present-but-garbled one (`c=NaN,0,5` or a truncated bookmark) parses
+  // to `NaN`/`Infinity`, which isn't nullish and reached `camera.setState`
+  // unguarded. Route every component through the same finite-number
+  // guard `clampDecodedNumber` already gives ordinary params. Radius
+  // additionally gets a small positive floor — zero or negative puts the
+  // camera behind or on top of its own target.
   return {
-    theta: parts[0] ?? defaultCamera.theta,
-    phi: parts[1] ?? defaultCamera.phi,
-    radius: parts[2] ?? defaultCamera.radius,
-    target: [parts[3] ?? 0, parts[4] ?? 0, parts[5] ?? 0],
+    theta: clampDecodedNumber(parts[0], defaultCamera.theta),
+    phi: clampDecodedNumber(parts[1], defaultCamera.phi),
+    radius: clampDecodedNumber(parts[2], defaultCamera.radius, 0.01),
+    target: [
+      clampDecodedNumber(parts[3], 0),
+      clampDecodedNumber(parts[4], 0),
+      clampDecodedNumber(parts[5], 0),
+    ],
     projection,
   };
 }
@@ -214,23 +233,57 @@ export function encodeState(state: AppState, ctx: CodecContext): string {
 export interface DecodedState extends Partial<AppState> {
   /** The `v=` the URL was actually encoded at — may be older than `ctx.schemaVersion`; the caller (ModuleView) is what runs migrations to bridge the gap. */
   schemaVersion: number;
+  /**
+   * X-35: true when `v=` was present but not a trustworthy integer in
+   * `[0, ctx.schemaVersion]` — garbled (`v=abc`/`v=NaN`) or from a
+   * NEWER schema this build doesn't know how to read. Every other field
+   * on this object is then just `ctx`'s defaults (params/layers/camera
+   * decoding is skipped entirely, since it would mean guessing at a
+   * format this code doesn't recognize). The caller (ModuleView) shows
+   * the same "couldn't be fully updated — showing defaults" notice §14
+   * already uses for an unmigratable OLDER version.
+   */
+  unrecognizedVersion?: boolean;
 }
 
-export function decodeState(search: string, ctx: CodecContext): DecodedState {
+/** X-35: caps how large a `z=` blob's INPUT and its decompressed OUTPUT
+ * may be, so a hand-crafted link can't force a multi-megabyte
+ * decompression (lz-string has no built-in ratio limit) — a sub-audit
+ * measured an 8.3K-character blob inflating past 10M characters. Well
+ * above MAX_LENGTH (1800), which is what a real bookmark's compressed
+ * form should need. */
+const MAX_BLOB_LENGTH = 20_000;
+const MAX_DECOMPRESSED_LENGTH = 200_000;
+
+function decodeStateInner(search: string, ctx: CodecContext): DecodedState {
   const defaultCamera = ctx.defaultCamera ?? DEFAULT_CAMERA;
   const rawQuery = search.startsWith('?') ? search.slice(1) : search;
   let query = new URLSearchParams(rawQuery);
 
   const blob = query.get('z');
   if (blob !== null) {
+    if (blob.length > MAX_BLOB_LENGTH) return defaultsOnly(ctx);
     const decompressed = decompressFromEncodedURIComponent(blob);
+    if (decompressed !== null && decompressed.length > MAX_DECOMPRESSED_LENGTH) {
+      return defaultsOnly(ctx);
+    }
     query = new URLSearchParams(decompressed ?? '');
   }
 
   const versionRaw = query.get('v');
-  const out: DecodedState = {
-    schemaVersion: versionRaw !== null ? Number(versionRaw) : ctx.schemaVersion,
-  };
+  let schemaVersion = ctx.schemaVersion;
+  if (versionRaw !== null) {
+    const parsed = Number(versionRaw);
+    if (Number.isInteger(parsed) && parsed >= 0 && parsed <= ctx.schemaVersion) {
+      schemaVersion = parsed;
+    } else {
+      // Garbled, or from a schema newer than this build knows how to
+      // read — don't guess at decoding the rest of the query against a
+      // format we can't identify.
+      return { ...defaultsOnly(ctx), unrecognizedVersion: true };
+    }
+  }
+  const out: DecodedState = { schemaVersion };
 
   // Fully resolved, not just the URL delta: every declared param/layer
   // key is present (default-filled, then overridden from the URL), so
@@ -259,7 +312,16 @@ export function decodeState(search: string, ctx: CodecContext): DecodedState {
   out.layers = layers;
 
   const t = query.get('t');
-  out.time = { t: t !== null ? Number(t) : 0, playing: false, speed: 1, direction: 1 };
+  // X-35: raw `Number(t)` let NaN/negative/1e308 reach every module's
+  // update() unguarded. Clamp to the timeline's own [0, DEFAULT_MAX_T]
+  // bound — the same range ModuleView's own playback loop already
+  // enforces.
+  out.time = {
+    t: t !== null ? clampDecodedNumber(Number(t), 0, 0, DEFAULT_MAX_T) : 0,
+    playing: false,
+    speed: 1,
+    direction: 1,
+  };
 
   const c = query.get('c');
   out.camera = c !== null ? decodeCamera(c, defaultCamera) : defaultCamera;
@@ -282,4 +344,42 @@ export function decodeState(search: string, ctx: CodecContext): DecodedState {
   };
 
   return out;
+}
+
+/** Every declared field at its module default, `v=` reported as current
+ * (no migration attempted) — the fallback `decodeState` returns for a
+ * blob that fails the `z=` size caps, or (via the caller above) an
+ * unrecognized `v=`. */
+function defaultsOnly(ctx: CodecContext): DecodedState {
+  const defaultCamera = ctx.defaultCamera ?? DEFAULT_CAMERA;
+  const params: Record<string, ParamValue> = {};
+  for (const p of ctx.params) params[p.key] = p.default;
+  const layers: Record<string, boolean> = {};
+  for (const l of ctx.layers) layers[l.key] = l.default;
+  return {
+    schemaVersion: ctx.schemaVersion,
+    params,
+    layers,
+    time: { t: 0, playing: false, speed: 1, direction: 1 },
+    camera: defaultCamera,
+    prefs: { ...DEFAULT_PREFS },
+  };
+}
+
+/**
+ * X-35: a hand-edited or truncated bookmark can fail in ways none of the
+ * per-field guards above catch (e.g. `?f=50%`'s lone `%` throwing
+ * `URIError` out of `decodeURIComponent` — X-20's note that expression
+ * input is covered by `kernel/expr`'s typed errors was wrong, because
+ * that throw happens first, before the string ever reaches the parser).
+ * §14's own rule is "an unmigratable link loads defaults with a
+ * non-blocking notice, never an error" — extended here to cover ANY
+ * decode failure, not just a recognized-but-old schema version.
+ */
+export function decodeState(search: string, ctx: CodecContext): DecodedState {
+  try {
+    return decodeStateInner(search, ctx);
+  } catch {
+    return { ...defaultsOnly(ctx), unrecognizedVersion: true };
+  }
 }

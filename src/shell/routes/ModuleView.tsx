@@ -182,7 +182,14 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     };
     const decoded = decodeState(initialSearchRef.current, codecCtx);
     let params = decoded.params ?? paramDefaults(module.params);
-    if (decoded.schemaVersion < module.manifest.schemaVersion) {
+    if (decoded.unrecognizedVersion) {
+      // X-35: garbled `v=`, or one from a newer schema this build
+      // doesn't recognize — decodeState already returned defaults for
+      // every field rather than guessing at an unknown format.
+      setMigrationNotice(
+        `This link couldn't be read (an unrecognized version) — showing defaults instead.`,
+      );
+    } else if (decoded.schemaVersion < module.manifest.schemaVersion) {
       const result = runMigrations(
         module.manifest.id,
         decoded.schemaVersion,

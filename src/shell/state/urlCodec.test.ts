@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { compressToEncodedURIComponent } from 'lz-string';
 import { encodeState, decodeState } from './urlCodec';
 import { DEFAULT_APP_STATE, DEFAULT_CAMERA } from './store';
 import type { AppState, ParamValue } from './store';
@@ -155,9 +156,21 @@ describe('encodeState / decodeState round-trip', () => {
 
   it('decode reports the v= a URL was actually encoded at, for migration detection', () => {
     expect(decodeState('?v=1', ctx).schemaVersion).toBe(1);
-    expect(decodeState('?v=3&n=2', ctx).schemaVersion).toBe(3);
-    // v= is always present per §14, but an absent/malformed one falls back to the current schema.
+    // v= is always present per §14, but an absent one falls back to the current schema.
     expect(decodeState('', ctx).schemaVersion).toBe(ctx.schemaVersion);
+  });
+
+  it('X-35: a v= NEWER than this build knows how to read is reported as unrecognized, not trusted verbatim', () => {
+    // ctx.schemaVersion is 1 here — v=3 claims a schema this code has
+    // never seen. Guessing at how to decode the rest of the query
+    // against an unknown future format is exactly the bug (§14's "an
+    // unmigratable link loads defaults with a notice" extended to cover
+    // this case too, not just an older version runMigrations can't
+    // bridge).
+    const decoded = decodeState('?v=3&n=2', ctx);
+    expect(decoded.unrecognizedVersion).toBe(true);
+    expect(decoded.schemaVersion).toBe(ctx.schemaVersion);
+    expect(decoded.params?.n).toBe(5); // default, NOT the URL's n=2
   });
 
   it('decodeState handles a raw hash with a leading "?" or without it identically', () => {
@@ -216,5 +229,64 @@ describe('X-20: a hand-edited or malformed URL never produces NaN/Infinity state
     // that wasn't already implied by a truly non-finite raw token.
     expect(paramsOf('?v=1&n=0').n).toBe(0);
     expect(Number.isFinite(paramsOf('?v=1&n=0').n as number)).toBe(true);
+  });
+});
+
+describe('X-35: closing the rest of the decode-guard gaps X-20 left open', () => {
+  it('t= is clamped into [0, DEFAULT_MAX_T], not passed through raw', () => {
+    expect(decodeState('?v=1&t=-5', ctx).time?.t).toBe(0);
+    expect(decodeState('?v=1&t=1e308', ctx).time?.t).toBe(20);
+    expect(decodeState('?v=1&t=notanumber', ctx).time?.t).toBe(0);
+    expect(decodeState('?v=1&t=5.5', ctx).time?.t).toBe(5.5);
+  });
+
+  it('a non-finite camera component falls back to the default camera value, not NaN/Infinity', () => {
+    const decoded = decodeState('?v=1&c=NaN,0.5,5,0,0,0.p', ctx);
+    expect(Number.isFinite(decoded.camera?.theta)).toBe(true);
+    expect(decoded.camera?.theta).toBe(DEFAULT_CAMERA.theta);
+    expect(decoded.camera?.phi).toBe(0.5);
+  });
+
+  it('a zero or negative camera radius is floored to a small positive value', () => {
+    expect(decodeState('?v=1&c=0,0,0,0,0,0.p', ctx).camera?.radius).toBeGreaterThan(0);
+    expect(decodeState('?v=1&c=0,0,-5,0,0,0.p', ctx).camera?.radius).toBeGreaterThan(0);
+  });
+
+  it("a select value not among the param's declared options falls back to the default, not passed through as an opaque string", () => {
+    expect(decodeState('?v=1&md=nonexistent', ctx).params?.mode).toBe('a');
+    expect(decodeState('?v=1&md=b', ctx).params?.mode).toBe('b'); // still round-trips a real option
+  });
+
+  it('a v= that is not an integer in [0, ctx.schemaVersion] is reported as unrecognized, with every field at its default', () => {
+    for (const bad of ['?v=abc', '?v=-1', '?v=1.5', '?v=99']) {
+      const decoded = decodeState(bad, ctx);
+      expect(decoded.unrecognizedVersion).toBe(true);
+      expect(decoded.schemaVersion).toBe(ctx.schemaVersion);
+      expect(decoded.params).toEqual({ a: [3, 1, 0], n: 5, on: false, mode: 'a', f: 'x', ang: 0 });
+    }
+  });
+
+  it("a decode-time throw (an invalid %-escape decodeURIComponent can't parse) falls back to defaults instead of propagating", () => {
+    // A lone/malformed '%' in an expression param's raw value throws
+    // URIError out of decodeURIComponent — exactly the reachable crash
+    // X-20's own note wrongly assumed kernel/expr's typed errors covered.
+    expect(() => decodeState('?v=1&f=50%', ctx)).not.toThrow();
+    const decoded = decodeState('?v=1&f=50%', ctx);
+    expect(decoded.unrecognizedVersion).toBe(true);
+    expect(decoded.params?.f).toBe('x'); // the param's own default
+  });
+
+  it('an oversized z= blob (over the input-length cap) falls back to defaults instead of attempting decompression', () => {
+    const hugeBlob = 'a'.repeat(25_000);
+    const decoded = decodeState(`?z=${hugeBlob}`, ctx);
+    expect(decoded.params).toEqual({ a: [3, 1, 0], n: 5, on: false, mode: 'a', f: 'x', ang: 0 });
+  });
+
+  it('a z= blob that decompresses past the output-length cap falls back to defaults', () => {
+    // Mirrors the sub-audit's own reproduction: a short, valid lz-string
+    // blob of a highly repetitive string decompresses to something huge.
+    const bomb = compressToEncodedURIComponent('x'.repeat(500_000));
+    const decoded = decodeState(`?z=${bomb}`, ctx);
+    expect(decoded.params).toEqual({ a: [3, 1, 0], n: 5, on: false, mode: 'a', f: 'x', ang: 0 });
   });
 });

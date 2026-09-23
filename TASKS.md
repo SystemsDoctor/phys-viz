@@ -1082,7 +1082,7 @@ playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
   `get().prefs`. A z-up demo link opens y-up for a student. Decide:
   apply for the session (no `savePrefs`), or ADR retracting prefs from
   the URL
-- [READY] **X-35** X-20's decode guard is incomplete (`urlCodec.ts`):
+- [DONE] **X-35** X-20's decode guard is incomplete (`urlCodec.ts`):
   `t=` is raw `Number` (NaN/negative/1e308 reach modules; `:261-262`);
   camera `c=` parts use `?? default`, which NaN passes (`:161-168`);
   `v=` isn't validated (NaN or a future version skip migration and load
@@ -1093,7 +1093,35 @@ playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
   10M). Fix: try/catch the whole decode → defaults + notice; clamp `t`
   and camera; treat non-integer/future `v` as unmigratable; validate
   select; cap `z=` input/output length; dropping the double decode is a
-  link-format change (ADR)
+  link-format change (ADR).
+  **Verified:** `t=` now routes through `clampDecodedNumber(..., 0,
+DEFAULT_MAX_T)`; camera `c=` components each go through
+  `clampDecodedNumber`, with a `0.01` floor on radius; `v=` is validated
+  as an integer in `[0, ctx.schemaVersion]` — anything else (garbled or
+  from a newer schema) returns every field at its module default plus a
+  new `unrecognizedVersion: true` flag, which `ModuleView.tsx` now shows
+  the same non-blocking notice for as an unmigratable older version;
+  `select` values not among the param's declared `options` fall back to
+  the default; `z=` is capped at 20,000 input characters and 200,000
+  decompressed characters, falling back to defaults past either; the
+  whole of `decodeState` is now wrapped in try/catch (falls back to
+  defaults + `unrecognizedVersion: true`), which is what actually closes
+  the `?f=50%` `URIError` crash — did NOT drop the double
+  `decodeURIComponent` on expression/select (confirmed it's not
+  actually redundant: `encodeParamValue` calls `encodeURIComponent`
+  once on the way out, and `URLSearchParams`'s own serialization adds a
+  second layer, so removing the matching decode would break the
+  round-trip for any expression/select value containing a special
+  character — leaving this as the one sub-item genuinely needing an ADR
+  per the audit's own scoping, not attempted here). `npx vitest run
+src/shell/state/urlCodec.test.ts`: 30/30 pass, including one rewritten
+  test (the old one asserted the pre-fix "future `v=3` trusted verbatim"
+  behavior) and 8 new X-35 tests covering every guard above. Full sweep
+  (`typecheck`, `lint`, `test:unit` 631/631, `test:contract` 208/208,
+  `build`, `check:budget`, `format:check`) all pass. `npx playwright
+test tests/e2e/smoke.spec.ts -g "X-11|bookmark" --workers=2`: 10/10
+  pass (URL round-trip sanity, since this touches the codec every
+  module route uses).
 - [READY] **X-36** Presenter keymap ignores modifiers
   (`presenter/index.tsx:18-27`): Ctrl+R resets params instead of
   reloading, Ctrl+C overwrites the clipboard, Ctrl+F toggles fullscreen,

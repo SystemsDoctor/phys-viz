@@ -16,7 +16,7 @@
  */
 import React from 'react';
 import { Link } from 'wouter';
-import type { PhysicsModule, ModuleInstance, ModuleState } from '@/modules/types';
+import type { PhysicsModule, ModuleInstance, ModuleState, TimeModel } from '@/modules/types';
 import { loadModule, loadExplain } from '@/modules/registry';
 import { Viewport } from '@/scene/Viewport';
 import { ParamPanel } from '../params';
@@ -40,6 +40,38 @@ import { formatQuantityWithUnit } from '../unitSymbol';
 
 const URL_SYNC_DEBOUNCE_MS = 250; // §14 hardening note, applies to every field written on this path, not just camera
 const CAMERA_CYCLE = ['iso', '+x', '+y', '+z'] as const; // V key (§16)
+// X-41: the readout table, time-series point, and canvas aria-label all
+// re-derive from `scalars`/`series` (React state, not the imperative
+// scene) — updating them every rAF tick during playback (60Hz) re-runs
+// and re-renders all three for no visible benefit (a human can't read a
+// number changing 60x/sec anyway). 10Hz is smooth enough to read while
+// cutting that work by ~85%. The canvas itself is untouched: Viewport's
+// own render loop is fully imperative (`instance.update()`, outside
+// React) and stays at full rate regardless of this throttle.
+const READOUT_THROTTLE_MS = 100;
+
+/**
+ * X-41: owns the ONLY subscription to `state.time` in the whole
+ * component tree below `ModuleViewInner`. Isolating it here means a
+ * 60Hz `patchTime()` during playback re-renders just this small
+ * component, not the params/layers/readout panels around it — those
+ * subscribe to their own slices (`ui`/`params`/`layers`/`camera`/
+ * `prefs`) in `ModuleViewInner`, none of which `patchTime` touches.
+ */
+function ConnectedTimeline(props: { timeModel: TimeModel; maxT: number }): React.ReactElement {
+  const time = useAppStore((s) => s.time);
+  return (
+    <Timeline
+      timeModel={props.timeModel}
+      t={time.t}
+      playing={time.playing}
+      speed={time.speed}
+      direction={time.direction}
+      maxT={props.maxT}
+      onChange={(patch) => useAppStore.getState().patchTime(patch)}
+    />
+  );
+}
 
 function defaultCameraFor(module: PhysicsModule): AppState['camera'] {
   const preset = module.defaultView?.preset ?? 'iso';
@@ -129,6 +161,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   const panelRef = React.useRef<HTMLElement>(null);
   const viewportRef = React.useRef<Viewport | null>(null);
   const instanceRef = React.useRef<ModuleInstance | null>(null);
+  const lastReadoutMsRef = React.useRef(0); // X-41: throttles setScalars/setSeries during playback
   const [mounted, setMounted] = React.useState(false);
   const [seeded, setSeeded] = React.useState(false);
   const [externalError, setExternalError] = React.useState<Error | null>(null);
@@ -340,7 +373,22 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       const instance = instanceRef.current;
       if (!instance) return;
       try {
+        // instance.update() drives the imperative scene (WebGL) and
+        // ALWAYS runs at full rate — only the React-state-backed
+        // readouts/series below are throttled.
         instance.update(moduleStateOf(s));
+
+        // X-41: while actively playing, skip the (React-state, so
+        // re-render-triggering) readout/series update unless enough
+        // wall-clock time has passed — a scrub, step, or param edit
+        // (playing: false) always updates immediately, since those are
+        // already low-frequency and snappy feedback matters more there.
+        const now = performance.now();
+        const dueForReadout =
+          !s.time.playing || now - lastReadoutMsRef.current >= READOUT_THROTTLE_MS;
+        if (!dueForReadout) return;
+        lastReadoutMsRef.current = now;
+
         const values = instance.scalars(moduleStateOf(s));
         setScalars(values);
         const plottableKey = module.scalars.find((sc) => sc.plottable)?.key;
@@ -738,7 +786,17 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   }, [module]);
   usePresenterKeymap(keymapHandlers);
 
-  const state = useAppStore();
+  // X-41: narrow per-slice subscriptions instead of one `useAppStore()`
+  // call on the whole store — `time` (which `patchTime()` touches every
+  // rAF tick during playback) is deliberately NOT subscribed here at
+  // all; `ConnectedTimeline` below owns that subscription on its own,
+  // so a 60Hz playback tick re-renders just that small component, not
+  // this entire panel (params, layers, readouts, plots).
+  const ui = useAppStore((s) => s.ui);
+  const paramValues = useAppStore((s) => s.params);
+  const layerValues = useAppStore((s) => s.layers);
+  const cameraState = useAppStore((s) => s.camera);
+  const prefs = useAppStore((s) => s.prefs);
 
   // Canvas aria-label (§16): a text description of the current scene
   // for a screen reader, regenerated from the module's own declared
@@ -779,11 +837,32 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
   const setParamValue = (key: string, value: unknown): void =>
     useAppStore.getState().setParam(key, value as ParamValue);
 
+  // X-41: memoized so SweepPlot sees a STABLE `evaluate` reference
+  // across re-renders it doesn't need to react to — the callback itself
+  // always reads live state via `useAppStore.getState()`, so its
+  // correctness never depended on being recreated every render, only on
+  // `sweepParam`/`sweepScalar` (both derived from `module`, so stable
+  // per module) and `moduleStateOf`.
+  const evaluateSweep = React.useCallback(
+    (v: number): number => {
+      const instance = instanceRef.current;
+      if (!instance || !sweepParam || !sweepScalar) return 0;
+      const s = useAppStore.getState();
+      // scalars() is documented pure (§10) — safe to call with a
+      // one-off shadow state without touching the real one.
+      return instance.scalars({
+        ...moduleStateOf(s),
+        params: { ...s.params, [sweepParam.key]: v },
+      })[sweepScalar.key];
+    },
+    [sweepParam, sweepScalar, moduleStateOf],
+  );
+
   if (!seeded) return <div className="pv-loading">Loading…</div>;
 
   return (
-    <div className={state.ui.presenterMode ? 'pv-module-view pv-presenter' : 'pv-module-view'}>
-      {!state.ui.presenterMode && (
+    <div className={ui.presenterMode ? 'pv-module-view pv-presenter' : 'pv-module-view'}>
+      {!ui.presenterMode && (
         <p className="pv-module-view__back">
           <Link to="/">&larr; Gallery</Link> / {module.manifest.title}
         </p>
@@ -801,7 +880,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
           aria-label={canvasLabel || module.manifest.title}
         />
         <KeymapOverlay />
-        {!state.ui.presenterMode && (
+        {!ui.presenterMode && (
           <div className="pv-view-controls">
             <button
               type="button"
@@ -850,7 +929,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
             }
           >
             {alwaysParams.length > 0 && (
-              <ParamPanel defs={alwaysParams} values={state.params} onChange={setParamValue} />
+              <ParamPanel defs={alwaysParams} values={paramValues} onChange={setParamValue} />
             )}
             {module.layers.some((l) => l.reveal) && (
               <button
@@ -862,38 +941,30 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
                   if (entering) useAppStore.getState().patchTime({ t: 0, playing: false });
                 }}
               >
-                {state.ui.predictMode ? 'Exit predict mode' : 'Predict, then reveal'}
+                {ui.predictMode ? 'Exit predict mode' : 'Predict, then reveal'}
               </button>
             )}
             {module.layers.length > 0 && (
               <LayerManager
                 defs={module.layers}
-                values={state.layers}
-                predictMode={state.ui.predictMode}
+                values={layerValues}
+                predictMode={ui.predictMode}
                 onChange={(key, value) => useAppStore.getState().setLayer(key, value)}
               />
             )}
             {module.layers.map((layer) => {
-              const active = state.layers[layer.key] ?? layer.default;
+              const active = layerValues[layer.key] ?? layer.default;
               const params = paramsByLayer.get(layer.key) ?? [];
               if (!active || params.length === 0) return null;
               return (
                 <details key={layer.key} open className="pv-layer-details">
                   <summary>{layer.label}</summary>
-                  <ParamPanel defs={params} values={state.params} onChange={setParamValue} />
+                  <ParamPanel defs={params} values={paramValues} onChange={setParamValue} />
                 </details>
               );
             })}
-            <Timeline
-              timeModel={module.manifest.timeModel}
-              t={state.time.t}
-              playing={state.time.playing}
-              speed={state.time.speed}
-              direction={state.time.direction}
-              maxT={DEFAULT_MAX_T}
-              onChange={(patch) => useAppStore.getState().patchTime(patch)}
-            />
-            <ReadoutTable defs={module.scalars} values={scalars} pinned={state.ui.presenterMode} />
+            <ConnectedTimeline timeModel={module.manifest.timeModel} maxT={DEFAULT_MAX_T} />
+            <ReadoutTable defs={module.scalars} values={scalars} pinned={ui.presenterMode} />
             {series.length > 1 && module.scalars.find((s) => s.plottable) && (
               <TimeSeriesPlot
                 series={series}
@@ -902,30 +973,16 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
               />
             )}
             {sweepParam && sweepScalar && (
-              <SweepPlot
-                sweepParam={sweepParam}
-                scalar={sweepScalar}
-                evaluate={(v) => {
-                  const instance = instanceRef.current;
-                  if (!instance) return 0;
-                  const s = useAppStore.getState();
-                  // scalars() is documented pure (§10) — safe to call with
-                  // a one-off shadow state without touching the real one.
-                  return instance.scalars({
-                    ...moduleStateOf(s),
-                    params: { ...s.params, [sweepParam.key]: v },
-                  })[sweepScalar.key];
-                }}
-              />
+              <SweepPlot sweepParam={sweepParam} scalar={sweepScalar} evaluate={evaluateSweep} />
             )}
             <GifExportPanel
               module={module}
-              getCamera={() => viewportRef.current?.camera.getState() ?? state.camera}
-              upAxis={state.prefs.upAxis}
-              showGrid={state.prefs.showGrid}
-              gridPlaneXY={state.prefs.gridPlaneXY}
-              gridPlaneXZ={state.prefs.gridPlaneXZ}
-              gridPlaneYZ={state.prefs.gridPlaneYZ}
+              getCamera={() => viewportRef.current?.camera.getState() ?? cameraState}
+              upAxis={prefs.upAxis}
+              showGrid={prefs.showGrid}
+              gridPlaneXY={prefs.gridPlaneXY}
+              gridPlaneXZ={prefs.gridPlaneXZ}
+              gridPlaneYZ={prefs.gridPlaneYZ}
               stepDt={stepDt}
             />
             {explainSource && <ExplainPanel source={explainSource} />}

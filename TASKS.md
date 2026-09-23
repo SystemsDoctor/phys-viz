@@ -1304,12 +1304,38 @@ gate|control-showcase" --workers=2`: 2/2 pass; full smoke suite
   34/35 (the one failure is gravitation's disposal check under
   3-worker parallelism — the pre-existing cross-worker flake logged as
   **X-18**, passes solo, unrelated to this change).
-- [READY] **X-41** `ModuleView` re-renders the whole panel every frame
+- [DONE] **X-41** `ModuleView` re-renders the whole panel every frame
   during playback: `const state = useAppStore()` (`ModuleView.tsx:734`)
   subscribes to the entire store and `t` changes per frame; `SweepPlot`'s
   fresh `evaluate` then re-runs ~100 `scalars()` per frame. Use narrow
   selectors, memoize `evaluate` on params, throttle readouts/series/
-  aria-label (read-only)
+  aria-label (read-only).
+  **Verified:** replaced the single whole-store `useAppStore()` with
+  separate per-slice selectors (`ui`/`params`/`layers`/`camera`/`prefs`)
+  in `ModuleViewInner`, deliberately EXCLUDING `time` — a new
+  `ConnectedTimeline` wrapper component owns the sole `s.time`
+  subscription, so a 60Hz `patchTime()` during playback now re-renders
+  only that small component, not params/layers/readouts/plots.
+  `evaluateSweep` (the `SweepPlot` callback) is now `useCallback`-
+  memoized on `sweepParam`/`sweepScalar`/`moduleStateOf` (all stable
+  per module) instead of a fresh closure every render. `runUpdate`
+  throttles the React-state-backed `setScalars`/`setSeries` calls to
+  10Hz (`READOUT_THROTTLE_MS`) while playing, bypassing the throttle
+  whenever `!s.time.playing` (scrub/step/param edits stay fully
+  responsive) — `instance.update()` itself (the imperative WebGL scene)
+  is untouched, still called at full rate every store change. Did not
+  add an aria-label-specific throttle beyond what `setScalars`'s own
+  throttle already gives it (`canvasLabel` derives from `scalars`).
+  `npx vitest run src/shell/routes/ModuleView.test.tsx`: 4/4 pass. Full
+  sweep (`typecheck`, `lint`, `test:unit` 645/645, `test:contract`
+  228/228, `build`, `check:budget`, `format:check`) all pass. `npx
+playwright test tests/e2e/smoke.spec.ts --workers=3`: 33/34 (the one
+  failure is X-18's pre-existing gravitation disposal flake under
+  3-worker parallelism, unrelated to this change — passes solo, per
+  earlier X-* entries in this file). This was the highest-blast-radius
+  change of the session (touches the shared render path every module
+  goes through) — verified via the full smoke suite specifically
+  because of that, not just the module-scoped subset other entries use.
 - [READY] **X-42** Under z-up, the "2D-only" lock (`goTo('+z')` →
   world −y via `fromCanonical`, `camera/index.ts:118-120`) shows the
   world x–z plane, correct for gravity modules but edge-on for modules

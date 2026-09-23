@@ -47,6 +47,67 @@ describe('usePresenterKeymap', () => {
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
   });
+
+  // X-36: Ctrl+R/Ctrl+C/Ctrl+F previously fired this app's r/c/f
+  // handlers with preventDefault(), silently eating the browser's own
+  // reload/copy/find shortcuts.
+  it('does not fire, and does not preventDefault, when Ctrl/Meta/Alt is held', async () => {
+    const reset = vi.fn();
+    render(<div />);
+    renderHook(() => usePresenterKeymap({ r: reset }));
+    await userEvent.keyboard('{Control>}r{/Control}');
+    expect(reset).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Meta>}r{/Meta}');
+    expect(reset).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Alt>}r{/Alt}');
+    expect(reset).not.toHaveBeenCalled();
+    // The plain, unmodified key still works — confirms the handler map
+    // itself is fine and the modifier check isn't over-broad.
+    await userEvent.keyboard('r');
+    expect(reset).toHaveBeenCalledTimes(1);
+  });
+
+  // X-36: Space on a focused <button> or <summary> previously toggled
+  // playback instead of activating the control — a keyboard-
+  // accessibility regression, since those elements have their own
+  // native Space behavior.
+  it('does not fire while focus is on a button, summary, or contenteditable element', async () => {
+    const playPause = vi.fn();
+    render(
+      <>
+        <button type="button">A button</button>
+        <details>
+          <summary>A summary</summary>
+        </details>
+        <div contentEditable suppressContentEditableWarning aria-label="editable">
+          text
+        </div>
+      </>,
+    );
+    renderHook(() => usePresenterKeymap({ ' ': playPause }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'A button' }));
+    await userEvent.keyboard(' ');
+    expect(playPause).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByText('A summary'));
+    await userEvent.keyboard(' ');
+    expect(playPause).not.toHaveBeenCalled();
+
+    screen.getByLabelText('editable').focus();
+    await userEvent.keyboard(' ');
+    expect(playPause).not.toHaveBeenCalled();
+  });
+
+  // X-36: a shortcut is declared once, in lowercase — Shift or Caps
+  // Lock shouldn't silently disable it.
+  it('matches single-character keys case-insensitively', async () => {
+    const reset = vi.fn();
+    render(<div />);
+    renderHook(() => usePresenterKeymap({ r: reset }));
+    await userEvent.keyboard('{Shift>}R{/Shift}');
+    expect(reset).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('KeymapOverlay', () => {

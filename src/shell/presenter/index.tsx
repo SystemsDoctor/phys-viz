@@ -14,14 +14,40 @@
  */
 import React from 'react';
 
+/** Elements where a bare key (in particular Space/Enter) already has its
+ * own native meaning that a global shortcut must not steal — X-36:
+ * Space on a focused `<button>`/`<summary>` toggling playback instead
+ * of activating it was a real keyboard-accessibility regression. A
+ * slider (`<input type="range">`) is already covered by the plain
+ * INPUT tag check below. */
+function isNativelyInteractive(target: HTMLElement): boolean {
+  if (/^(INPUT|SELECT|TEXTAREA|BUTTON|SUMMARY)$/.test(target.tagName)) return true;
+  // `isContentEditable` is the standard check, but jsdom (this repo's
+  // unit-test DOM) doesn't implement it — fall back to the raw
+  // attribute too, so this is actually exercised by a unit test rather
+  // than only ever verified by hand in a real browser.
+  return target.isContentEditable || target.getAttribute('contenteditable') === 'true';
+}
+
 export function usePresenterKeymap(handlers: Record<string, () => void>): void {
   React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
-      // Don't hijack typing in a text input, select, or the expression field.
-      const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return;
+      // X-36: a modifier held down means the BROWSER's own shortcut is
+      // what the user wants (Ctrl+R reload, Ctrl+C copy, Ctrl+F find),
+      // not this app's single-letter one — bail before even checking
+      // the target, so preventDefault() never fires either.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-      const key = e.shiftKey && e.key.startsWith('Arrow') ? `Shift+${e.key}` : e.key;
+      const target = e.target as HTMLElement | null;
+      if (target && isNativelyInteractive(target)) return;
+
+      const arrowKey = e.shiftKey && e.key.startsWith('Arrow') ? `Shift+${e.key}` : e.key;
+      // Single-character keys (letters, digits, space) match
+      // case-insensitively — a shortcut is declared once, in lowercase,
+      // and should still fire with Shift or Caps Lock held; multi-char
+      // keys (`ArrowRight`, `Shift+ArrowRight`) are left as-is, since
+      // Shift is already encoded there deliberately.
+      const key = arrowKey.length === 1 ? arrowKey.toLowerCase() : arrowKey;
       const handler = handlers[key];
       if (handler) {
         e.preventDefault();

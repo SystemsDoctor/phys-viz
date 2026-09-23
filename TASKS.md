@@ -1181,13 +1181,28 @@ src/shell/state/urlCodec.test.ts`: 30/30 pass, including one rewritten
 test tests/e2e/smoke.spec.ts -g "X-11|bookmark" --workers=2`: 10/10
   pass (URL round-trip sanity, since this touches the codec every
   module route uses).
-- [READY] **X-36** Presenter keymap ignores modifiers
+- [DONE] **X-36** Presenter keymap ignores modifiers
   (`presenter/index.tsx:18-27`): Ctrl+R resets params instead of
   reloading, Ctrl+C overwrites the clipboard, Ctrl+F toggles fullscreen,
   all with `preventDefault()`. Space on a focused `<button>`/`<summary>`
   toggles play instead of activating it. Fix: bail on ctrl/meta/alt;
   skip button/summary/contenteditable/slider targets; match
-  case-insensitively
+  case-insensitively.
+  **Verified:** `onKeyDown` now bails immediately when
+  `ctrlKey`/`metaKey`/`altKey` is set (before even reading `target`, so
+  `preventDefault()` never fires either); skips
+  button/summary/contenteditable targets via a new
+  `isNativelyInteractive` helper (a slider was already covered by the
+  pre-existing `INPUT` tag check); single-character keys (letters,
+  digits, space) now match case-insensitively, leaving the multi-char
+  `Shift+Arrow*` combos untouched. Added 3 new unit tests (Ctrl/Meta/Alt
+  bail, button/summary/contenteditable skip, case-insensitive match) —
+  confirmed all 3 fail against the pre-fix code and pass against the
+  fix. `npx vitest run src/shell/presenter/index.test.tsx`: 10/10 pass.
+  Full sweep (`typecheck`, `lint`, `test:unit` 634/634, `test:contract`
+  218/218, `build`, `check:budget`, `format:check`) all pass. `npx
+playwright test tests/e2e/smoke.spec.ts -g "keyboard map|X-16"
+--workers=2`: 2/2 pass.
 - [READY] **X-37** `formatQuantityWithUnit` glues the SI prefix onto
   powered units (`unitSymbol.ts:140-159`, run in a scratch bundle):
   2000 m²/s → "2.00 km²/s", 3.986e14 m³/s² → "399 Tm³/s²", L⁻¹ → "m1/m".

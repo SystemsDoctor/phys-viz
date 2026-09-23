@@ -1020,14 +1020,37 @@ src/modules/rotational-dynamics/module.test.ts`: 15/15 pass. Full
   208/208, `build`, `check:budget`, `format:check`) all pass. `npx
 playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
 --workers=3`: 2/2 pass.
-- [READY] **X-30** Module `urlKey`s collide with shell-reserved query
+- [DONE] **X-30** Module `urlKey`s collide with shell-reserved query
   keys: `vector-algebra`/`oscillations` use `c` (camera, `urlCodec.ts:194`),
   `fields-gradients`/`control-showcase` use `th` (theme, `:197`). Params
   and prefs share one `URLSearchParams`, so one overwrites the other and
   a `c` param value is fed to `decodeCamera`. The contract round-trip
   never varies camera/prefs, so it passes. Fix: publish the reserved list
   (`v z L t c up th pj gr gxy gxz gyz`), enforce it (params AND layers) in
-  the contract suite, rename the four keys with migrations (ADR 0003)
+  the contract suite, rename the four keys with migrations (ADR 0003).
+  **Verified:** wrote **ADR 0016** — published `RESERVED_URL_KEYS` in
+  `urlCodec.ts`; renamed `vector-algebra`'s `c` -> `vc`, `oscillations`'s
+  `c` -> `cd`, `fields-gradients`'s `th` -> `dth`,
+  `control-showcase`'s `th` -> `ang` (param `key`s unchanged, only
+  `urlKey`); bumped all four modules' `schemaVersion` 1 -> 2 with **no**
+  migration function — `migrations.ts`'s own doc says a `urlKey` rename
+  is structurally out of scope for `Migration` (it operates on
+  already-`key`-resolved params, post-decode, by which point an old
+  link's value under the old `urlKey` is already lost to the new
+  lookup), so the version bump's only job is making `runMigrations`
+  correctly report `migrated: false` for an old link, falling back to
+  full defaults + the existing notice (ADR 0003) instead of silently
+  mixing a stale value into the wrong slot. Added a contract-suite check
+  (params AND layers, every registered module) against
+  `RESERVED_URL_KEYS` — confirmed it fails when reverted (caught
+  `vector-algebra`'s `c` immediately) and passes at the fix. Updated
+  `migrations.test.ts`'s now-stale "no module has bumped schemaVersion
+  yet" comment. `npm run test:contract`: 218/218 pass (up from 208 — one
+  new reserved-key check per registered module, +10). Full sweep
+  (`typecheck`, `lint`, `test:unit` 631/631, `build`, `check:budget`,
+  `format:check`) all pass. `npx playwright test tests/e2e/smoke.spec.ts -g
+"vector-algebra|oscillations|fields-gradients|control-showcase|X-11|bookmark"
+--workers=3`: 16/16 pass.
 - [DONE] **X-31** GIF export never positions arrows, points or axis
   ticks: `Viewport.renderNow()` (`Viewport.ts:229-233`) skips the
   `frameListeners` loop that only `tick()` runs (`:539`), and every

@@ -52,6 +52,30 @@ export interface CodecContext {
 
 const MAX_LENGTH = 1800;
 
+/**
+ * Every shell-level query key `encodeState`/`decodeState` reads or
+ * writes directly (ADR 0016). A module's own `ParamDef`/`LayerDef`
+ * `urlKey`s share this one flat `URLSearchParams` with these, so a
+ * module colliding with any of them silently loses whichever one
+ * `query.set()` wrote last (TASKS.md X-30) — the contract suite checks
+ * every registered module's `urlKey`s against this list, not just
+ * against each other.
+ */
+export const RESERVED_URL_KEYS: readonly string[] = [
+  'v',
+  'z',
+  'L',
+  't',
+  'c',
+  'up',
+  'th',
+  'pj',
+  'gr',
+  'gxy',
+  'gxz',
+  'gyz',
+];
+
 const PRESETS: Record<'iso' | '+x' | '+y' | '+z', { theta: number; phi: number }> = {
   '+x': { theta: Math.PI / 2, phi: Math.PI / 2 },
   '+y': { theta: 0, phi: 0 },

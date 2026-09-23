@@ -10,7 +10,7 @@ const manifest: ModuleManifest = {
   tags: ['gradient', 'divergence', 'curl', 'flux', 'Stokes theorem'],
   timeModel: 'parametric',
   dimensions: 3,
-  schemaVersion: 1,
+  schemaVersion: 2, // X-30/ADR 0016: 'theta' param urlKey renamed to 'dth' (collided with the shell's theme key)
   level: 'calculus-based',
 };
 export default manifest;

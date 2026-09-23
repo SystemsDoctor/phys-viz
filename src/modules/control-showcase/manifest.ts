@@ -20,7 +20,7 @@ const manifest: ModuleManifest = {
   tags: ['sandbox', 'shell-test'],
   timeModel: 'parametric',
   dimensions: 2,
-  schemaVersion: 1,
+  schemaVersion: 2, // X-30/ADR 0016: 'theta' param urlKey renamed to 'ang' (collided with the shell's theme key)
   level: 'algebra-based',
 };
 export default manifest;

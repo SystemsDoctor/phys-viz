@@ -41,7 +41,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { manifests, loadModule, loadExplain } from '@/modules/registry';
-import { encodeState, decodeState } from '@/shell/state/urlCodec';
+import { encodeState, decodeState, RESERVED_URL_KEYS } from '@/shell/state/urlCodec';
 import { paramDefaults } from '@/shell/state/store';
 import { createRng, nextRange } from '@/kernel/random';
 import { createMockSceneContext } from '@/modules/testing/MockSceneContext';
@@ -114,6 +114,31 @@ describe('module contract', () => {
         const keys = module.params.map((p) => p.urlKey);
         expect(new Set(keys).size).toBe(keys.length);
         for (const k of keys) expect(k.length).toBeLessThanOrEqual(4);
+      });
+
+      // X-30/ADR 0016: params and layers share one flat URLSearchParams
+      // with the shell's own reserved keys (v/z/L/t/c/up/th/pj/gr/gxy/
+      // gxz/gyz) — a module urlKey matching one of them silently loses
+      // whichever value `query.set()` wrote last. The check above only
+      // ever compared a module's keys against each other, never against
+      // this list, which is exactly how the vector-algebra/oscillations
+      // 'c' and fields-gradients/control-showcase 'th' collisions
+      // shipped undetected.
+      it('declares no param or layer urlKey that collides with a shell-reserved key (X-30/ADR 0016)', async () => {
+        const module = await loadModule(manifest.id);
+        const reserved = new Set(RESERVED_URL_KEYS);
+        for (const p of module.params) {
+          expect(
+            reserved.has(p.urlKey),
+            `param "${p.key}" urlKey "${p.urlKey}" is shell-reserved`,
+          ).toBe(false);
+        }
+        for (const l of module.layers) {
+          expect(
+            reserved.has(l.urlKey),
+            `layer "${l.key}" urlKey "${l.urlKey}" is shell-reserved`,
+          ).toBe(false);
+        }
       });
 
       it('every readout scalar declares a non-empty description (ADR 0014)', async () => {

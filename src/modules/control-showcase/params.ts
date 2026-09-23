@@ -15,7 +15,7 @@ export const params: ParamDef[] = [
   {
     kind: 'angle',
     key: 'theta',
-    urlKey: 'th',
+    urlKey: 'ang', // X-30: was 'th', colliding with the shell's theme key
     label: 'Angle',
     symbol: '\\theta',
     default: 0.6,

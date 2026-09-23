@@ -24,7 +24,7 @@ export const params: ParamDef[] = [
   {
     kind: 'vector',
     key: 'c',
-    urlKey: 'c',
+    urlKey: 'vc', // X-30: was 'c', colliding with the shell's camera key
     label: 'Vector c',
     symbol: '\\vec{c}',
     default: [0, 0, 2],

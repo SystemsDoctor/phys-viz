@@ -59,10 +59,12 @@ describe('runMigrations', () => {
   });
 
   it('defaults to the real exported migrations table when none is passed', () => {
-    // No module has bumped schemaVersion yet, so this should report
-    // migrated: false for any nonzero gap — proves the default
-    // parameter wiring itself works, independent of the synthetic
-    // tables the other tests use.
+    // The real `migrations` table has no entries at all — vector-algebra
+    // did bump schemaVersion 1 -> 2 (X-30/ADR 0016, a urlKey rename with
+    // no recoverable old value, so deliberately no migration function
+    // was written for it) — so this should report migrated: false for
+    // any nonzero gap, proving the default parameter wiring itself
+    // works, independent of the synthetic tables the other tests use.
     const result = runMigrations('vector-algebra', 1, 2, {});
     expect(result.migrated).toBe(false);
   });

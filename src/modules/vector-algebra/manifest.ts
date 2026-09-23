@@ -8,7 +8,7 @@ const manifest: ModuleManifest = {
   tags: ['vectors', 'dot product', 'cross product', 'components'],
   timeModel: 'static',
   dimensions: 'both',
-  schemaVersion: 1,
+  schemaVersion: 2, // X-30/ADR 0016: 'c' param urlKey renamed to 'vc' (collided with the shell's camera key)
   level: 'algebra-based',
 };
 export default manifest;

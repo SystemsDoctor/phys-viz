@@ -40,7 +40,7 @@ export const params: ParamDef[] = [
   {
     kind: 'number',
     key: 'c',
-    urlKey: 'c',
+    urlKey: 'cd', // X-30: was 'c', colliding with the shell's camera key
     label: 'Damping coefficient',
     symbol: 'c',
     min: 0,

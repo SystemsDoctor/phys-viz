@@ -957,11 +957,23 @@ src/modules/non-inertial-frames/module.test.ts`: 9/9 pass. Full sweep
   `non-inertial-frames` case passes; the `gravitation` disposal case
   failed under 3-worker parallelism but passes solo (pre-existing
   flake, unrelated to this change — not touched here).
-- [READY] **X-27** `rotational-dynamics` rolling rim trace is an
+- [DONE] **X-27** `rotational-dynamics` rolling rim trace is an
   upside-down cycloid: `index.ts:545-551` uses `+R sin(ωt)` along
   `rollDir` (x = vt + R sin ωt), so the traced point moves at 2v at
   contact and 0 at the top. Needs `−R sin(ωt)`. Add a test that the
-  trace's velocity at the contact instant is zero
+  trace's velocity at the contact instant is zero.
+  **Verified:** flipped the sign of the `sin` term. Added a golden test
+  capturing `rimTrace`'s actual `.set({points})` and finite-differencing
+  the x-coordinate across the sampled instant nearest `wt=2πk`; checked
+  the test fails against the pre-fix sign (`|dxdt|` ≈ 2v = 3.6, well
+  over the 0.1·v threshold) and passes against the fix (`|dxdt|` ≈ 0) —
+  confirms it actually discriminates, unlike checking height alone
+  (unaffected by this sign since it's set by the `cos` term). `npx
+vitest run src/modules/rotational-dynamics/module.test.ts`: 13/13
+  pass. Full sweep (`typecheck`, `lint`, `test:unit` 620/620,
+  `test:contract` 208/208, `build`, `check:budget`, `format:check`) all
+  pass. `npx playwright test tests/e2e/smoke.spec.ts -g
+"rotational-dynamics" --workers=3`: 2/2 pass.
 - [READY] **X-28** `rotational-dynamics` "I about offset axis" readout is
   `parallelAxisTensor(...)[8]` (I_zz) while the drawn axes follow
   `upVec` (y by default, `index.ts:442-450`). Defaults: drawn-axis I =

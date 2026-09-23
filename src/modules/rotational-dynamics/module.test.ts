@@ -140,6 +140,76 @@ describe(module.manifest.id, () => {
     expect(s.rollingSpeed).toBeCloseTo(2.8, 12);
   });
 
+  // X-27 golden test: asserts what actually reaches rimTrace's .set(),
+  // not just rollingSpeed's magnitude readout — a readout-only check
+  // can't catch the cycloid being traced upside down.
+  it('golden: the rolling rim trace has zero velocity at the contact instant, not at the top', () => {
+    let capturedPoints: readonly [number, number, number][] = [];
+    const pathCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'y';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'path') {
+          return (props: {
+            group?: { id: string };
+            points: readonly [number, number, number][];
+          }) => {
+            const isRimTrace = props.group?.id === 'rolling';
+            if (isRimTrace) capturedPoints = props.points;
+            return {
+              set: (next: { points?: readonly [number, number, number][] }) => {
+                if (isRimTrace && next.points) capturedPoints = next.points;
+              },
+              visible: () => {},
+              dispose: () => {},
+            };
+          };
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(pathCtx);
+    const rollRadius = 0.6;
+    const rollOmega = 3;
+    const v = rollOmega * rollRadius;
+    // Large enough that every one of the 80 sampled instants (t - i*dt,
+    // i = 79..0) is >= 0, so none is skipped and the captured array
+    // indices line up 1:1 with this loop's iterations.
+    const t = 50;
+    instance.update(stateWith({ rollRadius, rollOmega }, t));
+
+    // Rebuild the exact instants the module samples, so the trace point
+    // nearest an exact contact instant (wt = 2*pi*k) can be located
+    // independently of the sampling grid. Checking the HEIGHT there
+    // isn't discriminating (the cos term that sets it is sign-symmetric
+    // in the bug), so instead finite-difference the SHAFT (x) coordinate
+    // across that instant — a true rolling contact point is
+    // instantaneously at rest (dx/dt = 0), while the pre-fix
+    // x = vt + R sin(wt) has dx/dt = v(1 + cos(wt)) = 2v there.
+    const ROLL_TRACE_POINTS = 80;
+    const rollTraceDt = (2 * Math.PI) / rollOmega / 20;
+    let contactIndex = -1;
+    let nearestSpacing = Infinity;
+    for (let i = ROLL_TRACE_POINTS - 1; i >= 0; i--) {
+      const ti = t - i * rollTraceDt;
+      const phase = (((rollOmega * ti) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const distToContact = Math.min(phase, 2 * Math.PI - phase);
+      if (distToContact < nearestSpacing) {
+        nearestSpacing = distToContact;
+        contactIndex = ROLL_TRACE_POINTS - 1 - i;
+      }
+    }
+    expect(contactIndex).toBeGreaterThan(0);
+    expect(contactIndex).toBeLessThan(capturedPoints.length - 1);
+    const before = capturedPoints[contactIndex - 1];
+    const after = capturedPoints[contactIndex + 1];
+    const dxdt = (after[0] - before[0]) / (2 * rollTraceDt);
+    // Zero (not 2v) at the contact instant, well away from 2v = 2*1.8.
+    expect(Math.abs(dxdt)).toBeLessThan(0.1 * v);
+  });
+
   it('Dzhanibekov: reset() sets the documented initial condition', () => {
     const instance = module.create(fakeCtx);
     const state = stateWith({ dzSpin: 10, dzPerturbation: 0.05 });

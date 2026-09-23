@@ -545,7 +545,11 @@ const module: PhysicsModule = {
           const rim = add(
             c,
             add(
-              scale(rollDir, rollRadius * Math.sin(rollOmega * ti)),
+              // A wheel rolling toward +rollDir traces x = vt - R sin(wt)
+              // (the contact point, at wt=0, has zero velocity; the top
+              // moves at 2v). +R sin(wt) here would put the cusps at the
+              // top instead of the contact point (X-27).
+              scale(rollDir, -rollRadius * Math.sin(rollOmega * ti)),
               scale(upVec, -rollRadius * Math.cos(rollOmega * ti)),
             ),
           );

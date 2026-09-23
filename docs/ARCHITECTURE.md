@@ -1020,10 +1020,12 @@ const module: PhysicsModule = {
         aArrow.set({ from: [0, 0, 0], to: a });
         bArrow.set({ from: [0, 0, 0], to: b });
 
-        const style = s.params.sumStyle as string;
-        sArrow.set(
-          style === 'tip' ? { from: a, to: add(a, b) } : { from: [0, 0, 0], to: add(a, b) },
-        );
+        // The resultant is ALWAYS drawn from the origin to a+b, in
+        // every sumStyle (X-47) — {from: a, to: add(a, b)} is NOT the
+        // resultant, it's b translated to a's tip (length |b|), a
+        // separate CONSTRUCTION line the real module draws too (dashed,
+        // unlabeled) alongside this one, not instead of it.
+        sArrow.set({ from: [0, 0, 0], to: add(a, b) });
 
         const proj = scale(b, dot(a, b) / dot(b, b));
         shadow.set({ from: [0, 0, 0], to: proj });

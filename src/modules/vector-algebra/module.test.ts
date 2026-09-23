@@ -70,4 +70,50 @@ describe(module.manifest.id, () => {
     expect(s.volume).toBeCloseTo(0, 12);
     expect(s.cosGamma).toBeCloseTo(0, 12);
   });
+
+  // X-47 golden test: asserts what actually reaches the resultant
+  // arrow's own .set() — a readout-only check can't see this, since
+  // scalars() doesn't expose a+b at all. The bug: the arrow LABELED
+  // "a+b" ran from a to a+b (length |b|, not the resultant) in 'tip'
+  // mode, with no true resultant ever drawn from the origin.
+  it('the resultant arrow always runs from the origin to a+b, in both sumStyle modes', () => {
+    let capturedArrows: [number, number, number][] = [];
+    const arrowCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'y';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'arrow') {
+          return (props: { label?: string; from: [number, number, number] }) => {
+            const isResultant = props.label === '\\vec{a}+\\vec{b}';
+            return {
+              set: (next: { from?: [number, number, number]; to?: [number, number, number] }) => {
+                if (isResultant && next.from && next.to) capturedArrows.push(next.from, next.to);
+              },
+              visible: () => {},
+              dispose: () => {},
+            };
+          };
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(arrowCtx);
+    const a: [number, number, number] = [2, 1, 0];
+    const b: [number, number, number] = [1, 3, 0];
+    const expectedSum: [number, number, number] = [3, 4, 0];
+
+    for (const sumStyle of ['tip', 'para']) {
+      capturedArrows = [];
+      instance.update({
+        params: { a, b, c: [0, 0, 1], sumStyle, planar: false, basisAngle: 0 },
+        layers: {},
+        t: 0,
+      });
+      const [from, to] = capturedArrows;
+      expect(from).toEqual([0, 0, 0]); // always from the origin — never from a
+      expect(to).toEqual(expectedSum);
+    }
+  });
 });

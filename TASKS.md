@@ -1352,11 +1352,30 @@ gate|control-showcase" --workers=2`: 2/2 pass; full smoke suite
   `dzOmegaIntermediate: w2` (`:624`); with an edited `boxSize` (e.g.
   `[1, 2.4, 1.6]`) y is not intermediate, so the spin is stable and the
   label false. Pick the axis from sorted principal moments
-- [READY] **X-47** `vector-algebra` head-to-tail sum arrow labelled
+- [DONE] **X-47** `vector-algebra` head-to-tail sum arrow labelled
   `\vec a+\vec b` runs from `a` to `a+b` (`index.ts:192`) — it is `b`
   shifted, length |b|; no resultant from the origin in either mode, no
   parallelogram sides in `para` mode. The same code is ARCHITECTURE.md
-  §21's cookbook example — fix both
+  §21's cookbook example — fix both.
+  **Verified:** `sArrow` (the `\vec a+\vec b`-labelled arrow) is now
+  ALWAYS `{from: ORIGIN, to: a+b}` in both `sumStyle` modes — the true
+  resultant, never mislabeled construction. Added two new dashed
+  construction arrows: `sumConstructionB` (`b` translated to `a`'s tip
+  — the head-to-tail line, shown in both modes) and `sumConstructionA`
+  (`a` translated to `b`'s tip, shown only in `para` mode, completing
+  the parallelogram whose diagonal is the resultant). Fixed
+  ARCHITECTURE.md §21's cookbook example to the same always-from-origin
+  resultant (kept the simplified example free of the two construction
+  arrows, since it's illustrative, not a copy of the full module — noted
+  in a comment that the real module also draws them). Added a golden
+  test capturing the resultant arrow's actual `.set({from, to})` in
+  both modes — confirmed it fails against the pre-fix code (reproduced
+  `from: [2,1,0]` instead of the origin in 'tip' mode) and passes
+  against the fix. `npx vitest run src/modules/vector-algebra/module.test.ts`:
+  5/5 pass. Full sweep (`typecheck`, `lint`, `test:unit` 645/645,
+  `test:contract` 228/228, `build`, `check:budget`, `format:check`) all
+  pass. `npx playwright test tests/e2e/smoke.spec.ts -g
+"vector-algebra"`: 2/2 pass.
 - [READY] **X-48** `arrow` tip falls short of `to` by half a head length:
   `ConeGeometry` is centred on its origin (`arrow.ts:41-43`) but placed
   at `to − h·dir` (`:125`); a double head misses `from` the same way.

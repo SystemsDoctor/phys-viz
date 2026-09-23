@@ -75,6 +75,26 @@ const module: PhysicsModule = {
       from: ORIGIN,
       to: ORIGIN,
     });
+    // X-47: the resultant (sArrow, above) is ALWAYS drawn from the
+    // origin to a+b — these are the construction lines showing WHERE
+    // that resultant comes from: b translated to the tip of a (visible
+    // in both modes — this IS the "head to tail" construction), and a
+    // translated to the tip of b (visible only in 'para' mode, the
+    // other side of the parallelogram whose diagonal is the resultant).
+    const sumConstructionB = ctx.arrow({
+      group: gSum,
+      color: ctx.palette.construction,
+      dashed: true,
+      from: ORIGIN,
+      to: ORIGIN,
+    });
+    const sumConstructionA = ctx.arrow({
+      group: gSum,
+      color: ctx.palette.construction,
+      dashed: true,
+      from: ORIGIN,
+      to: ORIGIN,
+    });
     const shadow = ctx.arrow({
       group: gProj,
       color: ctx.palette.construction,
@@ -188,8 +208,22 @@ const module: PhysicsModule = {
         bArrow.set({ from: ORIGIN, to: b });
         cArrow.set({ from: ORIGIN, to: c });
 
+        // X-47: the resultant arrow is ALWAYS the true sum, drawn from
+        // the origin to a+b, in EITHER style — it used to run from a to
+        // a+b in 'tip' mode, which is really just b shifted (length
+        // |b|), not the resultant, and never drew a resultant from the
+        // origin at all in that mode.
         const style = s.params.sumStyle as string;
-        sArrow.set(style === 'tip' ? { from: a, to: add(a, b) } : { from: ORIGIN, to: add(a, b) });
+        const sum = add(a, b);
+        sArrow.set({ from: ORIGIN, to: sum });
+        // Head-to-tail construction (b translated to a's tip) is shown
+        // in both modes — it's the defining construction of 'tip' mode,
+        // and also one side of the parallelogram in 'para' mode. The
+        // other side (a translated to b's tip) only draws in 'para'
+        // mode, completing the parallelogram whose diagonal is sArrow.
+        sumConstructionB.set({ from: a, to: sum });
+        sumConstructionA.set({ from: b, to: sum });
+        sumConstructionA.visible(style === 'para');
 
         const bLenSq = dot(b, b);
         const proj = bLenSq > 0 ? scale(b, dot(a, b) / bLenSq) : ORIGIN;
@@ -261,6 +295,8 @@ const module: PhysicsModule = {
           bArrow,
           cArrow,
           sArrow,
+          sumConstructionB,
+          sumConstructionA,
           shadow,
           xArrow,
           curl,

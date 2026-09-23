@@ -36,11 +36,29 @@ module.exports = {
   },
   overrides: [
     {
+      // X-33/ADR 0016: the `@/*` patterns below (e.g. `@/scene/*`) only
+      // match a SUBPATH — they never matched the bare barrel imports
+      // (`@/scene`, `@/shell`, `@/modules`), so those, and a relative
+      // escape at kernel's own real nesting depth (kernel/<subdir>/x.ts
+      // is 2 levels below src/, so `../../scene/...` reaches it; a file
+      // directly in kernel/ needs only `../scene/...`), both passed
+      // lint undetected. Listed explicitly at both depths rather than a
+      // general regex, matching this tree's actual (shallow, one level)
+      // nesting — the same "explicit depths, not a blanket ban" shape
+      // modules/'s own `'../*'`/`'../../scene/*'` pair already uses,
+      // since kernel legitimately imports ACROSS its own subdirectories
+      // via one-level `../math`-style relative paths that a blanket
+      // `'../*'` ban would break.
       files: ['src/kernel/**/*.{ts,tsx}'],
       rules: {
         'no-restricted-imports': [
           'error',
           {
+            paths: [
+              { name: '@/scene', message: 'kernel/ must stay pure: no scene imports.' },
+              { name: '@/shell', message: 'kernel/ must stay pure: no shell imports.' },
+              { name: '@/modules', message: 'kernel/ must stay pure: no module imports.' },
+            ],
             patterns: [
               {
                 group: [
@@ -51,10 +69,27 @@ module.exports = {
                   '@/scene/*',
                   '@/shell/*',
                   '@/modules/*',
+                  '../scene/*',
+                  '../../scene/*',
+                  '../shell/*',
+                  '../../shell/*',
+                  '../modules/*',
+                  '../../modules/*',
                 ],
                 message: 'kernel/ must stay pure: no rendering, no UI, no module imports.',
               },
             ],
+          },
+        ],
+        // Dynamic import() is invisible to no-restricted-imports in
+        // every layer above — kernel should never need one at all.
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector:
+              'ImportExpression[source.value=/^(three|react|react-dom|@\\/(scene|shell|modules)|(\\.\\.\\/)+(scene|shell|modules))/]',
+            message:
+              'kernel/ must not dynamically import() three, react, scene, shell, or modules.',
           },
         ],
       },
@@ -65,9 +100,25 @@ module.exports = {
         'no-restricted-imports': [
           'error',
           {
+            paths: [
+              { name: '@/shell', message: 'scene/ must not depend on shell.' },
+              { name: '@/modules', message: 'scene/ must not depend on modules.' },
+            ],
             patterns: [
               {
-                group: ['react', 'react-dom', '@/shell/*', '@/modules/*'],
+                group: [
+                  'react',
+                  'react-dom',
+                  '@/shell/*',
+                  '@/modules/*',
+                  // scene/ has the same one-level nesting shape kernel/
+                  // does (scene/glyphs/x.ts etc.) — same two explicit
+                  // depths, same reasoning as the kernel override above.
+                  '../shell/*',
+                  '../../shell/*',
+                  '../modules/*',
+                  '../../modules/*',
+                ],
                 message:
                   'scene/ may use kernel and three, but must not depend on react, shell, or modules.',
               },
@@ -82,13 +133,47 @@ module.exports = {
         'no-restricted-imports': [
           'error',
           {
+            // X-33/ADR 0016: `paths` does an EXACT string match (unlike
+            // `patterns`, which is gitignore-style and — the gotcha that
+            // cost real debugging time here — can't be un-ignored by a
+            // later `!`-negation once a bare, wildcard-free entry like
+            // `@/modules` has matched it as a "directory", the same way
+            // a plain `foo` .gitignore entry silently swallows any later
+            // `!foo/bar`). The bare barrel import (the registry-glob,
+            // which pulls in every OTHER module) belongs here, not in
+            // `patterns` below, specifically so it can't interfere with
+            // that array's `!@/modules/types`/`!@/modules/registry`
+            // exceptions.
+            paths: [
+              {
+                name: '@/modules',
+                message:
+                  'shell/ may only depend on modules/types and modules/registry, never the modules barrel (which pulls in every module via the registry glob).',
+              },
+            ],
             patterns: [
               {
+                // X-33/ADR 0016: inverted from an allowlist-shaped ban
+                // (only `*/index`/`*/manifest`) to a real denylist —
+                // `@/modules/<id>/params` and the equivalent relative
+                // forms at shell's own nesting depths (shell/x.ts,
+                // shell/routes/x.tsx, shell/export/gif/x.ts) all passed
+                // before. `modules/testing` is shell-accessible test
+                // scaffolding only, not a boundary hole worth carving an
+                // exception for — nothing in shell/ uses it today.
                 group: [
-                  '@/modules/*/index',
-                  '@/modules/*/manifest',
+                  '@/modules/*',
                   '!@/modules/types',
                   '!@/modules/registry',
+                  '../modules/*',
+                  '!../modules/types',
+                  '!../modules/registry',
+                  '../../modules/*',
+                  '!../../modules/types',
+                  '!../../modules/registry',
+                  '../../../modules/*',
+                  '!../../../modules/types',
+                  '!../../../modules/registry',
                 ],
                 message:
                   'shell/ may only depend on modules/types and modules/registry, never a concrete module implementation.',
@@ -114,6 +199,25 @@ module.exports = {
         '@typescript-eslint/no-restricted-imports': [
           'error',
           {
+            // X-33/ADR 0016: `paths` (exact match) for the bare barrels,
+            // separate from `patterns` (gitignore-style glob+negation)
+            // below — see the shell/ override's comment above for why a
+            // bare, wildcard-free entry can't safely share a `patterns`
+            // group with a later `!`-negation for one of its own
+            // subpaths (it silently wins over the negation, the same
+            // gotcha a plain `foo` .gitignore entry has for `!foo/bar`).
+            paths: [
+              { name: '@/shell', message: 'modules/ must stay declarative: no shell imports.' },
+              {
+                name: '@/modules',
+                message:
+                  'modules/ must not import the modules barrel (which pulls in every other module via the registry glob).',
+              },
+              {
+                name: '@/scene',
+                message: 'modules/ may only use scene via the SceneContext type.',
+              },
+            ],
             patterns: [
               {
                 group: ['three', 'three/*', 'react', 'react-dom', '@/shell/*', '../../shell/*'],
@@ -147,6 +251,18 @@ module.exports = {
                   'modules/ may only import SceneContext as a type (`import type ... from "@/scene/SceneContext"`), never as a runtime value. See ARCHITECTURE.md §6/§21.',
               },
             ],
+          },
+        ],
+        // X-33: dynamic import() is invisible to no-restricted-imports —
+        // a module should never need one (no lazy-loading of three,
+        // shell, or a sibling module).
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector:
+              'ImportExpression[source.value=/^(three|react|react-dom|@\\/(scene|shell|modules)|\\.\\.\\/)/]',
+            message:
+              'modules/ must not dynamically import() three, react, shell, scene, or another module.',
           },
         ],
       },

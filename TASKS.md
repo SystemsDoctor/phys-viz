@@ -1088,7 +1088,7 @@ playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
   energy plane and turning points (`:99-131`) are built once from it and
   `update()` reuses the stale `toWorld`. Fix per X-22 option (a) and add
   a live-switch test like `projectile-motion`'s
-- [READY] **X-33** ESLint layer-boundary holes (proved via
+- [DONE] **X-33** ESLint layer-boundary holes (proved via
   `eslint --stdin --stdin-filename`, no file written): (a) bare barrels
   `@/scene`/`@/shell`/`@/modules` match none of the `/*` patterns, so a
   module can `import { … } from '@/scene'` (three.js at runtime) — every
@@ -1098,7 +1098,43 @@ playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
   `@/modules/<id>/params`, `@/modules/<id>` and `../../modules/<id>/index`
   pass; (d) dynamic `import('three')` passes everywhere. No current code
   exploits any. Fix the patterns, add a `no-restricted-syntax`
-  `ImportExpression` rule, re-prove each hole per M0-13
+  `ImportExpression` rule, re-prove each hole per M0-13.
+  **Verified:** (a) added bare `@/scene`/`@/shell`/`@/modules` bans to
+  all four layer overrides — via `no-restricted-imports`'s `paths`
+  option (exact match), NOT `patterns` (gitignore-style glob), after
+  hitting a real gotcha: a bare, wildcard-free `patterns` entry like
+  `@/modules` matches as a "directory" the same way a plain `foo`
+  .gitignore entry does, and a later `!@/modules/types` negation in the
+  same array can't un-match anything already caught by it — the classic
+  gitignore "can't negate inside an ignored directory" limitation.
+  Confirmed via isolated `--stdin` probes before finding `paths` as the
+  fix. (b) added explicit `../scene/*`/`../../scene/*` (and
+  shell/modules equivalents) to kernel and scene, at exactly the two
+  depths those trees actually nest (kernel/scene each have one level of
+  subdirectories) — a blanket `../*` ban (modules/'s own approach)
+  would have broken kernel's legitimate intra-kernel imports like
+  `../math`. (c) inverted the shell rule to a real denylist
+  (`@/modules/*` + `!@/modules/types`/`!@/modules/registry`, plus the
+  relative form at shell's 3 real nesting depths) and closed the
+  `modules/testing` shell-accessible-scaffolding hole too (nothing in
+  shell/ used it, so no exception needed). (d) added a
+  `no-restricted-syntax` `ImportExpression` regex selector to kernel and
+  modules (scoped there only — shell legitimately dynamic-imports, e.g.
+  `GifExportPanel`'s `import('./gif')`). No new ADR for this one — it
+  tightens enforcement of an already-documented boundary
+  (ARCHITECTURE.md §6), not a new convention; X-8's "ADR every
+  convention change" doesn't extend to closing a lint-rule gap around
+  an existing rule. Re-proved every hole closed via 11
+  `eslint --stdin --stdin-filename` probes (bare barrels × 4 layers,
+  relative escapes × 5 depths/layers, shell denylist × 4 forms, dynamic
+  import × 2) — all CAUGHT — and confirmed the legitimate exceptions
+  (`@/modules/types`, `@/modules/registry`, type-only `SceneContext`,
+  `../types`) still pass. `npm run lint` clean on the whole repo (no
+  false positives against existing code). Full sweep (`typecheck`,
+  `test:unit` 631/631, `test:contract` 218/218, `build`, `check:budget`,
+  `format:check`) all pass. `npx playwright test tests/e2e/smoke.spec.ts
+--workers=3`: 34/34 pass (sanity check — this touches the config
+  every layer's own build depends on).
 - [READY] **X-34** URL prefs (`up=`/`th=`/`pj=`/`gr=`/`gxy=`/`gxz=`/`gyz=`)
   are encoded and decoded but never applied: `ModuleView.tsx:203-210`
   hydrates without `decoded.prefs` and `store.hydrate` keeps

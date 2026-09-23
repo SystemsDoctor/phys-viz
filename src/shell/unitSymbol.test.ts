@@ -97,4 +97,42 @@ describe('formatQuantityWithUnit', () => {
   it('respects a custom sigFigs count', () => {
     expect(formatQuantityWithUnit({ value: 4.5678, dim: LENGTH }, 5)).toBe('4.5678 m');
   });
+
+  // X-37: gluing an SI prefix onto a POWERED unit is dimensionally
+  // wrong — "km²/s" reads as (km)²/s = 10^6 m²/s under standard SI
+  // prefix rules, not the 1000x chooseSIPrefix actually computed from
+  // the raw magnitude. All three reproduce the audit's own numbers.
+  describe('X-37: a powered/composite unit falls back to scientific notation instead of a misleading prefix', () => {
+    const AREA_PER_TIME: Dimension = [0, 2, -1, 0, 0, 0, 0]; // m^2/s
+    const VOL_PER_TIME_SQ: Dimension = [0, 3, -2, 0, 0, 0, 0]; // m^3/s^2 (gravitational parameter mu)
+    const SPECIFIC_ENERGY: Dimension = [0, 2, -2, 0, 0, 0, 0]; // m^2/s^2
+
+    it('2000 m^2/s is NOT shown as "2.00 km²/s" (which would read as 2e6 m^2/s)', () => {
+      const s = formatQuantityWithUnit({ value: 2000, dim: AREA_PER_TIME });
+      expect(s).not.toBe('2.00 km²/s');
+      expect(s).toBe('2.00×10³ m²/s');
+    });
+
+    it('3.986e14 m^3/s^2 is NOT shown as "399 Tm³/s²"', () => {
+      const s = formatQuantityWithUnit({ value: 3.986e14, dim: VOL_PER_TIME_SQ });
+      expect(s).not.toContain('Tm');
+      expect(s).toBe('3.99×10¹⁴ m³/s²');
+    });
+
+    it('gravitation\'s reachable case: specific energy -0.1 m^2/s^2 is NOT shown as "-100 mm²/s²" (1000x off)', () => {
+      const s = formatQuantityWithUnit({ value: -0.1, dim: SPECIFIC_ENERGY });
+      expect(s).not.toBe('-100 mm²/s²');
+      expect(s).toBe('-1.00×10⁻¹ m²/s²');
+    });
+
+    it('a leading-exponent-1 composite (velocity, m/s) is still prefixed normally', () => {
+      expect(formatQuantityWithUnit({ value: 2000, dim: VELOCITY })).toBe('2.00 km/s');
+    });
+
+    it('a leading MASS (kg) composite also falls back to scientific, per the pre-existing kg exception', () => {
+      expect(formatQuantityWithUnit({ value: 2000, dim: MOMENT_OF_INERTIA })).toBe(
+        '2.00×10³ kg·m²',
+      );
+    });
+  });
 });

@@ -1203,12 +1203,30 @@ test tests/e2e/smoke.spec.ts -g "X-11|bookmark" --workers=2`: 10/10
   218/218, `build`, `check:budget`, `format:check`) all pass. `npx
 playwright test tests/e2e/smoke.spec.ts -g "keyboard map|X-16"
 --workers=2`: 2/2 pass.
-- [READY] **X-37** `formatQuantityWithUnit` glues the SI prefix onto
+- [DONE] **X-37** `formatQuantityWithUnit` glues the SI prefix onto
   powered units (`unitSymbol.ts:140-159`, run in a scratch bundle):
   2000 m²/s → "2.00 km²/s", 3.986e14 m³/s² → "399 Tm³/s²", L⁻¹ → "m1/m".
   Reachable now: `gravitation` at μ=1, a=5 shows specific energy
   −0.1 m²/s² as "−100 mm²/s²" (1000× off). Fix: prefix only when the
-  leading factor has exponent +1 and isn't `kg`, else scientific notation
+  leading factor has exponent +1 and isn't `kg`, else scientific notation.
+  **Verified:** added `isPrefixSafe(dim)` — true for every
+  `NAMED_SYMBOLS` entry (N/J/N·m/rad/s, conventionally prefixed as one
+  atomic unit) or a composed symbol whose leading (first nonzero,
+  `[kg,m,s,K,A,mol,cd]` order) exponent is exactly 1 and isn't `kg`.
+  `formatQuantityWithUnit` now falls back to a new `toScientific()`
+  (e.g. `"2.00×10³"`) with the bare, unprefixed unit symbol whenever
+  `isPrefixSafe` is false. Added 5 new tests reproducing the audit's own
+  numbers (2000 m²/s, 3.986e14 m³/s², gravitation's −0.1 m²/s² case,
+  plus one confirming a genuinely linear composite like m/s still
+  prefixes normally, and one confirming the pre-existing kg exception
+  now applies to composites too) — confirmed all 4 bug-reproduction
+  cases fail against the pre-fix code with exactly the audit's reported
+  (wrong) strings and pass against the fix. `npx vitest run
+src/shell/unitSymbol.test.ts`: 21/21 pass. Full sweep (`typecheck`,
+  `lint`, `test:unit` 639/639, `test:contract` 218/218, `build`,
+  `check:budget`, `format:check`) all pass. `npx playwright test
+tests/e2e/smoke.spec.ts -g "gravitation"`: 1/1 pass (sanity — its
+  specific-energy readout goes through this function).
 - [READY] **X-38** Dark theme makes every scene label near-invisible:
   the scene background is hardcoded `0xeceef2` (`Viewport.ts:133`), and
   the label overlay (`htmlOverlay.ts:24-27`) has no colour, so it

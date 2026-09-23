@@ -71,6 +71,45 @@ function superscript(n: number): string {
     .join('');
 }
 
+/**
+ * X-37: an SI prefix is only a valid, linear scale factor on the
+ * numeral when the unit it's glued onto is itself raised to the first
+ * power — "km/s" (a length-per-time, leading exponent 1) means exactly
+ * 1000x the m/s value, but "km²/s" under standard SI prefix rules means
+ * (km)²/s = 10⁶ m²/s, not the 1000x `chooseSIPrefix` actually computed.
+ * `unitSymbolOf`'s NAMED_SYMBOLS entries (N, J, N·m, rad/s) are exempt:
+ * they're conventionally prefixed as one atomic unit (kN, kJ, ...) with
+ * no visible exponent on the leading symbol, unlike a composed unit
+ * whose superscript is printed right there in the string. Also carries
+ * the module's own documented kg exception (kg is already a prefixed
+ * unit name, so a MASS-leading composite can't take a second prefix
+ * either) by checking the leading base symbol, not just its exponent.
+ */
+function isPrefixSafe(dim: Dimension): boolean {
+  if (NAMED_SYMBOLS.has(dim)) return true;
+  const firstIdx = dim.findIndex((exp) => exp !== 0);
+  if (firstIdx === -1) return false; // dimensionless — moot, callers never reach this
+  if (BASE_SYMBOLS[firstIdx] === 'kg') return false;
+  return dim[firstIdx] === 1;
+}
+
+/** Scientific notation, e.g. "2.00×10³" or "1.50" (exponent 0 omitted) — the fallback for a unit `isPrefixSafe` rejects, so the numeral never implies a scale factor the glued-on unit symbol doesn't actually have. */
+function toScientific(value: number, sigFigs: number): string {
+  const sign = value < 0 ? '-' : '';
+  const abs = Math.abs(value);
+  if (abs < 1e-9) return (0).toFixed(Math.max(0, sigFigs - 1));
+  let exp = Math.floor(Math.log10(abs));
+  let mantissa = abs / Math.pow(10, exp);
+  let mantissaStr = mantissa.toFixed(Math.max(0, sigFigs - 1));
+  // Rounding at sigFigs can push the mantissa up to "10.0" (e.g. 9.996 at 3 sig figs).
+  if (parseFloat(mantissaStr) >= 10) {
+    exp += 1;
+    mantissa = abs / Math.pow(10, exp);
+    mantissaStr = mantissa.toFixed(Math.max(0, sigFigs - 1));
+  }
+  return exp === 0 ? `${sign}${mantissaStr}` : `${sign}${mantissaStr}×10${superscript(exp)}`;
+}
+
 /** Composes a base-SI-unit symbol directly from the exponent tuple, e.g. [0,1,-1,0,0,0,0] -> "m/s". */
 function composeFromExponents(dim: Dimension): string {
   const numerator: string[] = [];
@@ -141,6 +180,17 @@ export function formatQuantityWithUnit(q: Quantity, sigFigs = 3): string {
   const unit = unitSymbolOf(q.dim);
   const raw = formatQuantity(q, sigFigs).trim();
   if (!unit) return raw;
+
+  // X-37: for a unit an SI prefix can't be glued onto safely (a powered
+  // composite like m²/s, m³/s² — see `isPrefixSafe`), fall back to
+  // scientific notation with the bare unit symbol instead of letting
+  // `chooseSIPrefix`'s LINEAR scale factor silently misrepresent a
+  // squared/cubed one (gravitation's specific energy at mu=1, a=5 was
+  // reachable today: -0.1 m²/s² printed as "-100 mm²/s²", 1000x off).
+  if (!isPrefixSafe(q.dim)) {
+    return `${toScientific(q.value, sigFigs)} ${unit}`;
+  }
+
   // `chooseSIPrefix` is a pure function of the magnitude alone — it
   // knows nothing of `formatQuantity`'s separate near-zero floor
   // (ADR-less "ZERO_EPSILON" fix), so for a value that floor catches,

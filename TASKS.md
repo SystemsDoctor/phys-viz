@@ -925,6 +925,225 @@ build && npm run check:budget` all clean; the scratch repro module
   against the current dev build in the Browser pane), not the bare
   `"333m"` that prompted this entry originally.
 
+X-26 … X-59 were logged (not fixed) by the 2026-09-23 read-only audit —
+full evidence, verification level and recommendations in
+[`docs/audits/2026-09-23-codebase-audit.md`](docs/audits/2026-09-23-codebase-audit.md).
+Each was re-checked against the code before logging; "(read-only)" marks
+a mechanism confirmed from source but not observed in a rendered frame.
+
+- [READY] **X-26** `non-inertial-frames` draws the fictitious
+  accelerations with the wrong sign. `fictitiousTermsAt()`
+  (`index.ts:212-218`) passes `kernel/frames`' transport terms
+  (`2ω×v′`, `ω×(ω×r′)`) straight to the arrows labelled `a_cf`/`a_Cor`
+  (`:425-438`) — the kernel's own doc says a caller wanting the
+  fictitious force negates them. The "centrifugal" arrow points toward
+  the axis; `explain.md:32-34` states `a_cf = −ω²r′, toward the axis`
+  (wrong) and `a_Cor = −2ω×v′` (right, but not what's drawn);
+  `params.ts:124` says "outward". Readouts (magnitudes) and the dashed
+  `a′` arrow are correct. Fix: negate both, redraw tip-to-tail as
+  `a_cf + a_Cor = a′`, fix explain.md and `module.test.ts:110`'s name,
+  add direction assertions (`dot(a_cf, r′) > 0`)
+- [READY] **X-27** `rotational-dynamics` rolling rim trace is an
+  upside-down cycloid: `index.ts:545-551` uses `+R sin(ωt)` along
+  `rollDir` (x = vt + R sin ωt), so the traced point moves at 2v at
+  contact and 0 at the top. Needs `−R sin(ωt)`. Add a test that the
+  trace's velocity at the contact instant is zero
+- [READY] **X-28** `rotational-dynamics` "I about offset axis" readout is
+  `parallelAxisTensor(...)[8]` (I_zz) while the drawn axes follow
+  `upVec` (y by default, `index.ts:442-450`). Defaults: drawn-axis I =
+  4.22, readout 3.82. Fix: `n̂ᵀ I n̂` with a live `upVectorOf(ctx)`; the
+  golden test's cube can't distinguish I_yy/I_zz, use a non-cubic box
+- [READY] **X-29** `rotational-dynamics` precession: `baseSwing =
+2·Ω_p·sinθ₀/ωₙ` (`index.ts:149`) is used as the coefficient of
+  `(1 − cos ωₙt)` (`:500`); the released-from-rest linearization gives
+  `Ω_p·sinθ₀/ωₙ` there (max excursion is twice the coefficient), and a
+  mean φ̇ of Ω_p, not the 2Ω_p the code yields at k=0. X-21's recorded
+  "3.44 vs 1.75 rad/s" is this factor. The cusp test still passes (ratio
+  = 1 at k=0 regardless of scale). Fix the factor, re-derive the
+  `nutationAmplitude` default, add a test against a short `rk4` of the
+  exact heavy-top equations at large Ω; the default Ω=70
+  (Ω_p/ωₙ≈0.33) is also only marginally "fast"
+- [READY] **X-30** Module `urlKey`s collide with shell-reserved query
+  keys: `vector-algebra`/`oscillations` use `c` (camera, `urlCodec.ts:194`),
+  `fields-gradients`/`control-showcase` use `th` (theme, `:197`). Params
+  and prefs share one `URLSearchParams`, so one overwrites the other and
+  a `c` param value is fed to `decodeCamera`. The contract round-trip
+  never varies camera/prefs, so it passes. Fix: publish the reserved list
+  (`v z L t c up th pj gr gxy gxz gyz`), enforce it (params AND layers) in
+  the contract suite, rename the four keys with migrations (ADR 0003)
+- [READY] **X-31** GIF export never positions arrows, points or axis
+  ticks: `Viewport.renderNow()` (`Viewport.ts:229-233`) skips the
+  `frameListeners` loop that only `tick()` runs (`:539`), and every
+  arrow's shaft/head and every point's size is computed only in
+  `host.onFrame` (`arrow.ts:92-145`, `point.ts:35`); `capture.ts:71`
+  stops the loop immediately. P-G still passes because it checks
+  determinism + colour table, not content. Fix: build a `FrameInfo` and
+  run the listeners in `renderNow()`; add a pixel assertion at a known
+  arrow tip to `gif-export.spec.ts` (read-only)
+- [READY] **X-32** `work-energy` still reads `ctx.up` once in `create()`
+  (`index.ts:80`) — an X-22 instance X-22's close-out missed. The ribbon,
+  energy plane and turning points (`:99-131`) are built once from it and
+  `update()` reuses the stale `toWorld`. Fix per X-22 option (a) and add
+  a live-switch test like `projectile-motion`'s
+- [READY] **X-33** ESLint layer-boundary holes (proved via
+  `eslint --stdin --stdin-filename`, no file written): (a) bare barrels
+  `@/scene`/`@/shell`/`@/modules` match none of the `/*` patterns, so a
+  module can `import { … } from '@/scene'` (three.js at runtime) — every
+  layer; (b) kernel and scene overrides have no relative patterns
+  (`../../scene/Viewport` from kernel, `../../shell/App` from scene
+  pass); (c) the shell rule bans only `@/modules/*/index|manifest`, so
+  `@/modules/<id>/params`, `@/modules/<id>` and `../../modules/<id>/index`
+  pass; (d) dynamic `import('three')` passes everywhere. No current code
+  exploits any. Fix the patterns, add a `no-restricted-syntax`
+  `ImportExpression` rule, re-prove each hole per M0-13
+- [READY] **X-34** URL prefs (`up=`/`th=`/`pj=`/`gr=`/`gxy=`/`gxz=`/`gyz=`)
+  are encoded and decoded but never applied: `ModuleView.tsx:203-210`
+  hydrates without `decoded.prefs` and `store.hydrate` keeps
+  `get().prefs`. A z-up demo link opens y-up for a student. Decide:
+  apply for the session (no `savePrefs`), or ADR retracting prefs from
+  the URL
+- [READY] **X-35** X-20's decode guard is incomplete (`urlCodec.ts`):
+  `t=` is raw `Number` (NaN/negative/1e308 reach modules; `:261-262`);
+  camera `c=` parts use `?? default`, which NaN passes (`:161-168`);
+  `v=` isn't validated (NaN or a future version skip migration and load
+  as current); select values aren't checked against `options`;
+  expression/select run `decodeURIComponent` on an already-decoded value
+  (`:105-107`) so `?f=50%` throws `URIError` into the error boundary;
+  `z=` decompresses with no size cap (a sub-audit measured 8.3K chars →
+  10M). Fix: try/catch the whole decode → defaults + notice; clamp `t`
+  and camera; treat non-integer/future `v` as unmigratable; validate
+  select; cap `z=` input/output length; dropping the double decode is a
+  link-format change (ADR)
+- [READY] **X-36** Presenter keymap ignores modifiers
+  (`presenter/index.tsx:18-27`): Ctrl+R resets params instead of
+  reloading, Ctrl+C overwrites the clipboard, Ctrl+F toggles fullscreen,
+  all with `preventDefault()`. Space on a focused `<button>`/`<summary>`
+  toggles play instead of activating it. Fix: bail on ctrl/meta/alt;
+  skip button/summary/contenteditable/slider targets; match
+  case-insensitively
+- [READY] **X-37** `formatQuantityWithUnit` glues the SI prefix onto
+  powered units (`unitSymbol.ts:140-159`, run in a scratch bundle):
+  2000 m²/s → "2.00 km²/s", 3.986e14 m³/s² → "399 Tm³/s²", L⁻¹ → "m1/m".
+  Reachable now: `gravitation` at μ=1, a=5 shows specific energy
+  −0.1 m²/s² as "−100 mm²/s²" (1000× off). Fix: prefix only when the
+  leading factor has exponent +1 and isn't `kg`, else scientific notation
+- [READY] **X-38** Dark theme makes every scene label near-invisible:
+  the scene background is hardcoded `0xeceef2` (`Viewport.ts:133`), and
+  the label overlay (`htmlOverlay.ts:24-27`) has no colour, so it
+  inherits dark-mode `--ink-0` `#eef1f6`. Decide: pin the scene (and
+  overlay ink) to the light theme, or add `Viewport.setTheme` (read-only)
+- [READY] **X-39** `oscillations` spring inverts at the default params:
+  defaults sit at resonance (A = 2.78) and `springLength = 1.125 − x`
+  (`index.ts:235-241`) reaches −1.65; the mass rises above the anchor.
+  Move the default drive off resonance and/or clamp the drawn
+  displacement (readouts keep true x)
+- [READY] **X-40** `control-showcase` fixture: the expression default
+  `sin(x) * k` with `vars: ['x']` (`params.ts:43-44`) never compiles, so
+  `fValue` is always 0; `explain.md:10` tells the reader to toggle
+  "Reference grid", a layer removed at UI-2. Also add a contract
+  assertion that every expression param's default compiles against its
+  `vars`
+- [READY] **X-41** `ModuleView` re-renders the whole panel every frame
+  during playback: `const state = useAppStore()` (`ModuleView.tsx:734`)
+  subscribes to the entire store and `t` changes per frame; `SweepPlot`'s
+  fresh `evaluate` then re-runs ~100 `scalars()` per frame. Use narrow
+  selectors, memoize `evaluate` on params, throttle readouts/series/
+  aria-label (read-only)
+- [READY] **X-42** Under z-up, the "2D-only" lock (`goTo('+z')` →
+  world −y via `fromCanonical`, `camera/index.ts:118-120`) shows the
+  world x–z plane, correct for gravity modules but edge-on for modules
+  that hardcode world x–y: `non-inertial-frames`, `gravitation` (at
+  inclination 0), `control-showcase`, `vector-algebra`'s `planar` mode.
+  Needs a decision (map orientation-free modules' plane through `ctx.up`,
+  or change what the lock looks at); ADR if shell behaviour changes
+  (read-only)
+- [READY] **X-43** `kernel/expr` has no recursion-depth limit: 1000
+  nested parens compile, 3000 throw `RangeError` (reproduced against a
+  scratch bundle), which `compileExpr` re-throws. Only `control-showcase`
+  is exposed today; M7-9 Sandbox is URL-fed by design. Add a depth
+  counter raising `ParseError` plus a length cap
+- [READY] **X-44** `rotational-dynamics` disc bodies are never sized:
+  disc geometry is diameter 1 (`body.ts:41`), no `scale` passed
+  (`index.ts:313-318, 343-349`) — the wheel matches `rollRadius` only at
+  its 0.5 default (range 0.2–1.2), the flywheel ignores `topRadius`. Same
+  family as the M7-1/M7-2 sphere-diameter bug; also document each `body`
+  kind's unit geometry in `MODULE_AUTHORING.md`'s glyph table
+- [READY] **X-45** `fields-gradients` divergence-box faces normalize
+  `colorField` per face (`surface.ts:108-114`, six separate surfaces at
+  `index.ts:300-309`), so outward/zero/inward flux faces can render the
+  same colour. Add an optional fixed `colorRange` to `surface` (Layer 1)
+- [READY] **X-46** `rotational-dynamics` Dzhanibekov panel always spins
+  about body y (`reset()`, `index.ts:654`) and reports
+  `dzOmegaIntermediate: w2` (`:624`); with an edited `boxSize` (e.g.
+  `[1, 2.4, 1.6]`) y is not intermediate, so the spin is stable and the
+  label false. Pick the axis from sorted principal moments
+- [READY] **X-47** `vector-algebra` head-to-tail sum arrow labelled
+  `\vec a+\vec b` runs from `a` to `a+b` (`index.ts:192`) — it is `b`
+  shifted, length |b|; no resultant from the origin in either mode, no
+  parallelogram sides in `para` mode. The same code is ARCHITECTURE.md
+  §21's cookbook example — fix both
+- [READY] **X-48** `arrow` tip falls short of `to` by half a head length:
+  `ConeGeometry` is centred on its origin (`arrow.ts:41-43`) but placed
+  at `to − h·dir` (`:125`); a double head misses `from` the same way.
+  `arrow.test.ts:28` only checks `0 < x ≤ 2`. Translate the cone once, or
+  place at `to − h/2·dir`; assert the apex
+- [READY] **X-49** Projector mode doesn't thicken scene lines: every line
+  is `THREE.Line` with `LineBasicMaterial`/`LineDashedMaterial`, whose
+  `linewidth > 1` is ignored under ANGLE (Chrome/Edge/Firefox on
+  Windows), so `lineWidthMultiplier` (`Viewport.ts:486-504`) is a no-op;
+  a sub-audit also reports `patch.applyProps` overwriting the opacity
+  floor. Consider `Line2`/`LineMaterial` from `three/examples/jsm/lines`
+  (no new dependency) (read-only)
+- [READY] **X-50** Stepped playback runs flat-out after a backgrounded
+  tab resumes: the rAF `dt` is unclamped (`ModuleView.tsx:471`) and
+  `FixedStepAccumulator` keeps its backlog past `MAX_STEPS_PER_FRAME`,
+  never reset on pause/scrub (`driver.ts:37-46`). Clamp `frameDt` or
+  drop the backlog at the cap; reset on pause and scrub
+- [READY] **X-51** `vector-algebra` `theta` can be `NaN`: `Math.acos`
+  unclamped (`index.ts:249`) — `a=[−0.5,0,−3]`, `b=−0.5a` gives
+  cos = −1.0000000000000004 (reproduced); `a=0` also NaNs θ and the
+  direction cosines. Clamp and guard zero norms
+- [READY] **X-52** `gravitation` gravity arrow (length `0.15·μ/r²`,
+  `index.ts:256-260`) overshoots the central mass — 1.2 long at the
+  default periapsis r=1, ~30 at e=0.9. Saturate and clamp below
+  `r − central radius`
+- [READY] **X-53** Two small module bugs: `non-inertial-frames`' lab-frame
+  platform mark stops turning once the puck exits, because θ = ω·t uses
+  the exit-clamped `t` (`index.ts:234-237`); `projectile-motion`'s
+  default `launchVelocity` `[8.49, 8.49, 0]` (`params.ts:74`) has zero
+  vertical component under z-up, so vector mode freezes at t=0
+- [READY] **X-54** `path` always fades its oldest vertex to the
+  background, with or without `persistence` (`path.ts:72`) — two-point
+  axis lines and closed outlines (`gravitation`'s orbit, the
+  `fields-gradients` cap boundary) render with an invisible end. Fade
+  only when `persistence` is set (or add `fade?: boolean`)
+- [READY] **X-55** Layer fade-in is a no-op for any layer that has been
+  drawn before: `Viewport.ts:352` flips `material.transparent` without
+  `needsUpdate`, and three r160 bakes `OPAQUE` (alpha forced to 1) from
+  `transparent` into the compiled program (`WebGLPrograms.js:248`); no
+  `needsProgramChange` check looks at `transparent`. Set `needsUpdate`
+  at fade start and end (read-only — confirmed from three.js source)
+- [READY] **X-56** Service-worker update notice is missed when a worker
+  is already `waiting` at page load: only `updatefound` triggers it
+  (`register.ts:43-55`). After `register()`, notify if
+  `registration.waiting && navigator.serviceWorker.controller`
+- [READY] **X-57** `field` glyph draws a spurious +y arrow at
+  zero-magnitude samples (`field.ts:93-97`; minimum length 0.15 × base in
+  length mode, full length in the other modes, `:120-121`). Scale the
+  instance to 0 below epsilon
+- [READY] **X-58** Latent: `dimensionLine`'s `applyGeometry` sets
+  `line.visible = true` unconditionally (`dimensionLine.ts:77-78`) and
+  `surface` does the same for its wireframe (`surface.ts:122`), so a
+  `set()` after `visible(false)` re-shows them. No current module hits
+  it. Track a `shown` flag the way `label` does
+- [READY] **X-59** Two `ModuleView` lifecycle races: the 420ms 2D-lock
+  `setTimeout` is never cleared (`ModuleView.tsx:443-446`), so toggling
+  back within 420ms re-locks anyway and after unmount it touches a
+  disposed camera; the time series appends on every store change
+  (`:339-345`), so a paused param drag floods it and a reset makes x
+  non-monotonic. Clear the timer; append only when `t` advances, clear
+  when it goes back
+
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 
 Found on the second pass. Each needs a decision before the milestone

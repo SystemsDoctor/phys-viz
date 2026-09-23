@@ -1247,11 +1247,25 @@ tests/e2e/smoke.spec.ts -g "gravitation"`: 1/1 pass (sanity — its
   the label overlay (`htmlOverlay.ts:24-27`) has no colour, so it
   inherits dark-mode `--ink-0` `#eef1f6`. Decide: pin the scene (and
   overlay ink) to the light theme, or add `Viewport.setTheme` (read-only)
-- [READY] **X-39** `oscillations` spring inverts at the default params:
+- [DONE] **X-39** `oscillations` spring inverts at the default params:
   defaults sit at resonance (A = 2.78) and `springLength = 1.125 − x`
   (`index.ts:235-241`) reaches −1.65; the mass rises above the anchor.
   Move the default drive off resonance and/or clamp the drawn
-  displacement (readouts keep true x)
+  displacement (readouts keep true x).
+  **Verified:** chose the clamp option (fixes every param combination,
+  not just the shipped default) — the drawn displacement is clamped
+  into `±0.8·REST_LENGTH` before computing `yMass`/the spring's
+  geometry; `scalars()`'s `x`/`v` readouts are untouched, still the raw
+  `sceneAt()` value. Added a golden test capturing the spring's actual
+  `.set({scale})` across a full drive cycle at the module's own default
+  (resonant) params, asserting `scale.y` stays positive throughout —
+  confirmed it fails against the pre-fix code (reproduced the exact
+  negative scale, -0.136, at one sampled instant) and passes against
+  the fix. `npx vitest run src/modules/oscillations/module.test.ts`:
+  9/9 pass. Full sweep (`typecheck`, `lint`, `test:unit` 642/642,
+  `test:contract` 218/218, `build`, `check:budget`, `format:check`) all
+  pass. `npx playwright test tests/e2e/smoke.spec.ts -g "oscillations"`:
+  1/1 pass.
 - [READY] **X-40** `control-showcase` fixture: the expression default
   `sin(x) * k` with `vars: ['x']` (`params.ts:43-44`) never compiles, so
   `fValue` is always 0; `explain.md:10` tells the reader to toggle

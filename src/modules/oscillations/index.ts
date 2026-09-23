@@ -64,6 +64,15 @@ const Y_ANCHOR = 2.4; // fixed ceiling mount, in "up" world units above the orig
 const REST_LENGTH = 1.4; // undeformed spring length — schematic, not a param
 const Y_EQUILIBRIUM = Y_ANCHOR - REST_LENGTH; // where the mass sits when x = 0
 const MASS_SIZE = 0.55; // box glyph edge length
+// X-39: at/near resonance (default params: m=1, k=9, Omega=3, so
+// omega_n=Omega exactly) the steady-state amplitude F0/(c*Omega) can
+// exceed REST_LENGTH, pushing the mass ABOVE the anchor and making
+// `springLength` negative — the coil visually inverts/collapses through
+// the ceiling mount. Clamps the DRAWN displacement only; `scalars()`'s
+// `x`/`v` readouts stay the true, unclamped physics value — this is a
+// schematic drawing limit (the spring glyph can't stretch past its own
+// mount), not a change to what's being simulated.
+const MAX_DRAWN_DISPLACEMENT = 0.8 * REST_LENGTH;
 const ARM_OFFSET = 0.7; // horizontal offset for the velocity/force arrows, away from the spring's own line
 const VEL_ARROW_SCALE = 0.35;
 const FORCE_ARROW_SCALE = 0.12;
@@ -218,7 +227,16 @@ const module: PhysicsModule = {
         const driveOn = state.layers.drive ?? true;
 
         const { steady, drivingForce } = sceneAt(state);
-        const yMass = Y_EQUILIBRIUM + steady.x;
+        // X-39: draw the mass at its true displacement clamped into
+        // +/-MAX_DRAWN_DISPLACEMENT — steady.x itself (and every
+        // readout derived from it) stays the real, unclamped physics
+        // value; only where the box/spring are PAINTED is limited, so
+        // the spring glyph never has to stretch past its own anchor.
+        const drawnX = Math.max(
+          -MAX_DRAWN_DISPLACEMENT,
+          Math.min(MAX_DRAWN_DISPLACEMENT, steady.x),
+        );
+        const yMass = Y_EQUILIBRIUM + drawnX;
         const massPos = toWorld(0, yMass);
 
         anchor.set({ position: toWorld(0, Y_ANCHOR) });

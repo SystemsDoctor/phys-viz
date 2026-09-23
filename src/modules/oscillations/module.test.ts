@@ -123,4 +123,53 @@ describe(module.manifest.id, () => {
     expect(Number.isFinite(x)).toBe(true);
     expect(Number.isFinite(v)).toBe(true);
   });
+
+  // X-39 golden test: asserts what actually reaches the spring's
+  // .set({scale}) at the module's own DEFAULT params, which sit exactly
+  // at resonance (omega0 = omegaDrive = 3) — a readout-only check can't
+  // see this, since scalars().x correctly stays the large true
+  // amplitude; the bug was purely in the DRAWN spring geometry.
+  it('the drawn spring never inverts (negative/zero scale.y), even at resonance where amplitude exceeds REST_LENGTH', () => {
+    let capturedSpringScale: [number, number, number] | undefined;
+    const springCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'y';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'body') {
+          return (props: { kind: string; scale: [number, number, number] }) => {
+            const isSpring = props.kind === 'spring';
+            if (isSpring) capturedSpringScale = props.scale;
+            return {
+              set: (next: { scale?: [number, number, number] }) => {
+                if (isSpring && next.scale) capturedSpringScale = next.scale;
+              },
+              visible: () => {},
+              dispose: () => {},
+            };
+          };
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(springCtx);
+    // Default params (m=1, k=9, c=0.6, F0=5, omegaDrive=3): omega0 = 3 =
+    // omegaDrive exactly, amplitude = F0/(c*omegaDrive) = 5/1.8 ~= 2.78,
+    // well past REST_LENGTH (1.4) — the audit's own reproduction.
+    const params = { m: 1, k: 9, c: 0.6, F0: 5, omegaDrive: 3 };
+    const { amplitude } = instance.scalars({ params, layers: {}, t: 0 });
+    expect(amplitude).toBeGreaterThan(1.4); // confirms this state really does exceed REST_LENGTH
+
+    // Sample across a full drive cycle — the mass swings through both
+    // extremes (toward AND away from the anchor).
+    const omegaDrive = params.omegaDrive;
+    const period = (2 * Math.PI) / omegaDrive;
+    for (let i = 0; i <= 40; i++) {
+      const t = (period * i) / 40;
+      instance.update({ params, layers: { system: true, drive: true }, t });
+      expect(capturedSpringScale).toBeDefined();
+      expect(capturedSpringScale![1]).toBeGreaterThan(0);
+    }
+  });
 });

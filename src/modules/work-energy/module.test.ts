@@ -129,4 +129,99 @@ describe(module.manifest.id, () => {
     expect(large.E).toBeGreaterThan(small.E);
     expect(large.period).toBeCloseTo(small.period, 10);
   });
+
+  // X-32 golden test: `ctx.up` is documented LIVE — a Settings -> Up
+  // axis switch on an already-mounted instance must be reflected on the
+  // very next update(), not frozen at whatever axis create() saw. Before
+  // the fix, `upVec`/`toWorld` were computed once in create() and every
+  // glyph (including the landscape's own static ribbon/plane geometry,
+  // built once and never re-set()) stayed on the old axis forever.
+  // Captures the ball's actual `.set({position})` — a readout-only test
+  // can't see this, since scalars() never reads ctx.up at all.
+  it('a live up-axis switch moves the ball off its old axis onto the new one, not frozen at create()-time (TASKS.md X-22/X-32)', () => {
+    let capturedBallPos: [number, number, number] | undefined;
+    const upAxis: { current: 'y' | 'z' } = { current: 'y' };
+    const bodyCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return upAxis.current;
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'body') {
+          return (_initial: { position: [number, number, number] }) => ({
+            set: (next: { position?: [number, number, number] }) => {
+              if (next.position) capturedBallPos = next.position;
+            },
+            visible: () => {},
+            dispose: () => {},
+          });
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(bodyCtx);
+    const mass = 1;
+    const k = 10;
+    const A = 1.5;
+    const omega = Math.sqrt(k / mass);
+    // A t where xi=cos(omega t) is neither 0 nor +/-1, so eta=xi^2 is a
+    // genuinely nonzero "second axis" component to tell y-up from z-up.
+    const t = 0.2 / omega;
+
+    instance.update(stateAt(t, mass, k, A));
+    const underYUp = capturedBallPos!;
+    expect(underYUp[1]).not.toBeCloseTo(0, 6); // eta shows up on the y component
+    expect(underYUp[2]).toBeCloseTo(0, 10); // z unused under y-up
+
+    upAxis.current = 'z'; // simulate a live Settings -> Up axis switch
+    instance.update(stateAt(t, mass, k, A));
+    const underZUp = capturedBallPos!;
+    expect(underZUp[2]).not.toBeCloseTo(0, 6); // eta now shows up on z instead
+    expect(underZUp[1]).toBeCloseTo(0, 10); // y unused under z-up
+
+    // x (the xi/horizontal component) is axis-independent — same either way.
+    expect(underZUp[0]).toBeCloseTo(underYUp[0], 10);
+  });
+
+  // Same live-switch requirement for the landscape's own static
+  // geometry (the ribbon/energy-plane/turning points) — these were the
+  // ones actually built once in create() and never touched again before
+  // the fix, unlike the ball (which at least re-set() its position from
+  // update(), just with the stale toWorld closure).
+  it('a live up-axis switch also moves the energy-plane quad, not just the ball', () => {
+    let capturedPoints: readonly [number, number, number][] | undefined;
+    const upAxis: { current: 'y' | 'z' } = { current: 'y' };
+    const patchCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return upAxis.current;
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'patch') {
+          return (initial: { points: readonly [number, number, number][] }) => {
+            capturedPoints = initial.points;
+            return {
+              set: (next: { points?: readonly [number, number, number][] }) => {
+                if (next.points) capturedPoints = next.points;
+              },
+              visible: () => {},
+              dispose: () => {},
+            };
+          };
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(patchCtx);
+    instance.update(stateAt(0, 1, 10, 1.5));
+    const underYUp = capturedPoints!.map((p) => [...p]);
+    expect(underYUp.some((p) => Math.abs(p[1]) > 1e-6)).toBe(true); // energy plane sits above y=0
+    expect(underYUp.every((p) => Math.abs(p[2]) < 1e-9)).toBe(true); // z unused under y-up
+
+    upAxis.current = 'z';
+    instance.update(stateAt(0, 1, 10, 1.5));
+    const underZUp = capturedPoints!.map((p) => [...p]);
+    expect(underZUp.some((p) => Math.abs(p[2]) > 1e-6)).toBe(true); // now on z instead
+    expect(underZUp.every((p) => Math.abs(p[1]) < 1e-9)).toBe(true); // y unused under z-up
+  });
 });

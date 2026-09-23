@@ -77,28 +77,37 @@ const module: PhysicsModule = {
     // viewer already expects (up = more) lands on ENERGY here too,
     // rather than leaving this one diagram fixed to +y regardless of
     // the viewer's global choice.
-    const upVec: V3 = ctx.up === 'y' ? Y_HAT : Z_HAT;
-    const horizVec: V3 = X_HAT;
-
-    const toWorld = (xi: number, eta: number): V3 => {
+    //
+    // `ctx.up` is documented as LIVE — a later up-axis switch must be
+    // visible on the next read — so `toWorld` is built FRESH on every
+    // update() call from a freshly-read upVec, never cached once here
+    // in create() (X-22/X-32: caching it here left every glyph,
+    // including the landscape's own static geometry below, frozen on
+    // the old axis after a live switch).
+    function toWorldAt(upVec: V3, xi: number, eta: number): V3 {
       const x = xi * PLOT_SCALE;
       const y = eta * PLOT_SCALE;
       return [
-        horizVec[0] * x + upVec[0] * y,
-        horizVec[1] * x + upVec[1] * y,
-        horizVec[2] * x + upVec[2] * y,
+        X_HAT[0] * x + upVec[0] * y,
+        X_HAT[1] * x + upVec[1] * y,
+        X_HAT[2] * x + upVec[2] * y,
       ];
-    };
+    }
+    function upVectorOf(): V3 {
+      return ctx.up === 'y' ? Y_HAT : Z_HAT;
+    }
 
     const gLandscape = ctx.group('landscape');
     const gParticle = ctx.group('particle');
 
-    // η = ξ² and the plane at η = 1 never depend on params/t/layers —
-    // only the layer checkbox toggles their visibility — so their
-    // geometry is passed once here rather than recomputed in update().
+    // η = ξ² and the plane at η = 1 never depend on params/t/layers, but
+    // DO depend on the live up axis (through toWorldAt) — placeholder
+    // geometry here, re-set() from update() every frame with the
+    // current upVec, same as the particle glyphs below.
     const ribbon = ctx.surface({
       group: gLandscape,
-      parametric: (xi, vv) => toWorld(xi, xi * xi + RIBBON_HALF_THICKNESS * (2 * vv - 1)),
+      parametric: (xi, vv) =>
+        toWorldAt(upVectorOf(), xi, xi * xi + RIBBON_HALF_THICKNESS * (2 * vv - 1)),
       colorField: (xi) => xi * xi,
       uRange: [-DOMAIN_XI, DOMAIN_XI],
       vRange: [0, 1],
@@ -110,23 +119,23 @@ const module: PhysicsModule = {
       color: ctx.palette.energy,
       opacity: 0.35,
       points: [
-        toWorld(-DOMAIN_XI, 1 - PLANE_HALF_THICKNESS),
-        toWorld(DOMAIN_XI, 1 - PLANE_HALF_THICKNESS),
-        toWorld(DOMAIN_XI, 1 + PLANE_HALF_THICKNESS),
-        toWorld(-DOMAIN_XI, 1 + PLANE_HALF_THICKNESS),
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
       ],
     });
 
     const leftTurningPoint = ctx.point({
       group: gLandscape,
       color: ctx.palette.construction,
-      position: toWorld(-1, 1),
+      position: [0, 0, 0],
       sizePx: 7,
     });
     const rightTurningPoint = ctx.point({
       group: gLandscape,
       color: ctx.palette.construction,
-      position: toWorld(1, 1),
+      position: [0, 0, 0],
       sizePx: 7,
     });
 
@@ -154,6 +163,9 @@ const module: PhysicsModule = {
 
     return {
       update(state: ModuleState) {
+        const upVec = upVectorOf(); // live read every frame — X-22/X-32
+        const toWorld = (xi: number, eta: number): V3 => toWorldAt(upVec, xi, eta);
+
         const m = state.params.mass as number;
         const k = state.params.k as number;
         const landscapeOn = state.layers.landscape ?? true;
@@ -165,6 +177,25 @@ const module: PhysicsModule = {
         const eta = xi * xi;
         const dxiDt = -Math.sin(omega * state.t); // d(x/A)/d(ωt), sign of velocity
 
+        // The landscape's own geometry has no param/t dependence, only
+        // upVec — re-set() every frame anyway (cheap: a fixed 48x4 mesh
+        // and a 4-point quad) so a live up-axis switch is picked up the
+        // same frame everything else is, rather than adding a separate
+        // "did upVec change" cache the rest of this module doesn't
+        // otherwise need.
+        ribbon.set({
+          parametric: (uu, vv) => toWorld(uu, uu * uu + RIBBON_HALF_THICKNESS * (2 * vv - 1)),
+        });
+        energyPlane.set({
+          points: [
+            toWorld(-DOMAIN_XI, 1 - PLANE_HALF_THICKNESS),
+            toWorld(DOMAIN_XI, 1 - PLANE_HALF_THICKNESS),
+            toWorld(DOMAIN_XI, 1 + PLANE_HALF_THICKNESS),
+            toWorld(-DOMAIN_XI, 1 + PLANE_HALF_THICKNESS),
+          ],
+        });
+        leftTurningPoint.set({ position: toWorld(-1, 1) });
+        rightTurningPoint.set({ position: toWorld(1, 1) });
         ribbon.visible(landscapeOn);
         energyPlane.visible(landscapeOn);
         leftTurningPoint.visible(landscapeOn);

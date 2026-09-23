@@ -1083,11 +1083,26 @@ playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
   `format:check`) all pass. `npx playwright test tests/e2e/smoke.spec.ts
 --workers=3`: 34/34 pass (sanity check — `renderNow()`/`tick()` share
   the live `Viewport`).
-- [READY] **X-32** `work-energy` still reads `ctx.up` once in `create()`
+- [DONE] **X-32** `work-energy` still reads `ctx.up` once in `create()`
   (`index.ts:80`) — an X-22 instance X-22's close-out missed. The ribbon,
   energy plane and turning points (`:99-131`) are built once from it and
   `update()` reuses the stale `toWorld`. Fix per X-22 option (a) and add
-  a live-switch test like `projectile-motion`'s
+  a live-switch test like `projectile-motion`'s.
+  **Verified:** `upVectorOf()`/`toWorldAt()` moved to be called fresh
+  every `update()` call (never cached at `create()`-time); the
+  landscape's own static geometry (ribbon/energy-plane/turning points),
+  previously built once in `create()` and never touched again, now
+  re-`set()`s every frame from the live axis too — the ball already
+  re-`set()` its position each frame but with the stale `toWorld`
+  closure, so it was equally affected. Added 2 golden tests capturing
+  the ball's actual `.set({position})` and the energy-plane's actual
+  `.set({points})` across a live `ctx.up` switch (`projectile-motion`'s
+  X-22 test pattern) — confirmed both fail against the pre-fix code
+  (frozen on the old axis) and pass against the fix. `npx vitest run
+src/modules/work-energy/module.test.ts`: 9/9 pass. Full sweep
+  (`typecheck`, `lint`, `test:unit` 641/641, `test:contract` 218/218,
+  `build`, `check:budget`, `format:check`) all pass. `npx playwright
+test tests/e2e/smoke.spec.ts -g "work-energy"`: 1/1 pass.
 - [DONE] **X-33** ESLint layer-boundary holes (proved via
   `eslint --stdin --stdin-filename`, no file written): (a) bare barrels
   `@/scene`/`@/shell`/`@/modules` match none of the `/*` patterns, so a

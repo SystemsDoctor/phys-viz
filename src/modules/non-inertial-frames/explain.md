@@ -29,8 +29,8 @@ straight line the puck is actually tracing.
 The rotating observer, working only within their own (non-inertial)
 frame, has to explain that curving path somehow — Newton's laws don't
 hold as written in a rotating frame unless you add two extra
-acceleration terms: **centrifugal** ($\vec{a}_{cf} = -\omega^2\vec{r}\,'$,
-pointing toward the axis) and **Coriolis** ($\vec{a}_{Cor} =
+acceleration terms: **centrifugal** ($\vec{a}_{cf} = \omega^2\vec{r}\,'$,
+pointing away from the axis) and **Coriolis** ($\vec{a}_{Cor} =
 -2\vec{\omega}\times\vec{v}\,'$, perpendicular to the observer's own
 velocity). The three acceleration arrows at the puck are drawn tip to
 tail on purpose: centrifugal, then Coriolis from its tip, then the

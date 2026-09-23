@@ -211,11 +211,20 @@ function fictitiousTermsAt(omega: number, rRel: V2, vRel: V2): FictitiousTerms {
   const v3: V3 = [vRel[0], vRel[1], 0];
   const kinematic = transformAcceleration(frame, r3, v3, [0, 0, 0]);
   const relative3: V3 = [-kinematic.total[0], -kinematic.total[1], -kinematic.total[2]];
+  // `transformAcceleration` reports the kinematic transport terms
+  // (2*omega x v', omega x (omega x r')) — kernel/frames' own doc says a
+  // caller wanting the FICTITIOUS FORCE convention (what this panel draws
+  // and labels a_cf/a_Cor) negates them: the fictitious force is what the
+  // rotating observer must add to explain a puck they see accelerating
+  // with no real force acting on it, i.e. a' = a_cf_fict + a_Cor_fict
+  // (Newton's second law in the rotating frame). `relative` (a') already
+  // comes out signed correctly — it's the true observed acceleration —
+  // so only these two need negating before they're drawn.
   const terms = transformAcceleration(frame, r3, v3, relative3);
   return {
     relative: [terms.relative[0], terms.relative[1]],
-    coriolis: [terms.coriolis[0], terms.coriolis[1]],
-    centrifugal: [terms.centrifugal[0], terms.centrifugal[1]],
+    coriolis: [-terms.coriolis[0], -terms.coriolis[1]],
+    centrifugal: [-terms.centrifugal[0], -terms.centrifugal[1]],
     residual: Math.hypot(terms.total[0], terms.total[1], terms.total[2]),
   };
 }

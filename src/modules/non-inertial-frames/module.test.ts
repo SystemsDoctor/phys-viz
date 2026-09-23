@@ -107,7 +107,7 @@ describe(module.manifest.id, () => {
     }
   });
 
-  it('centrifugal acceleration points toward the axis with magnitude omega^2 * rho', () => {
+  it('centrifugal acceleration magnitude is omega^2 * rho', () => {
     const instance = module.create(fakeCtx);
     const omega = 2.1;
     const x0 = -2;
@@ -142,5 +142,90 @@ describe(module.manifest.id, () => {
       const later = instance.scalars(stateAt(t, 1, 1, launchAngle, x0, y0));
       expect(later.rho).toBeCloseTo(atStart.rho, 8);
     }
+  });
+
+  // X-26 golden test: asserts what actually reaches the fictitious-force
+  // arrows' .set() — a readout-only check (like the two above) can't
+  // catch a sign flip in the drawn direction, since aCoriolis/aCentrifugal
+  // are magnitudes. Captures each arrow by the fixed `label` it was
+  // created with in create().
+  it('the drawn centrifugal and Coriolis arrows point in the fictitious-force direction, not the kinematic-transport direction', () => {
+    const captured = new Map<
+      string,
+      { from: [number, number, number]; to: [number, number, number] }
+    >();
+    const arrowCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'y';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'arrow') {
+          return (props: {
+            label?: string;
+            from: [number, number, number];
+            to: [number, number, number];
+          }) => {
+            const key = props.label;
+            if (key) captured.set(key, { from: props.from, to: props.to });
+            return {
+              set: (next: { from?: [number, number, number]; to?: [number, number, number] }) => {
+                if (key) {
+                  const prev = captured.get(key)!;
+                  captured.set(key, { from: next.from ?? prev.from, to: next.to ?? prev.to });
+                }
+              },
+              visible: () => {},
+              dispose: () => {},
+            };
+          };
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(arrowCtx);
+    const omega = 2.1;
+    const x0 = -2;
+    const y0 = 1;
+    const speed = 1.2;
+    const launchAngle = 1.1;
+    const t = 1.6;
+    const state = stateAt(t, omega, speed, launchAngle, x0, y0);
+    instance.update(state);
+
+    // Recompute the rotating-frame position/velocity independently, the
+    // same closed-form way the module does, from the same inputs — the
+    // module doesn't expose `rot` directly.
+    const vx0 = speed * Math.cos(launchAngle);
+    const vy0 = speed * Math.sin(launchAngle);
+    const labX = x0 + vx0 * t;
+    const labY = y0 + vy0 * t;
+    const theta = omega * t;
+    const c = Math.cos(theta);
+    const s = Math.sin(theta);
+    const rx = c * labX + s * labY;
+    const ry = -s * labX + c * labY;
+    const rotatedVx = c * vx0 + s * vy0;
+    const rotatedVy = -s * vx0 + c * vy0;
+    const rvx = rotatedVx + omega * ry;
+    const rvy = rotatedVy - omega * rx;
+
+    const cf = captured.get('\\vec{a}_{cf}')!;
+    const cfVec = [cf.to[0] - cf.from[0], cf.to[1] - cf.from[1]];
+    // Fictitious centrifugal acceleration points AWAY from the rotation
+    // axis: dot(a_cf, r') > 0.
+    expect(cfVec[0] * rx + cfVec[1] * ry).toBeGreaterThan(0);
+
+    const cor = captured.get('\\vec{a}_{Cor}')!;
+    const corVec = [cor.to[0] - cor.from[0], cor.to[1] - cor.from[1]];
+    // a_Cor_fict = -2 * omega x v' (omega along +z) = (2*omega*vy', -2*omega*vx')
+    const expectedCor = [2 * omega * rvy, -2 * omega * rvx];
+    // corVec is scaled by ACC_ARROW_SCALE internally to the module, so
+    // compare directions (normalized dot ~ 1), not magnitudes.
+    const corLen = Math.hypot(corVec[0], corVec[1]);
+    const expLen = Math.hypot(expectedCor[0], expectedCor[1]);
+    expect(
+      (corVec[0] * expectedCor[0] + corVec[1] * expectedCor[1]) / (corLen * expLen),
+    ).toBeCloseTo(1, 6);
   });
 });

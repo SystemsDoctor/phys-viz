@@ -931,7 +931,7 @@ full evidence, verification level and recommendations in
 Each was re-checked against the code before logging; "(read-only)" marks
 a mechanism confirmed from source but not observed in a rendered frame.
 
-- [READY] **X-26** `non-inertial-frames` draws the fictitious
+- [DONE] **X-26** `non-inertial-frames` draws the fictitious
   accelerations with the wrong sign. `fictitiousTermsAt()`
   (`index.ts:212-218`) passes `kernel/frames`' transport terms
   (`2ω×v′`, `ω×(ω×r′)`) straight to the arrows labelled `a_cf`/`a_Cor`
@@ -942,7 +942,21 @@ a mechanism confirmed from source but not observed in a rendered frame.
   `params.ts:124` says "outward". Readouts (magnitudes) and the dashed
   `a′` arrow are correct. Fix: negate both, redraw tip-to-tail as
   `a_cf + a_Cor = a′`, fix explain.md and `module.test.ts:110`'s name,
-  add direction assertions (`dot(a_cf, r′) > 0`)
+  add direction assertions (`dot(a_cf, r′) > 0`).
+  **Verified:** negated `centrifugal`/`coriolis` in
+  `fictitiousTermsAt()`'s return (kept the internal kinematic values for
+  the `residual` check); fixed `explain.md`'s `a_cf` formula/direction;
+  renamed the magnitude-only test and added a new golden test capturing
+  `centrifugalArrow`/`coriolisArrow`'s actual `.set()` `from`/`to` by
+  label and asserting `dot(a_cf, r′) > 0` and the Coriolis direction
+  against `-2ω×v′` (the X-25 pattern). `npx vitest run
+src/modules/non-inertial-frames/module.test.ts`: 9/9 pass. Full sweep
+  (`typecheck`, `lint`, `test:unit` 619/619, `test:contract` 208/208,
+  `build`, `check:budget`, `format:check`) all pass.
+  `npx playwright test tests/e2e/smoke.spec.ts --workers=3`: the
+  `non-inertial-frames` case passes; the `gravitation` disposal case
+  failed under 3-worker parallelism but passes solo (pre-existing
+  flake, unrelated to this change — not touched here).
 - [READY] **X-27** `rotational-dynamics` rolling rim trace is an
   upside-down cycloid: `index.ts:545-551` uses `+R sin(ωt)` along
   `rollDir` (x = vt + R sin ωt), so the traced point moves at 2v at

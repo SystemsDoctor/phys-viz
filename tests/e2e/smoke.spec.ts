@@ -661,6 +661,13 @@ test('M3-G gate: control-showcase renders a complete usable UI with zero module 
   await page.getByRole('button', { name: 'Predict, then reveal' }).click();
   await expect(page.getByRole('checkbox', { name: 'Predicted magnitude' })).not.toBeVisible();
   await expect(page.getByRole('button', { name: /Reveal: Predicted magnitude/ })).toBeVisible();
+  // X-36: Space on a focused button now (correctly) activates the
+  // button natively instead of the app's global play/pause shortcut
+  // stealing it — the click above leaves "Predict, then reveal" itself
+  // focused, so explicitly move focus off it first, the same way a
+  // real user pressing Space elsewhere on the page would not still have
+  // that specific button focused.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.locator('body').press(' '); // Space (play) must not advance time while predicting
   await page.waitForTimeout(500);
   await expect(page.locator('.pv-timeline__t')).toHaveText('0.00s');

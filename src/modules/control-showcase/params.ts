@@ -41,7 +41,12 @@ export const params: ParamDef[] = [
     label: 'f(x)',
     symbol: 'f(x)',
     vars: ['x'],
-    default: 'sin(x) * k',
+    // X-40: was 'sin(x) * k' — `k` is a bare identifier the compiler
+    // doesn't know (only `x` is a declared var; the stiffness param is
+    // fed in as `x`'s VALUE at eval time, index.ts:96/108's
+    // `compiled({ x: k })`, not as a second in-expression variable), so
+    // this never compiled and fValue silently stayed 0.
+    default: 'sin(x)',
     group: 'Function',
   },
   {

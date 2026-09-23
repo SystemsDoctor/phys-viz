@@ -7,9 +7,9 @@ and a highlight toggle.
 
 ## What should I notice?
 
-Toggle "Reference grid" and "Angle trace" to see layer visibility work
-without any module code. Reveal "Predicted magnitude" to see predict
-mode's reveal-gating in action.
+Toggle "Angle trace" to see layer visibility work without any module
+code. Reveal "Predicted magnitude" to see predict mode's reveal-gating
+in action.
 
 ## The equation
 

@@ -1217,7 +1217,17 @@ test tests/e2e/smoke.spec.ts -g "X-11|bookmark" --workers=2`: 10/10
   Full sweep (`typecheck`, `lint`, `test:unit` 634/634, `test:contract`
   218/218, `build`, `check:budget`, `format:check`) all pass. `npx
 playwright test tests/e2e/smoke.spec.ts -g "keyboard map|X-16"
---workers=2`: 2/2 pass.
+--workers=2`: 2/2 pass. **Addendum:** running the FULL smoke suite
+  later (during X-40) surfaced a real side effect of this fix: the "M3-G
+  gate" e2e test relied on Space unconditionally hitting the app's global
+  shortcut regardless of DOM focus — after this fix, Space now correctly
+  re-activates a still-focused `<button>` natively instead, which broke
+  that test's "press Space to toggle play" step (it was landing on a
+  still-focused "Predict, then reveal" button instead of body). Fixed in
+  `tests/e2e/smoke.spec.ts` (blur the active element before pressing
+  Space) in a follow-up commit; bisected via a worktree against the
+  pre-session baseline to confirm the test passed before this fix and
+  failed starting at this exact commit.
 - [DONE] **X-37** `formatQuantityWithUnit` glues the SI prefix onto
   powered units (`unitSymbol.ts:140-159`, run in a scratch bundle):
   2000 m²/s → "2.00 km²/s", 3.986e14 m³/s² → "399 Tm³/s²", L⁻¹ → "m1/m".
@@ -1266,12 +1276,34 @@ tests/e2e/smoke.spec.ts -g "gravitation"`: 1/1 pass (sanity — its
   `test:contract` 218/218, `build`, `check:budget`, `format:check`) all
   pass. `npx playwright test tests/e2e/smoke.spec.ts -g "oscillations"`:
   1/1 pass.
-- [READY] **X-40** `control-showcase` fixture: the expression default
+- [DONE] **X-40** `control-showcase` fixture: the expression default
   `sin(x) * k` with `vars: ['x']` (`params.ts:43-44`) never compiles, so
   `fValue` is always 0; `explain.md:10` tells the reader to toggle
   "Reference grid", a layer removed at UI-2. Also add a contract
   assertion that every expression param's default compiles against its
-  `vars`
+  `vars`.
+  **Verified:** default changed to `'sin(x)'` (the stiffness param `k`
+  is fed in as `x`'s VALUE at eval time via `compiled({x: k})`, not as
+  a second in-expression identifier — `k` was never a legal token
+  against `vars: ['x']`); `explain.md`'s "Reference grid" mention
+  dropped (only "Angle trace" and "Predicted magnitude" are real
+  layers today). Added a new contract-suite assertion (item 13) that
+  every registered module's expression-param defaults compile against
+  their declared `vars` — confirmed it fails against the pre-fix
+  default and passes against the fix. Added a module-level golden test
+  asserting `fValue` actually equals `sin(k)` at the module's own
+  defaults, not silently `0` — confirmed it fails against the pre-fix
+  default (`fValue` was exactly `0`) and passes against the fix.
+  Running the full e2e smoke suite for this fix surfaced and fixed an
+  unrelated regression from X-36 in the "M3-G gate" test (see X-36's
+  addendum above). `npx vitest run src/modules/control-showcase/module.test.ts`:
+  8/8 pass. Full sweep (`typecheck`, `lint`, `test:unit` 643/643,
+  `test:contract` 228/228, `build`, `check:budget`, `format:check`)
+  all pass. `npx playwright test tests/e2e/smoke.spec.ts -g "M3-G
+gate|control-showcase" --workers=2`: 2/2 pass; full smoke suite
+  34/35 (the one failure is gravitation's disposal check under
+  3-worker parallelism — the pre-existing cross-worker flake logged as
+  **X-18**, passes solo, unrelated to this change).
 - [READY] **X-41** `ModuleView` re-renders the whole panel every frame
   during playback: `const state = useAppStore()` (`ModuleView.tsx:734`)
   subscribes to the entire store and `t` changes per frame; `SweepPlot`'s

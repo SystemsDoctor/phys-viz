@@ -33,6 +33,10 @@
  *     implemented (M5-2/M5-8) — `ModuleInstance.step`/`reset` are
  *     optional on the type for every timeModel, so a `stepped` module
  *     that forgot them was previously unenforced.
+ * 12. No param or layer urlKey collides with a shell-reserved key
+ *     (X-30/ADR 0016).
+ * 13. Every `expression` param's default compiles against its own
+ *     declared `vars` (X-40).
  *
  * Assertions 4-7 and 9 run under BOTH up-axis settings (M4-10, ADR
  * 0009) — cheap leverage that catches a module which only half-reads
@@ -44,6 +48,7 @@ import { manifests, loadModule, loadExplain } from '@/modules/registry';
 import { encodeState, decodeState, RESERVED_URL_KEYS } from '@/shell/state/urlCodec';
 import { paramDefaults } from '@/shell/state/store';
 import { createRng, nextRange } from '@/kernel/random';
+import { compileExpr, isExprError } from '@/kernel/expr';
 import { createMockSceneContext } from '@/modules/testing/MockSceneContext';
 import { parseExplain } from '@/shell/explain';
 import type { ParamDef, ModuleState, PhysicsModule } from '@/modules/types';
@@ -157,6 +162,23 @@ describe('module contract', () => {
             expect(p.default).toBeGreaterThanOrEqual(p.min);
             expect(p.default).toBeLessThanOrEqual(p.max);
           }
+        }
+      });
+
+      // X-40: an expression param whose default references an
+      // identifier outside its own declared `vars` never compiles, so
+      // the module silently evaluates as if the expression were 0 —
+      // exactly how control-showcase's own `sin(x) * k` default shipped
+      // broken (`k` isn't in `vars: ['x']`) with nothing catching it.
+      it("every expression param's default compiles against its declared vars", async () => {
+        const module = await loadModule(manifest.id);
+        for (const p of module.params) {
+          if (p.kind !== 'expression') continue;
+          const compiled = compileExpr(p.default, p.vars);
+          expect(
+            isExprError(compiled),
+            `param "${p.key}"'s default "${p.default}" failed to compile against vars [${p.vars.join(', ')}]`,
+          ).toBe(false);
         }
       });
 

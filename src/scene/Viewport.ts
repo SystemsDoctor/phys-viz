@@ -225,9 +225,25 @@ export class Viewport {
    * Skips `advanceFades` deliberately — GIF export passes
    * `reducedMotion: true` at construction so a captured frame is never
    * mid-fade.
+   *
+   * MUST run the same `frameListeners` loop `tick()` runs (X-31): every
+   * arrow's shaft/head geometry and every point's screen-space size is
+   * computed there, in `onFrame`, not in the module's own `update()` —
+   * skipping it left every exported GIF frame with unpositioned arrows
+   * and points (still byte-identical run to run, which is why the
+   * determinism/colour-table checks in `gif-export.spec.ts` didn't catch
+   * it — nothing there asserted actual pixel content).
    */
   renderNow(): void {
     this.camera.update();
+    const info: FrameInfo = {
+      camera: this.camera.object,
+      rendererWidth: this.width,
+      rendererHeight: this.height,
+      upAxis: this.camera.getUpAxis(),
+      dt: 0, // no real playback clock behind an off-screen capture frame
+    };
+    for (const listener of this.frameListeners) listener(info);
     this.renderer.render(this.scene, this.camera.object);
     this.dirty = false;
   }

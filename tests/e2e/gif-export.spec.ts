@@ -18,10 +18,11 @@ import fs from 'node:fs';
 async function exportGifFrom(
   browser: Browser,
   moduleId: string,
+  query = '',
 ): Promise<{ bytes: Buffer; paletteRgb: [number, number, number][] }> {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto(`#/m/${moduleId}`);
+  await page.goto(`#/m/${moduleId}${query}`);
   await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
   await page.waitForTimeout(500);
 
@@ -82,4 +83,45 @@ test.describe('GIF export (ADR 0006)', () => {
       }
     });
   }
+
+  // X-31 content assertion: renderNow() used to skip the frameListeners
+  // loop that positions every arrow's shaft/head and sizes/positions
+  // every point (arrow.ts/point.ts do that work in `onFrame`, never in
+  // the module's own update() — point.ts's mesh.position is only ever
+  // copied from `current.position` INSIDE onFrame, so without it the
+  // mesh stays wherever `create()` first put it, forever). That bug is
+  // invisible to the determinism check above (broken geometry is still
+  // byte-identical run to run) and to the palette check (colours are
+  // still declared and quantized correctly, just not painted where they
+  // belong). It's also invisible if the module draws anything through a
+  // path glyph (path.ts writes its BufferGeometry positions directly in
+  // `.set()`, not gated behind onFrame) — projectile-motion's default
+  // trajectory trace would make two exports differ regardless of this
+  // bug, so this test explicitly turns the trace OFF and switches to
+  // vector mode (`L=vmd,-amd,-trc`), leaving ONLY the ball (a `point`)
+  // and its velocity arrow (an `arrow`) on screen — both exactly the
+  // glyph kinds this bug freezes. Exporting from two genuinely different
+  // physics states (bookmarked via `t=` — projectile-motion's flight is
+  // ~1.73s, so t=1.1 is well clear of the launch point) must then
+  // produce different GIF bytes; pre-fix it did not.
+  test('projectile-motion: exporting a point+arrow-only view from two different physics states (t=0 vs t=1.1) produces genuinely different GIF content, not frozen geometry', async ({
+    browser,
+  }) => {
+    const query = '&L=vmd,-amd,-trc';
+    const atLaunch = await exportGifFrom(browser, 'projectile-motion', `?t=0${query}`);
+    const midFlight = await exportGifFrom(browser, 'projectile-motion', `?t=1.1${query}`);
+
+    expect(atLaunch.bytes.equals(midFlight.bytes)).toBe(false);
+
+    // Not just "some byte differs" (a single anti-aliasing nudge would
+    // do that) — the ball and its velocity arrow visibly relocate across
+    // a third of the frame, so a real fraction of the encoded frame data
+    // must differ too.
+    const minLen = Math.min(atLaunch.bytes.length, midFlight.bytes.length);
+    let diffCount = 0;
+    for (let i = 0; i < minLen; i++) {
+      if (atLaunch.bytes[i] !== midFlight.bytes[i]) diffCount++;
+    }
+    expect(diffCount).toBeGreaterThan(50);
+  });
 });

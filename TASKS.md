@@ -1028,7 +1028,7 @@ playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
   never varies camera/prefs, so it passes. Fix: publish the reserved list
   (`v z L t c up th pj gr gxy gxz gyz`), enforce it (params AND layers) in
   the contract suite, rename the four keys with migrations (ADR 0003)
-- [READY] **X-31** GIF export never positions arrows, points or axis
+- [DONE] **X-31** GIF export never positions arrows, points or axis
   ticks: `Viewport.renderNow()` (`Viewport.ts:229-233`) skips the
   `frameListeners` loop that only `tick()` runs (`:539`), and every
   arrow's shaft/head and every point's size is computed only in
@@ -1036,7 +1036,30 @@ playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
   stops the loop immediately. P-G still passes because it checks
   determinism + colour table, not content. Fix: build a `FrameInfo` and
   run the listeners in `renderNow()`; add a pixel assertion at a known
-  arrow tip to `gif-export.spec.ts` (read-only)
+  arrow tip to `gif-export.spec.ts` (read-only).
+  **Verified:** `renderNow()` now builds the same `FrameInfo` `tick()`
+  does (`dt: 0` — no real playback clock behind an off-screen capture
+  frame) and runs `frameListeners` before rendering. Deviated from the
+  literal "pixel at a known arrow tip" test technique: computing an
+  exact expected screen pixel would require re-deriving the camera's
+  full world-to-screen projection inside the test, which is fragile and
+  more than the bug needs to prove. Instead added a content assertion in
+  `gif-export.spec.ts` that exports the SAME module from two physics
+  states (`t=0` vs `t=1.1`, well into its ~1.73s flight) with the
+  trajectory-trace layer turned off (`path` glyphs write geometry
+  directly in `.set()`, not gated behind `onFrame`, so they'd mask this
+  bug) and only a `point` (the ball) and `arrow` (velocity) visible —
+  exactly the two glyph kinds this bug freezes — then asserts the two
+  exported GIFs are NOT byte-identical and differ by more than 50 bytes.
+  Confirmed by reverting the fix: the new test then reports the two
+  exports as byte-identical (proving the freeze) and fails; restoring
+  the fix makes it pass. `npx playwright test tests/e2e/gif-export.spec.ts
+--workers=1`: 3/3 pass, including the original determinism/palette
+  tests for both modules. Full sweep (`typecheck`, `lint`, `test:unit`
+  622/622, `test:contract` 208/208, `build`, `check:budget`,
+  `format:check`) all pass. `npx playwright test tests/e2e/smoke.spec.ts
+--workers=3`: 34/34 pass (sanity check — `renderNow()`/`tick()` share
+  the live `Viewport`).
 - [READY] **X-32** `work-energy` still reads `ctx.up` once in `create()`
   (`index.ts:80`) — an X-22 instance X-22's close-out missed. The ribbon,
   energy plane and turning points (`:99-131`) are built once from it and

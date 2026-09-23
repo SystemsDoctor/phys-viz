@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { SceneContext } from '@/scene/SceneContext';
-import { discInertia, parallelAxis as parallelAxisTensor } from '@/kernel/inertia';
+import { boxInertia, discInertia, parallelAxis as parallelAxisTensor } from '@/kernel/inertia';
+import { dot, normalize, sub, transformMat3 } from '@/kernel/math';
+import type { Vec3 as V3 } from '@/kernel/math';
 import module from './index';
 import type { ModuleState } from '../types';
 
@@ -55,6 +57,62 @@ describe(module.manifest.id, () => {
     // box [1,1,1], mass 6: I_cm about z = (m/12)(a^2+b^2) = (6/12)(1+1) = 1
     const s = instance.scalars(stateWith({ boxSize: [1, 1, 1], boxMass: 6, paOffset: [2, 0, 0] }));
     expect(s.parallelAxisI).toBeCloseTo(1 + 6 * 2 * 2, 10);
+  });
+
+  // X-28 golden test: captures the actual direction paCmAxis's .set()
+  // draws (not just an assumed "ctx.up"), then checks the parallelAxisI
+  // readout against I computed about THAT exact direction — the drawn
+  // axis and the readout must agree, or the readout is lying about what
+  // the picture shows. A cube can't discriminate I_yy from I_zz — this
+  // uses the audit's own non-cubic default numbers, where the bug
+  // (reading I_zz regardless of the drawn axis) gave 3.82 instead of the
+  // physically correct 4.22.
+  it('golden value: the parallel-axis readout matches I about the axis paCmAxis actually draws', () => {
+    let axisPoints: readonly [number, number, number][] = [];
+    const axisCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'y';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'path') {
+          return (props: {
+            group?: { id: string };
+            points: readonly [number, number, number][];
+          }) => {
+            const isPaCmAxis = props.group?.id === 'parallelAxis';
+            if (isPaCmAxis && axisPoints.length === 0) axisPoints = props.points;
+            return {
+              set: (next: { points?: readonly [number, number, number][] }) => {
+                if (isPaCmAxis && next.points && axisPoints.length === 0) axisPoints = next.points;
+              },
+              visible: () => {},
+              dispose: () => {},
+            };
+          };
+        }
+        return () => noopHandle;
+      },
+    });
+    const instance = module.create(axisCtx);
+    const state = stateWith({});
+    instance.update(state);
+    // paCmAxis runs from -upVec*halfLen to +upVec*halfLen through the
+    // origin — its direction IS the drawn axis, independent of any
+    // assumption about what ctx.up resolves to.
+    expect(axisPoints.length).toBe(2);
+    const drawnAxis = normalize(sub(axisPoints[1], axisPoints[0]));
+
+    const boxSize: V3 = [1, 1.6, 2.4];
+    const boxMass = 1.5;
+    const paOffset: V3 = [1.5, 0, 0];
+    const boxI = boxInertia(boxMass, boxSize);
+    const tensor = parallelAxisTensor(boxI, boxMass, paOffset);
+    const expected = dot(drawnAxis, transformMat3(tensor, drawnAxis));
+
+    const s = instance.scalars(state);
+    expect(s.parallelAxisI).toBeCloseTo(expected, 8);
+    expect(expected).toBeCloseTo(4.22, 2);
+    expect(s.parallelAxisI).not.toBeCloseTo(3.82, 2);
   });
 
   it('golden value: L is parallel to omega along a principal axis, non-parallel off-axis', () => {

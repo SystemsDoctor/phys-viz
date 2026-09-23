@@ -575,7 +575,14 @@ const module: PhysicsModule = {
 
         const paOffset = s.params.paOffset as V3;
         const boxI = boxInertia(boxMass, boxSize);
-        const parallelAxisI = parallelAxisTensor(boxI, boxMass, paOffset)[8];
+        // The drawn parallel axis (paCmAxis/paOffsetAxis) runs along
+        // upVec (live-read, X-22-style — never cached in create()), not
+        // hardcoded z, so the readout must be I about THAT axis:
+        // n_hat^T * I * n_hat. Reading `[8]` off the tensor (I_zz) only
+        // matched the drawn axis when upVec happened to be +z (X-28).
+        const paAxis = upVectorOf(ctx);
+        const paTensor = parallelAxisTensor(boxI, boxMass, paOffset);
+        const parallelAxisI = dot(paAxis, transformMat3(paTensor, paAxis));
 
         const omega = s.params.omegaVector as V3;
         const L = transformMat3(boxI, omega);

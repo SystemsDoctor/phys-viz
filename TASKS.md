@@ -974,11 +974,24 @@ vitest run src/modules/rotational-dynamics/module.test.ts`: 13/13
   `test:contract` 208/208, `build`, `check:budget`, `format:check`) all
   pass. `npx playwright test tests/e2e/smoke.spec.ts -g
 "rotational-dynamics" --workers=3`: 2/2 pass.
-- [READY] **X-28** `rotational-dynamics` "I about offset axis" readout is
+- [DONE] **X-28** `rotational-dynamics` "I about offset axis" readout is
   `parallelAxisTensor(...)[8]` (I_zz) while the drawn axes follow
   `upVec` (y by default, `index.ts:442-450`). Defaults: drawn-axis I =
   4.22, readout 3.82. Fix: `n̂ᵀ I n̂` with a live `upVectorOf(ctx)`; the
-  golden test's cube can't distinguish I_yy/I_zz, use a non-cubic box
+  golden test's cube can't distinguish I_yy/I_zz, use a non-cubic box.
+  **Verified:** `scalars()` now computes `dot(paAxis, transformMat3(...,
+paAxis))` with `paAxis = upVectorOf(ctx)` (closed over live `ctx`, not
+  a create()-time cache). Golden test captures `paCmAxis`'s actual
+  `.set({points})` direction and checks the readout against I about
+  THAT direction at the audit's own non-cubic defaults (box
+  [1,1.6,2.4], m=1.5, offset=[1.5,0,0]); confirmed it fails against the
+  pre-fix `[8]` read (got exactly 3.82, the audit's bug value) and
+  passes at 4.22 against the fix. `npx vitest run
+src/modules/rotational-dynamics/module.test.ts`: 14/14 pass. Full
+  sweep (`typecheck`, `lint`, `test:unit` 621/621, `test:contract`
+  208/208, `build`, `check:budget`, `format:check`) all pass. `npx
+playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
+--workers=3`: 2/2 pass.
 - [READY] **X-29** `rotational-dynamics` precession: `baseSwing =
 2·Ω_p·sinθ₀/ωₙ` (`index.ts:149`) is used as the coefficient of
   `(1 − cos ωₙt)` (`:500`); the released-from-rest linearization gives

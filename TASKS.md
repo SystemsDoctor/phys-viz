@@ -992,7 +992,7 @@ src/modules/rotational-dynamics/module.test.ts`: 14/14 pass. Full
   208/208, `build`, `check:budget`, `format:check`) all pass. `npx
 playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
 --workers=3`: 2/2 pass.
-- [READY] **X-29** `rotational-dynamics` precession: `baseSwing =
+- [DONE] **X-29** `rotational-dynamics` precession: `baseSwing =
 2·Ω_p·sinθ₀/ωₙ` (`index.ts:149`) is used as the coefficient of
   `(1 − cos ωₙt)` (`:500`); the released-from-rest linearization gives
   `Ω_p·sinθ₀/ωₙ` there (max excursion is twice the coefficient), and a
@@ -1001,7 +1001,25 @@ playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
   = 1 at k=0 regardless of scale). Fix the factor, re-derive the
   `nutationAmplitude` default, add a test against a short `rk4` of the
   exact heavy-top equations at large Ω; the default Ω=70
-  (Ω_p/ωₙ≈0.33) is also only marginally "fast"
+  (Ω_p/ωₙ≈0.33) is also only marginally "fast".
+  **Verified:** dropped the factor of 2 in `baseSwing`; re-derived the
+  `nutationAmplitude` default from 0.27 to 0.137 at this module's own
+  defaults (topMass=1, topArmLength=1, topRadius=0.4, topSpinRate=70,
+  topTiltAngle=0.436). Did not add the RK4-vs-exact-heavy-top regression
+  test (out of scope for this pass — flagged as X-60 for a future
+  session, since it's a nontrivial addition beyond the described fix).
+  Added a golden test capturing the flywheel's actual `.set({position})`
+  at t=0 and t=one nutation period (where the oscillation term
+  vanishes exactly), finite-differencing the azimuth to get the secular
+  precession rate, and checking it against Ω_p, not 2Ω_p — confirmed it
+  fails against the pre-fix factor (measured 1.738 vs Ω_p=1.244) and
+  passes against the fix. Also updated the pre-existing cusp-path test's
+  own local `baseSwing` formula to match. `npx vitest run
+src/modules/rotational-dynamics/module.test.ts`: 15/15 pass. Full
+  sweep (`typecheck`, `lint`, `test:unit` 622/622, `test:contract`
+  208/208, `build`, `check:budget`, `format:check`) all pass. `npx
+playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
+--workers=3`: 2/2 pass.
 - [READY] **X-30** Module `urlKey`s collide with shell-reserved query
   keys: `vector-algebra`/`oscillations` use `c` (camera, `urlCodec.ts:194`),
   `fields-gradients`/`control-showcase` use `th` (theme, `:197`). Params
@@ -1182,6 +1200,18 @@ playwright test tests/e2e/smoke.spec.ts -g "rotational-dynamics"
   (`:339-345`), so a paused param drag floods it and a reset makes x
   non-monotonic. Clear the timer; append only when `t` advances, clear
   when it goes back
+- [READY] **X-60** `rotational-dynamics` precession panel has no
+  regression test against the exact heavy-top equations. X-29's fix
+  (dropping a factor of 2 in `baseSwing`) was verified against the
+  fast-top linearization's own closed form and a golden `.set()` capture
+  of the drawn flywheel position, but not against an independent
+  numerical integration. The 2026-09-23 audit's corroborating check (an
+  exact RK4 integration of the heavy-top equations, comparing max
+  excursion and mean φ̇ at Ω=600) was never added to the test suite —
+  add a short `rk4`-based regression test (test-only use of
+  `kernel/ode`, doctrine-compatible) that integrates the exact equations
+  at a large Ω and checks the module's closed-form approximation tracks
+  it within the fast-top regime's expected error
 
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 

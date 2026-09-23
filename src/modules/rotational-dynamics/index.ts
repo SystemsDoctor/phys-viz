@@ -146,7 +146,14 @@ function precessionCoefficients(
   const theta0 = topTiltAngle;
   const sinTheta0 = Math.sin(theta0);
   const cosTheta0 = Math.cos(theta0);
-  const baseSwing = (2 * precessionRate * sinTheta0) / nutationOmega; // deltaTheta at k=0 (released from rest)
+  // deltaTheta at k=0 (released from rest). Linearizing theta_dot^2 =
+  // 2*(Mgl/I1)*sinTheta0*eps - nutationOmega^2*eps^2 gives
+  // eps = eps_max*(1-cos(nutationOmega*t))/2 with
+  // eps_max = 2*precessionRate*sinTheta0/nutationOmega, so the
+  // COEFFICIENT of (1-cos) here is half that (X-29 — this used to omit
+  // the /2, doubling both the swing and, downstream, the k=0 secular
+  // rate to 2*precessionRate instead of Goldstein's precessionRate).
+  const baseSwing = (precessionRate * sinTheta0) / nutationOmega;
   const deltaTheta = Math.max(-MAX_NUTATION_SWING, Math.min(MAX_NUTATION_SWING, nutationAmplitude));
   const releaseRatio = baseSwing > 1e-9 ? 1 - deltaTheta / baseSwing : 1; // k = φ̇(0)/Ω_p
   const couplingC = (nutationOmega - 2 * releaseRatio * precessionRate * cosTheta0) / sinTheta0;

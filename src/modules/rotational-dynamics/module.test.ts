@@ -173,7 +173,7 @@ describe(module.manifest.id, () => {
     // from rest (zero initial precession) — the classic textbook case,
     // and the exact boundary between "wavy" and "looping" (a cusped
     // path, where precession momentarily stops but never reverses).
-    const baseSwing = (2 * omegaP * Math.sin(params.topTiltAngle)) / nutationOmega;
+    const baseSwing = (omegaP * Math.sin(params.topTiltAngle)) / nutationOmega;
 
     const cusped = instance.scalars(stateWith({ ...params, nutationAmplitude: baseSwing }));
     expect(cusped.nutationCouplingRatio).toBeCloseTo(1, 6);
@@ -190,6 +190,72 @@ describe(module.manifest.id, () => {
     // reverses at all.
     const wavy = instance.scalars(stateWith({ ...params, nutationAmplitude: baseSwing * 0.5 }));
     expect(wavy.nutationCouplingRatio).toBeLessThan(1);
+  });
+
+  // X-29 golden test: asserts what actually reaches the flywheel's own
+  // .set({position}) over one full nutation period, not just the
+  // couplingRatio readout above — a readout-only check can't catch the
+  // drawn precession running at 2x the correct rate.
+  it('golden: at "released from rest" (k=0), the flywheel position sweeps one full nutation period at precessionRate, not 2x', () => {
+    let capturedPositions: [number, number, number][] = [];
+    const bodyCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'y';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'body') {
+          return (props: { group?: { id: string }; position: [number, number, number] }) => {
+            const isFlywheel = props.group?.id === 'precession';
+            if (isFlywheel) capturedPositions.push(props.position);
+            return {
+              set: (next: { position?: [number, number, number] }) => {
+                if (isFlywheel && next.position) capturedPositions.push(next.position);
+              },
+              visible: () => {},
+              dispose: () => {},
+            };
+          };
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(bodyCtx);
+    const params = {
+      topMass: 1.4,
+      topArmLength: 0.7,
+      topRadius: 0.35,
+      topSpinRate: 90,
+      topTiltAngle: 0.5,
+    };
+    const I3 = discInertia(params.topMass, params.topRadius)[8];
+    const I1 = parallelAxisTensor(discInertia(params.topMass, params.topRadius), params.topMass, [
+      0,
+      0,
+      params.topArmLength,
+    ])[0];
+    const omegaP = (params.topMass * 9.8 * params.topArmLength) / (I3 * params.topSpinRate);
+    const nutationOmega = (I3 * params.topSpinRate) / I1;
+    const baseSwing = (omegaP * Math.sin(params.topTiltAngle)) / nutationOmega;
+    const period = (2 * Math.PI) / nutationOmega; // one full nutation cycle
+
+    const azimuthOf = (p: [number, number, number]) => Math.atan2(p[0], p[2]);
+
+    capturedPositions = [];
+    instance.update(stateWith({ ...params, nutationAmplitude: baseSwing }, 0));
+    const phi0 = azimuthOf(capturedPositions[capturedPositions.length - 1]);
+
+    capturedPositions = [];
+    instance.update(stateWith({ ...params, nutationAmplitude: baseSwing }, period));
+    const phi1 = azimuthOf(capturedPositions[capturedPositions.length - 1]);
+
+    // The oscillation term (precessionOscillation * sin(nutationOmega*t))
+    // vanishes at both t=0 and t=period (sin(0)=sin(2*pi)=0), so
+    // (phi1-phi0)/period is exactly the secular rate — Goldstein's
+    // precessionRate (Omega_p) at k=0, not 2*Omega_p.
+    const measuredRate = (phi1 - phi0) / period;
+    expect(measuredRate).toBeCloseTo(omegaP, 3);
+    expect(measuredRate).not.toBeCloseTo(2 * omegaP, 3);
   });
 
   it('golden value: rolling speed is omega * R', () => {

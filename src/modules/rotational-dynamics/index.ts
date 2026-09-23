@@ -515,7 +515,16 @@ const module: PhysicsModule = {
         const topDir = topDirectionAt(s.t);
         const flywheelPos = scale(topDir, topArmLength);
         pivotArm.set({ points: [mut3(ORIGIN), mut3(flywheelPos)] });
-        flywheel.set({ position: mut3(flywheelPos), orientation: mutQ(quatFromTo(Y_HAT, topDir)) });
+        // X-44: `disc` is a unit-diameter (radius 0.5) CylinderGeometry
+        // on its local Y axis, so `scale`'s X/Z components are a
+        // DIAMETER multiplier and Y is thickness — never set before,
+        // so the flywheel always rendered at its geometry default
+        // (radius 0.5) regardless of `topRadius`.
+        flywheel.set({
+          position: mut3(flywheelPos),
+          orientation: mutQ(quatFromTo(Y_HAT, topDir)),
+          scale: [2 * topRadius, 1, 2 * topRadius],
+        });
         spinArrow.set({ from: flywheelPos, to: add(flywheelPos, scale(topDir, 0.6)) });
         const precessionRadius = topArmLength * Math.sin(topTiltAngle);
         precessionArc.set({ radius: Math.max(0.05, precessionRadius), axis: mut3(upVec) });
@@ -535,9 +544,13 @@ const module: PhysicsModule = {
         const rollOmega = s.params.rollOmega as number;
         const v = rollOmega * rollRadius;
         const center = add(scale(rollDir, v * s.t), scale(upVec, rollRadius));
+        // X-44: same unit-diameter-disc gotcha as the flywheel above —
+        // the wheel only ever matched `rollRadius` by coincidence at
+        // its 0.5 default.
         rollWheel.set({
           position: mut3(center),
           orientation: mutQ(quatFromTo(Y_HAT, normalize(cross(upVec, rollDir)))),
+          scale: [2 * rollRadius, 1, 2 * rollRadius],
         });
         const contact = sub(center, scale(upVec, rollRadius));
         instAxisPoint.set({ position: mut3(contact) });

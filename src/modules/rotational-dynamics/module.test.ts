@@ -264,6 +264,55 @@ describe(module.manifest.id, () => {
     expect(s.rollingSpeed).toBeCloseTo(2.8, 12);
   });
 
+  // X-44 golden test: asserts the actual `.set({scale})` reaching the
+  // flywheel and roll wheel `disc` bodies — a readout-only check can't
+  // see this, since `topRadius`/`rollRadius` only ever fed into the
+  // PHYSICS (I3, rollingSpeed), never into the drawn geometry's own
+  // scale before this fix.
+  it("the flywheel and roll wheel disc bodies are scaled to match topRadius/rollRadius, not stuck at the geometry's 0.5 default", () => {
+    const capturedScales = new Map<string, [number, number, number]>();
+    const bodyCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'y';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'body') {
+          return (props: {
+            kind: string;
+            group?: { id: string };
+            scale?: [number, number, number];
+          }) => {
+            const key = props.kind === 'disc' ? props.group?.id : undefined;
+            return {
+              set: (next: { scale?: [number, number, number] }) => {
+                if (key && next.scale) capturedScales.set(key, next.scale);
+              },
+              visible: () => {},
+              dispose: () => {},
+            };
+          };
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(bodyCtx);
+    // Off-default radii (defaults are topRadius=0.4, rollRadius=0.5) so
+    // a scale that's just stuck at the geometry's own default (implying
+    // no scale prop reached it at all) can't accidentally match.
+    instance.update(stateWith({ topRadius: 0.9, rollRadius: 1.2 }));
+
+    const flywheelScale = capturedScales.get('precession');
+    expect(flywheelScale).toBeDefined();
+    expect(flywheelScale![0]).toBeCloseTo(1.8, 10); // 2 * topRadius
+    expect(flywheelScale![2]).toBeCloseTo(1.8, 10);
+
+    const rollWheelScale = capturedScales.get('rolling');
+    expect(rollWheelScale).toBeDefined();
+    expect(rollWheelScale![0]).toBeCloseTo(2.4, 10); // 2 * rollRadius
+    expect(rollWheelScale![2]).toBeCloseTo(2.4, 10);
+  });
+
   // X-27 golden test: asserts what actually reaches rimTrace's .set(),
   // not just rollingSpeed's magnitude readout — a readout-only check
   // can't catch the cycloid being traced upside down.

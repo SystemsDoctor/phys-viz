@@ -1323,12 +1323,26 @@ gate|control-showcase" --workers=2`: 2/2 pass; full smoke suite
   scratch bundle), which `compileExpr` re-throws. Only `control-showcase`
   is exposed today; M7-9 Sandbox is URL-fed by design. Add a depth
   counter raising `ParseError` plus a length cap
-- [READY] **X-44** `rotational-dynamics` disc bodies are never sized:
+- [DONE] **X-44** `rotational-dynamics` disc bodies are never sized:
   disc geometry is diameter 1 (`body.ts:41`), no `scale` passed
   (`index.ts:313-318, 343-349`) — the wheel matches `rollRadius` only at
   its 0.5 default (range 0.2–1.2), the flywheel ignores `topRadius`. Same
   family as the M7-1/M7-2 sphere-diameter bug; also document each `body`
-  kind's unit geometry in `MODULE_AUTHORING.md`'s glyph table
+  kind's unit geometry in `MODULE_AUTHORING.md`'s glyph table.
+  **Verified:** both `flywheel.set()` and `rollWheel.set()` now pass
+  `scale: [2*R, 1, 2*R]` (`disc` diameter multiplier, matching the
+  `non-inertial-frames`/M7-2 convention) computed from the live
+  `topRadius`/`rollRadius` params every frame. Added `MODULE_AUTHORING.md`'s
+  glyph-unit-geometry table (sphere/box/cylinder/rod/disc/spring) so this
+  mistake has a documented gotcha to check against next time. Added a
+  golden test capturing the actual `.set({scale})` reaching both `disc`
+  bodies at off-default radii — confirmed it fails against the pre-fix
+  code (`scale` never set, so `capturedScales` stayed empty) and passes
+  against the fix. `npx vitest run src/modules/rotational-dynamics/module.test.ts`:
+  16/16 pass. Full sweep (`typecheck`, `lint`, `test:unit` 644/644,
+  `test:contract` 228/228, `build`, `check:budget`, `format:check`) all
+  pass. `npx playwright test tests/e2e/smoke.spec.ts -g
+"rotational-dynamics" --workers=2`: 2/2 pass.
 - [READY] **X-45** `fields-gradients` divergence-box faces normalize
   `colorField` per face (`surface.ts:108-114`, six separate surfaces at
   `index.ts:300-309`), so outward/zero/inward flux faces can render the

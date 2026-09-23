@@ -191,6 +191,30 @@ rather than adding more UI machinery to one.
   handle's lifetime — pass their final value at `create()` time, not in
   `update()`.
 
+  **Gotcha (TASKS.md M7-1/M7-2/X-44): every `body` kind's geometry is a
+  UNIT shape, and `scale` is a multiplier against it — a radius-valued
+  param never sizes the glyph by itself.**
+
+  | `kind`     | unit geometry                                                                   |
+  | ---------- | ------------------------------------------------------------------------------- |
+  | `sphere`   | diameter 1 (radius 0.5) — `scale` is a DIAMETER multiplier                      |
+  | `box`      | unit cube (1×1×1)                                                               |
+  | `cylinder` | radius 0.5, height 1, axis along local +y                                       |
+  | `rod`      | radius 0.05, length 1, axis along local +y                                      |
+  | `disc`     | diameter 1 (radius 0.5), thin along local +y — same diameter gotcha as `sphere` |
+  | `spring`   | length 1, axis along local +y                                                   |
+
+  A module with a real-world radius `R` param (or any other physical
+  size the geometry should track) must pass `scale: [2*R, ..., 2*R]`
+  (for `sphere`/`disc`/`cylinder`) itself, every time that value can
+  change — a `.set()` call that never includes `scale` at all leaves
+  the glyph stuck at its geometry default forever, which reads as
+  correct at whichever default happens to equal 0.5 and silently wrong
+  everywhere else. This exact mistake has shipped twice: the M7-1/M7-2
+  QA checkpoint's sphere-diameter bug, and X-44 (`rotational-dynamics`'
+  flywheel/roll-wheel discs, sized from `topRadius`/`rollRadius` in
+  physics but never in the drawn geometry).
+
   **Gotcha (TASKS.md X-17): never give a `surface`/`patch` its only
   "thickness" along the axis the locked 2D view looks down.** Every
   module is viewed through the "2D-only" lock (ADR 0012) by default,

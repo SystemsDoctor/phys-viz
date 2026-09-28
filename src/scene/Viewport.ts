@@ -26,7 +26,7 @@ import { createSceneContext } from './createSceneContext';
 import type { SceneContext, GroupHandle, UpAxis } from './SceneContext';
 import type { SubstrateHost, FrameInfo, PickTarget } from './internal/SubstrateHost';
 import { worldUnitsPerPixel } from './internal/screenSpace';
-import { getProjectorAdjustments } from './theme';
+import { getProjectorAdjustments, getSceneTheme } from './theme';
 import { createAxes } from './glyphs/axes';
 import type { AxesHandle } from './glyphs/axes';
 import { createGridPlane } from './glyphs/gridPlane';
@@ -54,6 +54,15 @@ export interface ViewportOptions {
   gridPlaneXY?: boolean;
   gridPlaneXZ?: boolean;
   gridPlaneYZ?: boolean;
+  /**
+   * X-38: drives both the WebGL clear colour and the label overlay's
+   * text colour (`setTheme`) — without this, the scene background stays
+   * hardcoded light while the overlay's ink (inherited from `body`'s
+   * `color: var(--ink-0)`) flips to a light colour under dark mode,
+   * rendering every label near-invisible. Defaults to `'light'`,
+   * matching the previous hardcoded behavior.
+   */
+  theme?: 'light' | 'dark';
 }
 
 export interface PickHit {
@@ -130,7 +139,7 @@ export class Viewport {
     this.renderer.localClippingEnabled = true;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xeceef2);
+    this.scene.background = new THREE.Color(getSceneTheme(options.theme ?? 'light').background);
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
     keyLight.position.set(3, 4, 5);
@@ -144,11 +153,23 @@ export class Viewport {
     this.cameraChangeUnsub = this.camera.onChange(() => this.requestRender());
 
     this.overlayEl = document.createElement('div');
+    // Identifies this container (vs. any other `.katex` element the
+    // shell renders, e.g. a readout panel) for e2e assertions — see the
+    // X-38 dark-theme test in tests/e2e/smoke.spec.ts.
+    this.overlayEl.className = 'pv-scene-overlay';
     this.overlayEl.style.position = 'fixed';
     this.overlayEl.style.pointerEvents = 'none';
     this.overlayEl.style.overflow = 'visible';
     this.overlayEl.style.left = '0';
     this.overlayEl.style.top = '0';
+    // X-38: explicit, not inherited from `body`'s `color: var(--ink-0)`
+    // — that inherited value flips with the PAGE's dark-mode CSS media
+    // query/`data-theme` attribute independently of this scene's own
+    // (possibly stale, e.g. mid-tween) background colour, which is what
+    // produced the near-invisible-label bug. Set from the SAME
+    // `getSceneTheme()` call as the background below, so the two always
+    // agree.
+    this.overlayEl.style.color = getSceneTheme(options.theme ?? 'light').overlayInk;
     document.body.appendChild(this.overlayEl);
     window.addEventListener('resize', this.onWindowChange);
     window.addEventListener('scroll', this.onWindowChange, true);
@@ -296,6 +317,19 @@ export class Viewport {
   /** Per-plane reference grid toggle (§9 settings menu). */
   setGridPlaneVisible(kind: GridPlaneKind, visible: boolean): void {
     this.gridPlaneHandles[kind].visible(visible);
+    this.requestRender();
+  }
+
+  /**
+   * X-38: drives the WebGL clear colour AND the label overlay's text
+   * colour from the SAME theme value, so they can never disagree the
+   * way the hardcoded-light background vs. CSS-inherited (theme-live)
+   * overlay ink used to.
+   */
+  setTheme(theme: 'light' | 'dark'): void {
+    const colors = getSceneTheme(theme);
+    this.scene.background = new THREE.Color(colors.background);
+    this.overlayEl.style.color = colors.overlayInk;
     this.requestRender();
   }
 

@@ -326,6 +326,51 @@ test("X-34: a bookmarked link's up=/pj= prefs apply for the session, without tou
   expect(saved).toBeNull();
 });
 
+test('X-38: dark theme drives BOTH the scene background and the label overlay ink, so labels stay legible', async ({
+  page,
+}) => {
+  // Sample the WebGL canvas's own background pixel — before this fix it
+  // was hardcoded light (#eceef2) regardless of theme.
+  await page.goto('#/m/vector-algebra?th=dark');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+  await page.waitForTimeout(300);
+
+  const bgColor = await page.evaluate(
+    () =>
+      new Promise<{ r: number; g: number; b: number }>((resolve) => {
+        requestAnimationFrame(() => {
+          const webgl = document.querySelector('canvas.pv-viewport-canvas') as HTMLCanvasElement;
+          const offscreen = document.createElement('canvas');
+          offscreen.width = webgl.width;
+          offscreen.height = webgl.height;
+          const ctx2d = offscreen.getContext('2d')!;
+          ctx2d.drawImage(webgl, 0, 0);
+          // Top-left corner is background — nothing schematic is drawn
+          // there for this module at its default params/camera.
+          const { data } = ctx2d.getImageData(0, 0, 1, 1);
+          resolve({ r: data[0], g: data[1], b: data[2] });
+        });
+      }),
+  );
+  // getSceneTheme('dark').background === '#232833'; a generous tolerance
+  // for gamma/tone-mapping, since the exact bug (hardcoded #eceef2, a
+  // MUCH lighter grey) is nowhere close either way.
+  expect(Math.abs(bgColor.r - 0x23)).toBeLessThan(10);
+  expect(Math.abs(bgColor.g - 0x28)).toBeLessThan(10);
+  expect(Math.abs(bgColor.b - 0x33)).toBeLessThan(10);
+
+  // A real label (KaTeX overlay, a plain DOM element) must be legible
+  // against that dark background — its resolved `color` should be the
+  // dark-theme ink (#eef1f6), not a colour indistinguishable from the
+  // (now also dark) background.
+  const labelColor = await page.evaluate(() => {
+    const label = document.querySelector('.pv-scene-overlay .katex') as HTMLElement | null;
+    if (!label) return null;
+    return getComputedStyle(label).color;
+  });
+  expect(labelColor).toBe('rgb(238, 241, 246)'); // #eef1f6
+});
+
 test('X-14: switching to a non-default rotational-dynamics panel actually renders its glyphs, not just their labels', async ({
   page,
 }) => {

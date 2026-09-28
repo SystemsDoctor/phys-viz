@@ -1277,11 +1277,42 @@ src/shell/unitSymbol.test.ts`: 21/21 pass. Full sweep (`typecheck`,
   `check:budget`, `format:check`) all pass. `npx playwright test
 tests/e2e/smoke.spec.ts -g "gravitation"`: 1/1 pass (sanity — its
   specific-energy readout goes through this function).
-- [READY] **X-38** Dark theme makes every scene label near-invisible:
+- [DONE] **X-38** Dark theme makes every scene label near-invisible:
   the scene background is hardcoded `0xeceef2` (`Viewport.ts:133`), and
   the label overlay (`htmlOverlay.ts:24-27`) has no colour, so it
   inherits dark-mode `--ink-0` `#eef1f6`. Decide: pin the scene (and
   overlay ink) to the light theme, or add `Viewport.setTheme` (read-only)
+  **Verified:** chose the pre-decided fix — added `Viewport.setTheme(theme)`
+  driving BOTH the WebGL `scene.background` and the label overlay's
+  explicit `overlayEl.style.color` from the same call, backed by a new
+  `getSceneTheme('light' | 'dark')` in `scene/theme/index.ts` (a
+  hardcoded duplicate of `tokens.css`'s `--surf-2`/`--ink-0`, same
+  reasoning as `getPalette`'s existing `HEX` duplication — see ADR 0019).
+  `ModuleView` seeds `Viewport`'s new `theme` option at construction and
+  calls `setTheme()` from the same live-prefs subscription that already
+  drives `setUpAxis`/`setProjectorMode`. Extended `tokens.test.ts` with a
+  second drift guard (light AND dark `--surf-2`/`--ink-0` vs.
+  `getSceneTheme`) — a real jsdom limitation (no WebGL support, confirmed
+  via a throwaway probe test: `WebGLCapabilities` throws
+  `gl.getExtension is not a function` constructing a real `Viewport`)
+  means the fix itself is verified end-to-end instead, via a new e2e
+  test (`tests/e2e/smoke.spec.ts`, "X-38") that samples the WebGL
+  canvas's own background pixel AND a real rendered label's computed
+  `color` under `?th=dark` — confirmed to fail against the pre-fix code
+  (background pixel came back the hardcoded light `#eceef2`, ~201 off
+  the dark target) and pass against the fix, by temporarily swapping the
+  fixed files for their pre-fix `git show HEAD:<file>` versions (moving
+  the new `tokens.test.ts` assertions aside first, since they don't
+  compile against pre-fix code — a `tsc -b` failure is itself a valid
+  "fails against pre-fix" signal for those, just not one `npm run build`
+  can get past to reach the e2e run) and restoring after. `npx vitest
+run src/design/tokens.test.ts`: 3/3 pass. Full sweep (`typecheck`,
+  `lint`, `test:unit` 655/655, `test:contract` 228/228, `build`,
+  `check:budget`, `format:check`) all pass. `npx playwright test
+tests/e2e/smoke.spec.ts --workers=3`: 36/36 pass (the whole smoke suite,
+  not just the scoped subset, given this touches the shared Viewport
+  construction/live-prefs path every module goes through — same
+  precedent as X-41).
 - [DONE] **X-39** `oscillations` spring inverts at the default params:
   defaults sit at resonance (A = 2.78) and `springLength = 1.125 − x`
   (`index.ts:235-241`) reaches −1.65; the mass rises above the anchor.

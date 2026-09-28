@@ -61,3 +61,31 @@ export function getProjectorAdjustments(projectorMode: boolean): ProjectorAdjust
     ? { lineWidthMultiplier: 1.6, minOpacity: 0.35 }
     : { lineWidthMultiplier: 1, minOpacity: 0 };
 }
+
+/**
+ * X-38: the WebGL scene background and the KaTeX label overlay's text
+ * colour, per theme — a deliberate, hardcoded duplicate of
+ * `src/design/tokens.css`'s `--surf-2` (viewport backdrop) and `--ink-0`
+ * (primary text) custom properties, same non-`getComputedStyle` reasoning
+ * as `HEX`/`getPalette` above: `Viewport` needs a concrete colour at
+ * construction time and on every `setTheme()` call, and a DOM read would
+ * either race `App.tsx`'s own `data-theme`-attribute effect (which one
+ * runs first on a theme toggle is not guaranteed) or just move this
+ * exact "who's the source of truth" problem into a headless test
+ * environment instead of solving it. `src/design/tokens.test.ts` guards
+ * both pairs against silently drifting apart from tokens.css, the same
+ * way it already guards `HEX`.
+ */
+export interface SceneTheme {
+  background: string;
+  overlayInk: string;
+}
+
+const SCENE_THEME: Record<'light' | 'dark', SceneTheme> = {
+  light: { background: '#eceef2', overlayInk: '#12161d' },
+  dark: { background: '#232833', overlayInk: '#eef1f6' },
+};
+
+export function getSceneTheme(theme: 'light' | 'dark'): SceneTheme {
+  return SCENE_THEME[theme];
+}

@@ -314,6 +314,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       canvas,
       upAxis: useAppStore.getState().prefs.upAxis,
       projectorMode: useAppStore.getState().prefs.projector,
+      theme: useAppStore.getState().prefs.theme,
       showGrid: useAppStore.getState().prefs.showGrid,
       gridPlaneXY: useAppStore.getState().prefs.gridPlaneXY,
       gridPlaneXZ: useAppStore.getState().prefs.gridPlaneXZ,
@@ -474,6 +475,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     if (!mounted) return;
     let lastUpAxis = useAppStore.getState().prefs.upAxis;
     let lastProjector = useAppStore.getState().prefs.projector;
+    let lastTheme = useAppStore.getState().prefs.theme;
     let lastShowGrid = useAppStore.getState().prefs.showGrid;
     let lastGridPlaneXY = useAppStore.getState().prefs.gridPlaneXY;
     let lastGridPlaneXZ = useAppStore.getState().prefs.gridPlaneXZ;
@@ -489,6 +491,10 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       if (s.prefs.projector !== lastProjector) {
         lastProjector = s.prefs.projector;
         viewport.setProjectorMode(s.prefs.projector);
+      }
+      if (s.prefs.theme !== lastTheme) {
+        lastTheme = s.prefs.theme;
+        viewport.setTheme(s.prefs.theme);
       }
       if (s.prefs.showGrid !== lastShowGrid) {
         lastShowGrid = s.prefs.showGrid;

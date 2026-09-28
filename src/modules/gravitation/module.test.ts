@@ -198,4 +198,42 @@ describe(module.manifest.id, () => {
       expect(Number.isFinite(value)).toBe(true);
     }
   });
+
+  // X-42 golden test: at inclination 0 (a perfectly flat orbit), the
+  // outline used to always embed into world x-y regardless of `ctx.up`
+  // — edge-on (every world-y coordinate exactly 0, a degenerate line)
+  // under z-up, since the GLOBAL 2D-lock camera then shows world x-z,
+  // not world x-y (`scene/camera/index.ts`'s `fromCanonical`). Captures
+  // the SAME outline-path points the cardioid-regression test above
+  // captures, this time checking they land in world x-z instead.
+  it('under z-up, an inclination-0 orbit outline embeds into world x-z, not world x-y', () => {
+    let points: readonly [number, number, number][] = [];
+    const zUpCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'z';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'path') {
+          return () => ({
+            set: (next: { points?: readonly [number, number, number][] }) => {
+              if (next.points) points = next.points;
+            },
+            visible: () => {},
+            dispose: () => {},
+          });
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(zUpCtx);
+    instance.update(stateAt(0, 10, 3, 0.4, 0, 0)); // omega=0, inclination=0
+
+    expect(points.length).toBeGreaterThan(0);
+    // Every world-y coordinate is exactly 0 (nothing embedded there) and
+    // at least one world-z coordinate is nonzero (the orbit's actual
+    // shape now lives there, not collapsed onto the line world-z=0).
+    for (const [, y] of points) expect(y).toBe(0);
+    expect(points.some(([, , z]) => Math.abs(z) > 1e-6)).toBe(true);
+  });
 });

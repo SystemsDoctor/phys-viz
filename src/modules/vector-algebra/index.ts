@@ -10,7 +10,7 @@
  * registry edit, no route registration.
  */
 import type { PhysicsModule, ModuleState } from '../types';
-import type { SceneContext } from '@/scene/SceneContext';
+import type { SceneContext, UpAxis } from '@/scene/SceneContext';
 import { cross, dot, norm, scale, add, normalize, fromAxisAngle, rotateVec3 } from '@/kernel/math';
 import manifest from './manifest';
 import { params, layers, scalars } from './params';
@@ -22,9 +22,19 @@ const X_AXIS: V3 = [1, 0, 0];
 const Y_AXIS: V3 = [0, 1, 0];
 const Z_AXIS: V3 = [0, 0, 1];
 
-/** ADR 0008: the 2D restriction just drops the out-of-plane component. */
-function effective(v: V3, planar: boolean): V3 {
-  return planar ? [v[0], v[1], 0] : v;
+/**
+ * ADR 0008: the 2D restriction just drops the out-of-plane component —
+ * but which component is "out of plane" depends on `ctx.up` (X-42): the
+ * GLOBAL 2D-lock camera shows world x-y under y-up (ADR 0009's default,
+ * so index 2/Z drops, unchanged from before X-42) but world x-z under
+ * z-up (`scene/camera/index.ts`'s `fromCanonical`), so index 1/Y — the
+ * camera's depth axis in that view — must drop instead, or a `planar`
+ * vector collapses to a degenerate line along the axis the camera is
+ * actually looking down.
+ */
+function effective(v: V3, planar: boolean, up: UpAxis): V3 {
+  if (!planar) return v;
+  return up === 'y' ? [v[0], v[1], 0] : [v[0], 0, v[2]];
 }
 
 const module: PhysicsModule = {
@@ -196,9 +206,12 @@ const module: PhysicsModule = {
     return {
       update(s: ModuleState) {
         const planar = s.params.planar as boolean;
-        const a = effective(s.params.a as V3, planar);
-        const b = effective(s.params.b as V3, planar);
-        const c = effective(s.params.c as V3, planar);
+        // X-42: `ctx.up` is a LIVE getter — read fresh every update() so
+        // a live up-axis switch (ADR 0011) is honored without remount.
+        const up = ctx.up;
+        const a = effective(s.params.a as V3, planar, up);
+        const b = effective(s.params.b as V3, planar, up);
+        const c = effective(s.params.c as V3, planar, up);
         const basisAngle = s.params.basisAngle as number;
 
         // Only set(); never construct. Layer visibility is handled by
@@ -274,9 +287,10 @@ const module: PhysicsModule = {
 
       scalars(s) {
         const planar = s.params.planar as boolean;
-        const a = effective(s.params.a as V3, planar);
-        const b = effective(s.params.b as V3, planar);
-        const c = effective(s.params.c as V3, planar);
+        const up = ctx.up;
+        const a = effective(s.params.a as V3, planar, up);
+        const b = effective(s.params.b as V3, planar, up);
+        const c = effective(s.params.c as V3, planar, up);
         const aNorm = norm(a);
         return {
           dot: dot(a, b),

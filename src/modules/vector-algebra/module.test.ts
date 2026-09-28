@@ -116,4 +116,50 @@ describe(module.manifest.id, () => {
       expect(to).toEqual(expectedSum);
     }
   });
+
+  // X-42 golden test: `planar` used to always drop world Z regardless of
+  // `ctx.up`, collapsing to a degenerate line along world Y under z-up
+  // (Y is the GLOBAL 2D-lock camera's depth axis there,
+  // `scene/camera/index.ts`'s `fromCanonical`) instead of along the
+  // camera's actual depth axis. Captures the resultant arrow's actual
+  // `.set({to})` under z-up, same capture pattern as the test above.
+  it('under z-up, `planar` drops world Y (the 2D-lock depth axis there), not world Z', () => {
+    let capturedTo: [number, number, number] | null = null;
+    const zUpCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'z';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'arrow') {
+          return (props: { label?: string }) => ({
+            set: (next: { to?: [number, number, number] }) => {
+              if (props.label === '\\vec{a}+\\vec{b}' && next.to) capturedTo = next.to;
+            },
+            visible: () => {},
+            dispose: () => {},
+          });
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(zUpCtx);
+    // a + b has a nonzero component along every world axis; planar mode
+    // must zero exactly the one component (world Y, index 1) that's the
+    // camera's depth axis under z-up.
+    instance.update({
+      params: {
+        a: [1, 5, 2],
+        b: [1, -1, 1],
+        c: [0, 0, 1],
+        sumStyle: 'tip',
+        planar: true,
+        basisAngle: 0,
+      },
+      layers: {},
+      t: 0,
+    });
+
+    expect(capturedTo).toEqual([2, 0, 3]); // a+b = [2, 4, 3] with world Y zeroed
+  });
 });

@@ -1161,7 +1161,7 @@ test tests/e2e/smoke.spec.ts -g "work-energy"`: 1/1 pass.
   returns `prefsPresent` (which of the 7 prefs keys were actually IN
   the URL, as opposed to `prefs` itself which is always fully
   resolved/default-filled). A new pure helper, `applyUrlPrefs(current,
-  decoded)` in `ModuleView.tsx`, merges only the URL-present fields
+decoded)` in `ModuleView.tsx`, merges only the URL-present fields
   onto the viewer's current store prefs and returns `undefined` when
   the URL had none — so `hydrate()` only touches `prefs` when there's
   something to override, and an absent field falls through to the
@@ -1174,7 +1174,7 @@ test tests/e2e/smoke.spec.ts -g "work-energy"`: 1/1 pass.
   3 in ModuleView) fail against the pre-fix code (`applyUrlPrefs` didn't
   exist; `prefsPresent` was `undefined`) and pass against the fix. `npx
 vitest run src/shell/routes/ModuleView.test.tsx
-  src/shell/state/urlCodec.test.ts`: 38/38 pass. Full sweep
+src/shell/state/urlCodec.test.ts`: 38/38 pass. Full sweep
   (`typecheck`, `lint`, `test:unit` 649/649, `test:contract` 228/228,
   `build`, `check:budget`, `format:check`) all pass. `npx playwright
 test tests/e2e/smoke.spec.ts -g "X-34|X-11|up-axis" --workers=2`: 3/3
@@ -1361,7 +1361,7 @@ playwright test tests/e2e/smoke.spec.ts --workers=3`: 33/34 (the one
   change of the session (touches the shared render path every module
   goes through) — verified via the full smoke suite specifically
   because of that, not just the module-scoped subset other entries use.
-- [READY] **X-42** Under z-up, the "2D-only" lock (`goTo('+z')` →
+- [DONE] **X-42** Under z-up, the "2D-only" lock (`goTo('+z')` →
   world −y via `fromCanonical`, `camera/index.ts:118-120`) shows the
   world x–z plane, correct for gravity modules but edge-on for modules
   that hardcode world x–y: `non-inertial-frames`, `gravitation` (at
@@ -1369,6 +1369,36 @@ playwright test tests/e2e/smoke.spec.ts --workers=3`: 33/34 (the one
   Needs a decision (map orientation-free modules' plane through `ctx.up`,
   or change what the lock looks at); ADR if shell behaviour changes
   (read-only)
+  **Verified:** chose the pre-decided fix — mapped each of the four
+  modules' flat plane through the LIVE `ctx.up`, via two new pure
+  `kernel/frames` helpers (`embedPlanar(up, x, y)`, `planarNormal(up)`)
+  rather than a camera-layer change. `non-inertial-frames`'s `toWorld`
+  and its platform disc's orientation, `gravitation`'s `orbitAt`/
+  `orbitPathPoints` (base embedding + `omega`'s rotation axis, with
+  `inclination` still about the pinned world-x line of nodes either
+  way), `control-showcase`'s angle arc/point/trace/answer-sphere offset,
+  and `vector-algebra`'s `effective()` (now drops world Y under z-up,
+  not always world Z) all read `ctx.up` fresh every `update()`/
+  `scalars()` call, never cached, per ADR 0018 (full rationale,
+  including why `control-showcase`'s draggable `p` param is deliberately
+  left untouched — it already tracks the live camera through
+  `ctx.draggable`'s own screen-facing-plane projection). Also narrowed
+  `PHYSICS_CONVENTIONS.md`'s "no notion of vertical ignores `ctx.up`"
+  guidance, which had wrongly named `vector-algebra` as an example.
+  Added one golden test per module capturing the actual `.set()` payload
+  reaching a glyph under `ctx.up === 'z'` (the same glyph-`.set()`-
+  capture pattern X-47 used) — confirmed all four fail against the
+  pre-fix code (swapped in via `git show HEAD:<file>`, confirmed the
+  exact pre-fix collapse — e.g. `non-inertial-frames`' puck landing at
+  `[1, 2, 0]` instead of `[1, 0, 2]` — then restored the fix) and pass
+  against it. `npx vitest run src/modules/non-inertial-frames/module.test.ts
+src/modules/gravitation/module.test.ts src/modules/vector-algebra/module.test.ts
+src/modules/control-showcase/module.test.ts src/kernel/frames`: 56/56
+  pass. Full sweep (`typecheck`, `lint`, `test:unit` 653/653,
+  `test:contract` 228/228, `build`, `check:budget`, `format:check`) all
+  pass. `npx playwright test tests/e2e/smoke.spec.ts -g
+"gravitation|vector-algebra|control-showcase|non-inertial-frames"
+--workers=2`: 6/6 pass.
 - [READY] **X-43** `kernel/expr` has no recursion-depth limit: 1000
   nested parens compile, 3000 throw `RangeError` (reproduced against a
   scratch bundle), which `compileExpr` re-throws. Only `control-showcase`

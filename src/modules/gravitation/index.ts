@@ -14,21 +14,32 @@
 // from a fresh instance is bit-for-bit the same as scrubbing there,
 // exactly the idempotence the contract suite checks.
 //
-// This module has no notion of "vertical" the way a hanging pendulum or
-// a projectile under surface gravity does — the orbital plane's tilt is
-// its own parameter (`inclination`), not tied to the viewer's up-axis
-// setting — so, like `vector-algebra`/`fields-gradients`, it deliberately
-// ignores `ctx.up` (PHYSICS_CONVENTIONS.md, "which axis is up").
+// This module has no notion of GRAVITATIONAL "vertical" the way a
+// hanging pendulum or a projectile under surface gravity does — the
+// orbital plane's tilt is its own parameter (`inclination`), not tied to
+// the viewer's up-axis setting. It does, however, still need `ctx.up` to
+// know which world plane the GLOBAL 2D-lock camera is actually showing
+// (X-42) for the `inclination = 0` case, which draws a perfectly flat
+// orbit: that flat orbit used to always be embedded in world x-y,
+// correct under y-up (ADR 0009's default) but edge-on (a degenerate
+// line) under z-up, when the 2D lock instead frames world x-z
+// (`scene/camera/index.ts`'s `fromCanonical`). `inclination` itself is
+// still a pure module parameter, tilting the orbit away from whichever
+// flat plane `ctx.up` selects, about the SAME pinned line of nodes
+// (world x) either way — read LIVE every `update()`/`scalars()` call
+// (never cached), same as `non-inertial-frames`/`vector-algebra`'s own
+// X-42 fixes.
 import type { PhysicsModule, ModuleState } from '../types';
 import type { SceneContext } from '@/scene/SceneContext';
-import { norm, normalize, fromAxisAngle, rotateVec3 } from '@/kernel/math';
+import { norm, normalize, fromAxisAngle, rotateVec3, scale } from '@/kernel/math';
 import type { Vec3 } from '@/kernel/math';
 import { findRoot } from '@/kernel/ode';
+import { embedPlanar, planarNormal } from '@/kernel/frames';
+import type { UpAxis } from '@/kernel/frames';
 import manifest from './manifest';
 import { params, layers, scalars } from './params';
 
 const X_HAT: Vec3 = [1, 0, 0];
-const Z_HAT: Vec3 = [0, 0, 1];
 const ORIGIN: [number, number, number] = [0, 0, 0];
 
 const CENTRAL_BODY_DIAMETER = 0.4;
@@ -75,7 +86,11 @@ interface OrbitState {
  * calls — a longitude-of-ascending-node term is omitted, i.e. the line
  * of nodes is pinned to the world x-axis, to keep this module's param
  * count in line with the rest of the library); everything else is a
- * function of `t` alone.
+ * function of `t` alone. X-42: the un-rotated (`omega = inclination =
+ * 0`) orbit is embedded into whichever world plane `up` selects
+ * (`embedPlanar`/`planarNormal`, x-y under y-up — unchanged from before
+ * X-42 — x-z under z-up) rather than a hardcoded world x-y/Z, so it
+ * isn't edge-on under the global 2D lock's z-up framing.
  */
 function orbitAt(
   mu: number,
@@ -84,6 +99,7 @@ function orbitAt(
   omega: number,
   inclination: number,
   t: number,
+  up: UpAxis,
 ): OrbitState {
   const n = Math.sqrt(mu / (a * a * a)); // mean motion
   const period = (2 * Math.PI) / n;
@@ -105,16 +121,16 @@ function orbitAt(
   const vxp = -sqrtMuOverP * sinNu;
   const vyp = sqrtMuOverP * (e + cosNu);
 
-  const qOmega = fromAxisAngle(Z_HAT, omega);
+  const qOmega = fromAxisAngle(planarNormal(up), omega);
   const qInc = fromAxisAngle(X_HAT, inclination);
   const toWorld = (v: Vec3): Vec3 => rotateVec3(qInc, rotateVec3(qOmega, v));
 
-  const position = toWorld([xp, yp, 0]);
-  const velocity = toWorld([vxp, vyp, 0]);
+  const position = toWorld(embedPlanar(up, xp, yp));
+  const velocity = toWorld(embedPlanar(up, vxp, vyp));
   const speed = Math.hypot(vxp, vyp);
 
   const h = Math.sqrt(mu * p); // specific angular momentum magnitude, |r x v|
-  const hVec = toWorld([0, 0, h]);
+  const hVec = toWorld(scale(planarNormal(up), h));
 
   return {
     r,
@@ -131,8 +147,8 @@ function orbitAt(
 }
 
 /** The static ellipse outline — a pure function of the shape/orientation params, independent of t. */
-function orbitPathPoints(a: number, e: number, omega: number, inclination: number) {
-  const qOmega = fromAxisAngle(Z_HAT, omega);
+function orbitPathPoints(a: number, e: number, omega: number, inclination: number, up: UpAxis) {
+  const qOmega = fromAxisAngle(planarNormal(up), omega);
   const qInc = fromAxisAngle(X_HAT, inclination);
   const toWorld = (v: Vec3): Vec3 => rotateVec3(qInc, rotateVec3(qOmega, v));
   const p = a * (1 - e * e); // semi-latus rectum
@@ -152,7 +168,7 @@ function orbitPathPoints(a: number, e: number, omega: number, inclination: numbe
     const r = p / (1 + e * Math.cos(nu));
     const xp = r * Math.cos(nu);
     const yp = r * Math.sin(nu);
-    points.push(toMut(toWorld([xp, yp, 0])));
+    points.push(toMut(toWorld(embedPlanar(up, xp, yp))));
   }
   return points;
 }
@@ -228,12 +244,15 @@ const module: PhysicsModule = {
         const vectorsOn = state.layers.vectors ?? true;
         const angularOn = state.layers.angularMomentum ?? false;
 
-        const orbit = orbitAt(mu, a, e, omega, inclination, state.t);
+        // X-42: `ctx.up` is a LIVE getter — read fresh every update() so
+        // a live up-axis switch (ADR 0011) is honored without remount.
+        const up = ctx.up;
+        const orbit = orbitAt(mu, a, e, omega, inclination, state.t, up);
         const posMut = toMut(orbit.position);
 
         centralBody.visible(orbitOn);
         centralLabel.visible(orbitOn);
-        orbitPath.set({ points: orbitPathPoints(a, e, omega, inclination) });
+        orbitPath.set({ points: orbitPathPoints(a, e, omega, inclination, up) });
         orbitPath.visible(orbitOn);
         orbitingBody.set({ position: posMut });
         orbitingBody.visible(orbitOn);
@@ -282,7 +301,7 @@ const module: PhysicsModule = {
         const e = state.params.e as number;
         const omega = state.params.omega as number;
         const inclination = state.params.inclination as number;
-        const orbit = orbitAt(mu, a, e, omega, inclination, state.t);
+        const orbit = orbitAt(mu, a, e, omega, inclination, state.t, ctx.up);
         return {
           r: orbit.r,
           speed: orbit.speed,

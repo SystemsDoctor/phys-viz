@@ -63,13 +63,25 @@ nothing above changes when it is switched.
 
 A module with a notion of _vertical_ — gravity, a ground plane, a hanging
 pendulum — reads **`ctx.up`** rather than hardcoding `[0, 1, 0]`. A module
-with no notion of vertical (vector algebra, fields and gradients) ignores
-it entirely. Reading `ctx.up` is data, not UI code; it is one line in the
-modules that care.
+with no notion of vertical AND no flat 2D content to place (e.g.
+`momentum-collisions`, a purely 1D scenario) ignores it entirely. Reading
+`ctx.up` is data, not UI code; it is one line in the modules that care.
+
+A module with no notion of GRAVITATIONAL vertical but which still draws a
+flat, 2D scene — `non-inertial-frames`, `gravitation` at `inclination =
+0`, `control-showcase`, `vector-algebra`'s `planar` mode — still reads
+`ctx.up`, for a different reason: the global "2D-only" camera lock (ADR
+0011/0012) shows world x-y under y-up but world x-z under z-up
+(`scene/camera/index.ts`'s `fromCanonical`), so a flat scene that ignored
+`ctx.up` and always drew into world x-y would render edge-on (a
+degenerate line) under z-up — logged as X-42, fixed via `kernel/frames`'
+`embedPlanar`/`planarNormal` helpers (ADR 0018). `vector-algebra` is
+_not_ an example of ignoring `ctx.up` — its `planar` mode reads it to
+choose which world axis to drop.
 
 Hardcoding `+y` is not an error — such a module simply always draws
 vertical along `+y` and ignores the setting — but prefer `ctx.up` unless
-the module is genuinely orientation-free.
+the module is genuinely orientation-free AND has no flat content to embed.
 
 `rotational-dynamics` is the reference example — it has gravity, a
 rolling axis, and a precessing top, all of which need "up" to mean

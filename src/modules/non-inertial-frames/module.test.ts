@@ -228,4 +228,42 @@ describe(module.manifest.id, () => {
       (corVec[0] * expectedCor[0] + corVec[1] * expectedCor[1]) / (corLen * expLen),
     ).toBeCloseTo(1, 6);
   });
+
+  // X-42 golden test: under z-up, the flat scene must be embedded into
+  // world x-z (what the global 2D-lock camera actually shows,
+  // `scene/camera/index.ts`'s `fromCanonical`), not hardcoded x-y — a
+  // readout-only check can't see this (scalars() never touches world
+  // coordinates), so this captures the actual `.set({to})` reaching the
+  // '\vec{v}' arrow, the same glyph-.set() capture pattern X-47 used.
+  it('under z-up, the puck position embeds into world x-z, not world x-y', () => {
+    let capturedTo: [number, number, number] | null = null;
+    const zUpCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'z';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'arrow') {
+          return (props: { label?: string }) => ({
+            set: (next: { to?: [number, number, number] }) => {
+              if (props.label === '\\vec{v}' && next.to) capturedTo = next.to;
+            },
+            visible: () => {},
+            dispose: () => {},
+          });
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(zUpCtx);
+    // speed = 0 so the velocity arrow's tip sits exactly on the puck's
+    // own position — x0=1, y0=2 in the module's LOCAL flat frame.
+    instance.update(stateAt(0, 0, 0, 0, 1, 2));
+
+    expect(capturedTo).not.toBeNull();
+    // World x-z (x unchanged, local y -> world z, world y stays 0) — NOT
+    // world x-y, which is what the pre-fix code hardcoded regardless of
+    // `ctx.up`.
+    expect(capturedTo).toEqual([1, 0, 2]);
+  });
 });

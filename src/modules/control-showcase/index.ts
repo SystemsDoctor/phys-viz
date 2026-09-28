@@ -2,8 +2,20 @@ import type { PhysicsModule, ModuleState } from '../types';
 import type { SceneContext } from '@/scene/SceneContext';
 import { norm } from '@/kernel/math';
 import { compileExpr, isExprError } from '@/kernel/expr';
+import { embedPlanar } from '@/kernel/frames';
 import manifest from './manifest';
 import { params, layers, scalars } from './params';
+
+// X-42: `theta`'s angle-arc/point/trace and the "answer" sphere's offset
+// from the geometry group are all local FLAT (x, y) coordinates that used
+// to be hardcoded straight onto world (x, y, 0) — correct only under
+// y-up (ADR 0009's default), edge-on under z-up (the global 2D-lock
+// camera then shows world x-z, per `scene/camera/index.ts`'s
+// `fromCanonical`). `p` itself is left alone: it's a free, DRAGGABLE
+// vector param whose in-plane behavior already comes from
+// `Viewport`/`ctx.draggable`'s own screen-facing-plane projection
+// (`scene/createSceneContext.ts`), which already tracks the live camera
+// (and so the live up-axis) correctly on its own.
 
 const module: PhysicsModule = {
   manifest,
@@ -48,13 +60,18 @@ const module: PhysicsModule = {
 
     const trace = ctx.path({ group: gTrace, color: ctx.palette.angular, points: [] });
 
+    const embedAt = (up: SceneContext['up'], x: number, y: number): [number, number, number] => {
+      const [wx, wy, wz] = embedPlanar(up, x, y);
+      return [wx, wy, wz];
+    };
+
     const answerBody = ctx.body({
       group: gAnswer,
       kind: 'sphere',
-      position: [0, -3, 0],
+      position: embedAt(ctx.up, 0, -3),
       color: ctx.palette.energy,
     });
-    const answerLabel = ctx.label({ latex: '', anchor: [0, -3.6, 0] });
+    const answerLabel = ctx.label({ latex: '', anchor: embedAt(ctx.up, 0, -3.6) });
 
     return {
       update(s: ModuleState) {
@@ -65,10 +82,16 @@ const module: PhysicsModule = {
         const mode = s.params.mode as string;
         const on = s.params.on as boolean;
 
+        // X-42: `ctx.up` is a LIVE getter — read it fresh every update()
+        // so the embedded plane tracks a live up-axis switch (ADR 0011)
+        // without remounting.
+        const up = ctx.up;
+        const embed = (x: number, y: number): [number, number, number] => embedAt(up, x, y);
+
         pArrow.set({ from: [0, 0, 0], to: p, doubleHead: mode === 'ray' });
-        const anglePos: [number, number, number] = [Math.cos(theta) * 2, Math.sin(theta) * 2, 0];
+        const anglePos = embed(Math.cos(theta) * 2, Math.sin(theta) * 2);
         anglePoint.set({ position: anglePos });
-        angleArc.set({ from: [1, 0, 0], to: [Math.cos(theta), Math.sin(theta), 0], radius: 1 });
+        angleArc.set({ from: embed(1, 0), to: embed(Math.cos(theta), Math.sin(theta)), radius: 1 });
 
         highlight.set({ position: p });
         highlight.visible(on);
@@ -80,10 +103,13 @@ const module: PhysicsModule = {
           const steps = Math.max(4, Math.round(s.params.traceSteps as number));
           for (let i = 0; i <= steps; i++) {
             const a = (theta * i) / steps;
-            points.push([Math.cos(a) * 2, Math.sin(a) * 2, 0]);
+            points.push(embed(Math.cos(a) * 2, Math.sin(a) * 2));
           }
           trace.set({ points });
         }
+
+        answerBody.set({ position: embed(0, -3) });
+        answerLabel.set({ anchor: embed(0, -3.6) });
 
         const magnitude = norm(p);
 

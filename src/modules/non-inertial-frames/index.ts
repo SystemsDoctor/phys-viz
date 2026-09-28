@@ -19,20 +19,26 @@
 // module.test.ts) checks that sum is ~0 to machine precision.
 // `timeModel: 'parametric'`: r(t) is a pure closed-form function of t.
 //
-// Every glyph stays on the canonical z=0 plane, viewed face-on under the
-// default locked "2D-only" +z camera (X-17 in TASKS.md — off-plane
-// `surface`/`patch` geometry fails to render there; not applicable to the
+// Every glyph stays on the canonical "flat" plane the GLOBAL 2D-lock
+// camera actually shows, viewed face-on under the default locked
+// "2D-only" +z camera (X-17 in TASKS.md — off-plane `surface`/`patch`
+// geometry fails to render there; not applicable to the
 // `body`/`point`/`arrow`/`path` glyphs used here, but kept in-plane
-// anyway). The platform disc is drawn flat via a FIXED one-time
-// orientation (its local cylinder axis rotated onto world +Z) and never
-// reoriented in update() — spin is shown instead by an orbiting reference
-// mark fixed to the platform, which is far simpler than animating the
-// (rotationally symmetric, so visually unchanged anyway) disc mesh's own
-// quaternion every frame. This module has no notion of gravitational
-// "vertical" — the rotation axis is the screen-perpendicular world Z
-// axis, not `ctx.up` — so `ctx.up` is not read (PHYSICS_CONVENTIONS.md: a
-// module with no notion of vertical ignores it entirely), same as
-// vector-algebra/momentum-collisions.
+// anyway). That plane is world x-y under the default y-up (ADR 0009) but
+// world x-z under z-up (`scene/camera/index.ts`'s `fromCanonical`) — this
+// module has no notion of GRAVITATIONAL "vertical" (the rotation axis is
+// always screen-perpendicular, not tied to which way is "down"), but it
+// still needs `ctx.up` to know which world plane is "the page" today
+// (X-42; PHYSICS_CONVENTIONS.md's "ignore `ctx.up` entirely" guidance is
+// for modules with no flat scene at all to embed, not this one) — read
+// LIVE every `update()` via `kernel/frames`' `embedPlanar`/`planarNormal`,
+// never cached, since a live up-axis toggle (ADR 0011) must be visible on
+// the next frame without remounting. The platform disc's orientation
+// (its local cylinder axis rotated onto the plane's normal) is likewise
+// recomputed from the live `ctx.up` every `update()` rather than fixed at
+// `create()` — cheap (one `.set()`), and the only way it can react to a
+// live toggle — even though spin itself is still shown by the orbiting
+// reference mark, not by animating the (rotationally symmetric) disc.
 //
 // The world<->rotating-frame position/velocity math below is written
 // directly against kernel/math rather than through a shared "moving
@@ -56,8 +62,8 @@ import type { PhysicsModule, ModuleState } from '../types';
 import type { SceneContext } from '@/scene/SceneContext';
 import { fromAxisAngle } from '@/kernel/math';
 import type { Quat } from '@/kernel/math';
-import { transformAcceleration } from '@/kernel/frames';
-import type { Frame } from '@/kernel/frames';
+import { transformAcceleration, embedPlanar } from '@/kernel/frames';
+import type { Frame, UpAxis } from '@/kernel/frames';
 import manifest from './manifest';
 import { params, layers, scalars } from './params';
 
@@ -85,16 +91,31 @@ const EPS = 1e-9;
 function mutQ(q: Quat): [number, number, number, number] {
   return [q[0], q[1], q[2], q[3]];
 }
-const DISC_ORIENTATION = mutQ(fromAxisAngle([1, 0, 0], Math.PI / 2));
+const IDENTITY_ORIENTATION: [number, number, number, number] = [0, 0, 0, 1];
+// CylinderGeometry's local axis of rotational symmetry is Y — under
+// y-up, the plane the 2D-lock camera shows is x-y, so the disc's flat
+// face needs its axis rotated onto world Z (the plane's normal,
+// `planarNormal('y')`) to read as a circle; under z-up the plane is x-z
+// and the disc's axis (already Y) is already the plane's normal
+// (`planarNormal('z')` is also Y), so no rotation is needed.
+const DISC_ORIENTATION_Y_UP = mutQ(fromAxisAngle([1, 0, 0], Math.PI / 2));
+function discOrientationFor(up: UpAxis): [number, number, number, number] {
+  return up === 'y' ? DISC_ORIENTATION_Y_UP : IDENTITY_ORIENTATION;
+}
 // CylinderGeometry(0.5, 0.5, 0.05, 32): local radius 0.5 (a unit
 // diameter), so `scale`'s X/Z components are a DIAMETER multiplier — see
 // the M7-2 QA checkpoint's sphere-radius bug in TASKS.md for the same
 // gotcha on `body`'s `'sphere'` kind.
 const DISC_SCALE: V3 = [PLATFORM_RADIUS * 2, 1, PLATFORM_RADIUS * 2];
-const MARK_POS_ROT: V3 = [MARK_RADIUS, 0, 0]; // fixed forever — by construction, the frame's own mark never moves in its own view
+// Fixed forever regardless of `ctx.up` — by construction, the frame's own
+// mark never moves in its own (rotating) view, and its local y is 0, so
+// `embedPlanar` would return the same [MARK_RADIUS, 0, 0] either way.
+const MARK_POS_ROT: V3 = [MARK_RADIUS, 0, 0];
 
-function toWorld(x: number, y: number): V3 {
-  return [x, y, 0];
+/** X-42: embeds a local flat (x, y) into whichever world plane the LIVE 2D-lock camera shows for `up`. */
+function toWorld(up: UpAxis, x: number, y: number): V3 {
+  const [wx, wy, wz] = embedPlanar(up, x, y);
+  return [wx, wy, wz];
 }
 
 /**
@@ -267,7 +288,7 @@ const module: PhysicsModule = {
       group: gLab,
       kind: 'disc',
       position: [0, 0, 0],
-      orientation: DISC_ORIENTATION,
+      orientation: discOrientationFor(ctx.up),
       scale: DISC_SCALE,
       color: ctx.palette.construction,
     });
@@ -308,7 +329,7 @@ const module: PhysicsModule = {
       group: gRot,
       kind: 'disc',
       position: [0, 0, 0],
-      orientation: DISC_ORIENTATION,
+      orientation: discOrientationFor(ctx.up),
       scale: DISC_SCALE,
       color: ctx.palette.construction,
     });
@@ -375,47 +396,58 @@ const module: PhysicsModule = {
         const rotOn = state.layers.rotFrame ?? false;
         const traceOn = state.layers.trace ?? true;
 
+        // X-42: `ctx.up` is a LIVE getter (a later up-axis switch must be
+        // visible on the next read) — read it fresh every update() rather
+        // than caching it, so `toWorld` below always embeds into whatever
+        // world plane the 2D-lock camera is showing right now.
+        const up = ctx.up;
+        const embed = (x: number, y: number): V3 => toWorld(up, x, y);
+
         const { x0, y0, speed, launchAngle, omega, t, theta, lab, rot, terms } = sceneAt(state);
 
-        // Lab panel — the disc and its mark's fixed geometry were set
-        // once at create(); only the mark's ORBIT position and the
-        // puck's own motion change per frame.
+        // Lab panel — the disc's geometry is fixed except its
+        // orientation, which is recomputed from the live `up` every
+        // frame (cheap — one `.set()`); the mark's ORBIT position and
+        // the puck's own motion also change per frame.
+        discLab.set({ orientation: discOrientationFor(up) });
         discLab.visible(labOn);
-        const markPosLab = toWorld(MARK_RADIUS * Math.cos(theta), MARK_RADIUS * Math.sin(theta));
+        const markPosLab = embed(MARK_RADIUS * Math.cos(theta), MARK_RADIUS * Math.sin(theta));
         markArrowLab.set({ to: markPosLab });
         markArrowLab.visible(labOn);
         markDotLab.set({ position: markPosLab });
         markDotLab.visible(labOn);
 
-        const puckPosLab = toWorld(lab.x, lab.y);
+        const puckPosLab = embed(lab.x, lab.y);
         puckLab.set({ position: puckPosLab });
         puckLab.visible(labOn);
         puckLabelLab.set({ anchor: puckPosLab });
         puckLabelLab.visible(labOn);
         velArrowLab.set({
           from: puckPosLab,
-          to: toWorld(lab.x + lab.vx * VEL_ARROW_SCALE, lab.y + lab.vy * VEL_ARROW_SCALE),
+          to: embed(lab.x + lab.vx * VEL_ARROW_SCALE, lab.y + lab.vy * VEL_ARROW_SCALE),
         });
         velArrowLab.visible(labOn);
         traceLab.visible(labOn && traceOn);
         if (labOn && traceOn) {
-          traceLab.set({ points: [toWorld(x0, y0), puckPosLab] });
+          traceLab.set({ points: [embed(x0, y0), puckPosLab] });
         }
 
-        // Rotating panel — the disc and its mark never move at all
-        // (fixed props from create()); only visibility changes.
+        // Rotating panel — the disc's mark never moves at all (fixed
+        // props from create()); only the disc's orientation (live `up`),
+        // visibility, and the puck's own motion change per frame.
+        discRot.set({ orientation: discOrientationFor(up) });
         discRot.visible(rotOn);
         markArrowRot.visible(rotOn);
         markDotRot.visible(rotOn);
 
-        const puckPosRot = toWorld(rot.x, rot.y);
+        const puckPosRot = embed(rot.x, rot.y);
         puckRot.set({ position: puckPosRot });
         puckRot.visible(rotOn);
         puckLabelRot.set({ anchor: puckPosRot });
         puckLabelRot.visible(rotOn);
         velArrowRot.set({
           from: puckPosRot,
-          to: toWorld(rot.x + rot.vx * VEL_ARROW_SCALE, rot.y + rot.vy * VEL_ARROW_SCALE),
+          to: embed(rot.x + rot.vx * VEL_ARROW_SCALE, rot.y + rot.vy * VEL_ARROW_SCALE),
         });
         velArrowRot.visible(rotOn);
 
@@ -426,21 +458,24 @@ const module: PhysicsModule = {
             const ti = (t * i) / TRACE_SAMPLES;
             const li = labKinematics(ti, x0, y0, speed, launchAngle);
             const ri = rotatingKinematics(omega, omega * ti, li.x, li.y, li.vx, li.vy);
-            points.push(toWorld(ri.x, ri.y));
+            points.push(embed(ri.x, ri.y));
           }
           traceRot.set({ points });
         }
 
-        const cfTip = toWorld(
-          rot.x + terms.centrifugal[0] * ACC_ARROW_SCALE,
-          rot.y + terms.centrifugal[1] * ACC_ARROW_SCALE,
-        );
+        // Kept as separate LOCAL-plane (x, y) scalars, not the already-
+        // embedded world V3 — under z-up, a world V3's y-component is
+        // always 0 (the local y went into the world z slot instead), so
+        // reusing it as the next step's local y would silently zero out
+        // the coriolis/relative arrows' in-plane component.
+        const cfLocalX = rot.x + terms.centrifugal[0] * ACC_ARROW_SCALE;
+        const cfLocalY = rot.y + terms.centrifugal[1] * ACC_ARROW_SCALE;
+        const cfTip = embed(cfLocalX, cfLocalY);
         centrifugalArrow.set({ from: puckPosRot, to: cfTip });
         centrifugalArrow.visible(rotOn);
-        const corTip = toWorld(
-          cfTip[0] + terms.coriolis[0] * ACC_ARROW_SCALE,
-          cfTip[1] + terms.coriolis[1] * ACC_ARROW_SCALE,
-        );
+        const corLocalX = cfLocalX + terms.coriolis[0] * ACC_ARROW_SCALE;
+        const corLocalY = cfLocalY + terms.coriolis[1] * ACC_ARROW_SCALE;
+        const corTip = embed(corLocalX, corLocalY);
         coriolisArrow.set({ from: cfTip, to: corTip });
         coriolisArrow.visible(rotOn);
         relativeArrow.set({ from: corTip, to: puckPosRot });

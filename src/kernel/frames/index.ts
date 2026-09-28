@@ -164,3 +164,36 @@ export function sphericalJacobian(r: number, theta: number, phi: number): Mat3 {
     [basis[6] * rSinTheta, basis[7] * rSinTheta, basis[8] * rSinTheta],
   );
 }
+
+/* ------------------------------ Up-axis plane ------------------------------ */
+//
+// X-42: a module with no notion of gravitational "vertical" but which
+// still draws a flat, 2D scene (non-inertial-frames, gravitation at
+// inclination 0, control-showcase, vector-algebra's `planar` mode) used
+// to hardcode that flat scene onto the world x-y plane. That is exactly
+// the plane the GLOBAL "2D-only" camera lock shows when `ctx.up` is
+// `'y'` (ADR 0009's default) — but under z-up the lock instead frames
+// the world x-z plane (`scene/camera/index.ts`'s `fromCanonical`), so a
+// module still drawing into x-y renders edge-on, a degenerate line.
+//
+// The fix is these two pure helpers: a "flat" module embeds its local
+// 2D (x, y) coordinate into whichever world plane the 2D-lock camera is
+// actually showing for the LIVE `ctx.up` — x-y under y-up (unchanged
+// from before X-42), x-z under z-up — via `embedPlanar`, and rotates
+// anything that needs to spin "in the page" about `planarNormal(up)`
+// instead of a hardcoded world Z. Both are pure functions of `up` alone
+// (no scene/three import — `UpAxis` is structurally `'y' | 'z'`, so a
+// caller can pass `ctx.up` directly without importing the scene-layer
+// type), so a module reads `ctx.up` live inside `update()` and calls
+// these every frame rather than caching a plane at `create()` time.
+export type UpAxis = 'y' | 'z';
+
+/** Embeds a local flat (x, y) point into the world plane the 2D-lock camera shows for `up`. */
+export function embedPlanar(up: UpAxis, x: number, y: number): Vec3 {
+  return up === 'y' ? [x, y, 0] : [x, 0, y];
+}
+
+/** The world axis normal to that same plane — what a "spin in the page" rotation is about. */
+export function planarNormal(up: UpAxis): Vec3 {
+  return up === 'y' ? [0, 0, 1] : [0, 1, 0];
+}

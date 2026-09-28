@@ -80,4 +80,41 @@ describe(module.manifest.id, () => {
     expect(fValue).toBeCloseTo(Math.sin(k), 10);
     expect(fValue).not.toBe(0);
   });
+
+  // X-42 golden test: `theta`'s angle arc used to be hardcoded straight
+  // onto world (cos, sin, 0) regardless of `ctx.up`, edge-on under z-up
+  // (the GLOBAL 2D-lock camera then shows world x-z, not world x-y —
+  // `scene/camera/index.ts`'s `fromCanonical`). Captures the arc's
+  // actual `.set({to})`, the same glyph-.set() capture pattern X-47 used.
+  it('under z-up, the angle arc embeds into world x-z, not world x-y', () => {
+    let capturedTo: [number, number, number] | null = null;
+    const zUpCtx = new Proxy({} as SceneContext, {
+      get(_target, prop) {
+        if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+        if (prop === 'up') return 'z';
+        if (prop === 'group') return (name: string) => ({ id: name });
+        if (prop === 'arc') {
+          return () => ({
+            set: (next: { to?: [number, number, number] }) => {
+              if (next.to) capturedTo = next.to;
+            },
+            visible: () => {},
+            dispose: () => {},
+          });
+        }
+        return () => noopHandle;
+      },
+    });
+
+    const instance = module.create(zUpCtx);
+    const state = defaultState();
+    state.params.theta = Math.PI / 2; // cos=0, sin=1 — an unambiguous discriminator
+    instance.update(state);
+
+    expect(capturedTo).not.toBeNull();
+    // World x-z (x unchanged, local y -> world z, world y stays 0).
+    expect(capturedTo![0]).toBeCloseTo(0, 10);
+    expect(capturedTo![1]).toBeCloseTo(0, 10);
+    expect(capturedTo![2]).toBeCloseTo(1, 10);
+  });
 });

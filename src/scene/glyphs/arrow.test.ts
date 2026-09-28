@@ -3,6 +3,12 @@ import * as THREE from 'three';
 import { createArrow } from './arrow';
 import { createFakeHost } from '../internal/fakeHost.test-utils';
 
+// X-49: the shaft is now a `Line2` (`LineSegments2` -> `THREE.Mesh`), so
+// a plain `instanceof THREE.Mesh` check also matches it, not just the
+// cone head/tailHead — use the exact constructor to find only a real
+// cone mesh, same discriminator every other migrated glyph's tests use.
+const isConeMesh = (c: THREE.Object3D): c is THREE.Mesh => c.constructor === THREE.Mesh;
+
 describe('createArrow', () => {
   it('attaches to the scene root when no group is given', () => {
     const host = createFakeHost();
@@ -24,7 +30,7 @@ describe('createArrow', () => {
     const handle = createArrow({ from: [0, 0, 0], to: [2, 0, 0] }, host);
     host.fireFrame();
     const root = host.root.children[0] as THREE.Group;
-    const head = root.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh;
+    const head = root.children.find(isConeMesh) as THREE.Mesh;
     expect(head.position.x).toBeGreaterThan(0);
     expect(head.position.x).toBeLessThanOrEqual(2);
     handle.dispose();
@@ -35,7 +41,7 @@ describe('createArrow', () => {
     const handle = createArrow({ from: [1, 1, 1], to: [1, 1, 1] }, host);
     host.fireFrame();
     const root = host.root.children[0] as THREE.Group;
-    const head = root.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh;
+    const head = root.children.find(isConeMesh) as THREE.Mesh;
     expect(head.visible).toBe(false);
     handle.dispose();
   });
@@ -46,7 +52,7 @@ describe('createArrow', () => {
     handle.set({ to: [0, 5, 0] });
     host.fireFrame();
     const root = host.root.children[0] as THREE.Group;
-    const head = root.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh;
+    const head = root.children.find(isConeMesh) as THREE.Mesh;
     expect(head.position.y).toBeGreaterThan(0);
     handle.dispose();
   });
@@ -56,7 +62,7 @@ describe('createArrow', () => {
     const handle = createArrow({ from: [0, 0, 0], to: [1, 0, 0], doubleHead: true }, host);
     host.fireFrame();
     const root = host.root.children[0] as THREE.Group;
-    const meshes = root.children.filter((c) => c instanceof THREE.Mesh) as THREE.Mesh[];
+    const meshes = root.children.filter(isConeMesh);
     expect(meshes.filter((m) => m.visible).length).toBe(2);
     handle.dispose();
   });

@@ -371,6 +371,66 @@ test('X-38: dark theme drives BOTH the scene background and the label overlay in
   expect(labelColor).toBe('rgb(238, 241, 246)'); // #eef1f6
 });
 
+test('X-49: projector mode actually thickens a vector arrow shaft (Line2/LineMaterial, not a no-op THREE.Line)', async ({
+  page,
+}) => {
+  // `a = [3, 0, 0]` — purely along world x, so under the default
+  // 2D-lock y-up view the shaft renders as a straight run of the arrow's
+  // exact flat colour (`ctx.palette.position`, `MeshBasicMaterial`-lit
+  // head + now `MeshBasicMaterial`-equivalent flat-shaded `LineMaterial`
+  // shaft, so it reads as one exact hex with no lighting gradient).
+  // Counting how many canvas pixels match that exact colour is a
+  // coordinate-free proxy for the shaft's rendered width: the head's
+  // own screen-space size (`HEAD_LENGTH_PX`) doesn't depend on
+  // `lineWidthMultiplier`, so any pixel-count increase between
+  // projector off/on is attributable to the shaft actually thickening.
+  const countMatchingPixels = async (url: string, forceReload = false): Promise<number> => {
+    await page.goto(url);
+    // Both URLs here differ only after the `#` (hash routing) — a
+    // fragment-only navigation is a same-document browser operation, so
+    // a second `page.goto()` to one does NOT remount the app or re-run
+    // its URL-decode effects (`[module]`-keyed, module id unchanged).
+    // Force a real reload so the second URL's `pj=1` actually takes
+    // effect from a fresh mount, the same as a real bookmark open would.
+    if (forceReload) await page.reload();
+    await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+    await page.waitForTimeout(300);
+    return page.evaluate(
+      ({ r, g, b }) =>
+        new Promise<number>((resolve) => {
+          requestAnimationFrame(() => {
+            const webgl = document.querySelector('canvas.pv-viewport-canvas') as HTMLCanvasElement;
+            const offscreen = document.createElement('canvas');
+            offscreen.width = webgl.width;
+            offscreen.height = webgl.height;
+            const ctx2d = offscreen.getContext('2d')!;
+            ctx2d.drawImage(webgl, 0, 0);
+            const { data } = ctx2d.getImageData(0, 0, offscreen.width, offscreen.height);
+            let count = 0;
+            for (let i = 0; i < data.length; i += 4) {
+              const dr = data[i] - r;
+              const dg = data[i + 1] - g;
+              const db = data[i + 2] - b;
+              if (Math.sqrt(dr * dr + dg * dg + db * db) < 12) count++;
+            }
+            resolve(count);
+          });
+        }),
+      // ctx.palette.position (#0072b2) — vector `a`'s colour.
+      { r: 0x00, g: 0x72, b: 0xb2 },
+    );
+  };
+
+  const withoutProjector = await countMatchingPixels('#/m/vector-algebra?a=3,0,0');
+  const withProjector = await countMatchingPixels('#/m/vector-algebra?a=3,0,0&pj=1', true);
+
+  expect(withoutProjector).toBeGreaterThan(0);
+  // getProjectorAdjustments(true).lineWidthMultiplier === 1.6 — a
+  // generous-but-real margin (not just anti-aliasing noise) over the
+  // un-projected pixel count.
+  expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
+});
+
 test('X-14: switching to a non-default rotational-dynamics panel actually renders its glyphs, not just their labels', async ({
   page,
 }) => {

@@ -1500,6 +1500,68 @@ src/modules/control-showcase/module.test.ts src/kernel/frames`: 56/56
   a sub-audit also reports `patch.applyProps` overwriting the opacity
   floor. Consider `Line2`/`LineMaterial` from `three/examples/jsm/lines`
   (no new dependency) (read-only)
+  **In progress — glyph-by-glyph, per the audit's own note that this
+  touches every line-drawing glyph (see ADR 0020 for the full plan and
+  the reusable pattern discovered):**
+  - [DONE] `arrow`'s shaft (`src/scene/glyphs/arrow.ts`) — migrated to
+    `Line2`/`LineGeometry`/`LineMaterial` (`worldUnits: false`,
+    `resolution` set every frame from `FrameInfo`, in-place position
+    buffer writes since a shaft is always exactly 2 points, `dashed` now
+    a real toggle instead of the old `dashSize: 1e6` fake-solid hack).
+    `Viewport.registerThemedMaterial`/`applyProjectorToMaterial` needed
+    ZERO changes — already generic, just had nothing listening before.
+    `arrow.test.ts`'s `instanceof THREE.Mesh` head/tailHead filters
+    switched to an exact-constructor check (`Line2` extends `Mesh` too).
+    Added an e2e test (`tests/e2e/smoke.spec.ts`, "X-49") counting
+    rendered canvas pixels matching the shaft's exact colour with vs.
+    without `?pj=1` — confirmed it fails against the pre-fix code (324
+    vs. 324, literally zero effect) and passes against the fix (>15%
+    increase); getting a reliable margin required raising the default
+    shaft width from an originally-planned 1.5px to 3px (still thin/
+    schematic) since the projector multiplier's effect at sub-2px widths
+    is real but too close to sub-pixel for a strict pixel-colour count to
+    reliably resolve, and required `page.reload()` after the second
+    `page.goto()` — a fragment-only URL change is a same-document
+    browser navigation, so it does NOT re-run the app's `[module]`-keyed
+    hydrate effect on its own. `npx vitest run src/scene/glyphs/arrow.test.ts`:
+    10/10 pass. Full sweep (`typecheck`, `lint`, `test:unit` 655/655,
+    `test:contract` 228/228, `build`, `check:budget`, `format:check`)
+    all pass. `npx playwright test tests/e2e/smoke.spec.ts --workers=3`:
+    37/37 pass (full smoke suite, not just the scoped subset, since
+    `arrow` is used by nearly every module).
+  - [READY] `path` (`src/scene/glyphs/path.ts`) — variable point count
+    per frame (a live trace/orbit outline), so unlike `arrow`'s shaft it
+    cannot use the in-place-buffer trick; will call `setPositions()`
+    per frame like the standard three.js Line2 usage pattern (ADR 0020's
+    §5 documents why that per-frame allocation is accepted as
+    unavoidable through the public API for a variable-length line).
+  - [READY] `curvedArrow` (`src/scene/glyphs/curvedArrow.ts`) — same
+    variable-point-count shape as `path`.
+  - [READY] `annotate/dimensionLine.ts` — fixed small point count
+    (like `arrow`'s shaft), likely another in-place-buffer candidate.
+  - [READY] `axes` (`src/scene/glyphs/axes.ts`) — the shell-owned
+    reference grid/axes glyph (`Viewport`'s own `gridHandle`, not
+    module-authored) — largely static per orientation, low per-frame
+    churn.
+  - [READY] `gridPlane` (`src/scene/glyphs/gridPlane.ts`) — same
+    shell-owned, low-churn shape as `axes`.
+  - [READY] `arc` (`src/scene/glyphs/arc.ts`) — used by
+    `control-showcase`'s angle arc and others; fixed sample count per
+    `radius`/`from`/`to`, likely rebuildable each `.set()` rather than
+    every frame (check whether it currently rebuilds per-frame or only
+    on prop change before choosing the in-place-vs-`setPositions`
+    approach).
+  - [READY] `frame` (`src/scene/glyphs/frame.ts`) — the RGB coordinate-
+    triad glyph; each axis is a fixed 2-point segment, another
+    in-place-buffer candidate.
+  - [READY] `surface`'s wireframe mode (`src/scene/glyphs/surface.ts`)
+    — the largest remaining migration (a full wireframe mesh's edges,
+    not a simple 2-endpoint shaft); scope this one out carefully before
+    starting, it may warrant its own ADR addendum.
+  - Not yet investigated: the `patch.applyProps` opacity-floor
+    overwrite the audit's sub-report also flagged under X-49 — confirm
+    whether it's still reproducible before folding a fix into a future
+    X-49 commit or splitting it into its own X-id.
 - [READY] **X-50** Stepped playback runs flat-out after a backgrounded
   tab resumes: the rAF `dt` is unclamped (`ModuleView.tsx:471`) and
   `FixedStepAccumulator` keeps its backlog past `MAX_STEPS_PER_FRAME`,

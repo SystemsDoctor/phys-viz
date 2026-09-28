@@ -5,6 +5,9 @@
  * See ARCHITECTURE.md §8.
  */
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
 import type { SubstrateHost } from '../internal/SubstrateHost';
@@ -27,6 +30,12 @@ export type ArrowHandle = Handle<ArrowProps>;
 const HEAD_LENGTH_PX = 16;
 const HEAD_RADIUS_RATIO = 0.4;
 const DEFAULT_COLOR = 0x12161d;
+// X-49: pixel screen-space width (`worldUnits: false`) — the previous
+// `THREE.Line`/`LineBasicMaterial` shaft's `linewidth` was silently
+// clamped to 1px by ANGLE on Chrome/Edge/Firefox/Windows regardless of
+// this value, which is exactly why `lineWidthMultiplier` (projector
+// mode, `scene/theme`) was a no-op; `LineMaterial` actually honours it.
+const SHAFT_LINE_WIDTH_PX = 3;
 
 // Shared, file-scope scratch — every onFrame callback across every arrow
 // instance runs synchronously in the same tick, one at a time, so reuse
@@ -42,20 +51,46 @@ function coneGeometry(): THREE.ConeGeometry {
   return new THREE.ConeGeometry(HEAD_RADIUS_RATIO, 1, 10);
 }
 
+/**
+ * `LineGeometry.setPositions()` always allocates a fresh
+ * `InstancedInterleavedBuffer` plus two new `InterleavedBufferAttribute`
+ * wrappers (three.js's own implementation, not something this file can
+ * change) — fine once at construction, but every glyph here moves its
+ * shaft every frame, and `kernel/math`'s scratch-pool doc comment is
+ * explicit about GC stutter being visible on a projector. Writing
+ * directly into the already-allocated interleaved buffer's typed array
+ * (found once, right after the one `setPositions()` call at
+ * construction) avoids that per-frame allocation entirely.
+ */
+function rawPositionBuffer(geometry: LineGeometry): Float32Array {
+  const attr = geometry.attributes.instanceStart as unknown as {
+    data: { array: Float32Array; needsUpdate: boolean };
+  };
+  return attr.data.array;
+}
+function markPositionBufferDirty(geometry: LineGeometry): void {
+  (
+    geometry.attributes.instanceStart as unknown as { data: { needsUpdate: boolean } }
+  ).data.needsUpdate = true;
+}
+
 export function createArrow(props: ArrowProps, host: SubstrateHost): ArrowHandle {
   const parent = host.resolveGroup(props.group);
   const root = new THREE.Group();
   parent.add(root);
 
-  const shaftGeometry = new THREE.BufferGeometry();
-  const shaftPositions = new Float32Array(6);
-  shaftGeometry.setAttribute('position', new THREE.BufferAttribute(shaftPositions, 3));
-  const shaftMaterial = new THREE.LineDashedMaterial({
+  const shaftGeometry = new LineGeometry();
+  shaftGeometry.setPositions([0, 0, 0, 0, 0, 0]);
+  const shaftPositions = rawPositionBuffer(shaftGeometry);
+  const shaftMaterial = new LineMaterial({
     color: DEFAULT_COLOR,
+    linewidth: SHAFT_LINE_WIDTH_PX,
+    worldUnits: false,
+    dashed: false,
     dashSize: 0.08,
     gapSize: 0.05,
   });
-  const shaft = new THREE.Line(shaftGeometry, shaftMaterial);
+  const shaft = new Line2(shaftGeometry, shaftMaterial);
   root.add(shaft);
   const unShaftTheme = host.registerThemedMaterial(shaftMaterial, 'line');
 
@@ -75,8 +110,12 @@ export function createArrow(props: ArrowProps, host: SubstrateHost): ArrowHandle
     const color = new THREE.Color(p.color ?? DEFAULT_COLOR);
     shaftMaterial.color.copy(color);
     headMaterial.color.copy(color);
-    shaftMaterial.dashSize = p.dashed ? 0.08 : 1e6;
-    shaftMaterial.gapSize = p.dashed ? 0.05 : 0;
+    // `LineMaterial.dashed` is a real toggle (unlike `LineDashedMaterial`,
+    // which had no "solid" mode — the previous code faked one with a
+    // dash length larger than any shaft could ever be).
+    shaftMaterial.dashed = !!p.dashed;
+    shaftMaterial.dashSize = 0.08;
+    shaftMaterial.gapSize = 0.05;
     tailHead.visible = !!p.doubleHead;
 
     if (p.label) {
@@ -90,6 +129,13 @@ export function createArrow(props: ArrowProps, host: SubstrateHost): ArrowHandle
   applyStaticProps(current);
 
   const unFrame = host.onFrame((info) => {
+    // X-49: `LineMaterial` renders in actual screen-space pixels, but
+    // only correctly once its `resolution` uniform matches the current
+    // renderer size — set every frame (a single `Vector2.set()`, no
+    // allocation) rather than wiring a separate resize hook, since
+    // `info.rendererWidth`/`rendererHeight` are already here every call.
+    shaftMaterial.resolution.set(info.rendererWidth, info.rendererHeight);
+
     const [fx, fy, fz] = current.from;
     const [tx, ty, tz] = current.to;
     scratchDir.set(tx - fx, ty - fy, tz - fz);
@@ -118,9 +164,13 @@ export function createArrow(props: ArrowProps, host: SubstrateHost): ArrowHandle
     shaftPositions[3] = shaftEndX;
     shaftPositions[4] = shaftEndY;
     shaftPositions[5] = shaftEndZ;
-    shaftGeometry.attributes.position.needsUpdate = true;
+    markPositionBufferDirty(shaftGeometry);
     shaftGeometry.computeBoundingSphere();
-    shaft.computeLineDistances();
+    // Only needed for the dashed variant (distance-based dash pattern) —
+    // this allocates a fresh buffer every call (three.js's own
+    // implementation), so skip it entirely on the far more common solid
+    // path.
+    if (current.dashed) shaft.computeLineDistances();
 
     scratchQuat.setFromUnitVectors(upHint, scratchDir);
     head.visible = true;

@@ -33,6 +33,7 @@ import { usePresenterKeymap, KeymapOverlay } from '../presenter';
 import { useAppStore, paramDefaults, DEFAULT_APP_STATE } from '../state/store';
 import type { AppState, ParamValue } from '../state/store';
 import { encodeState, decodeState } from '../state/urlCodec';
+import type { DecodedState } from '../state/urlCodec';
 import { runMigrations } from '../state/migrations';
 import { useHashSearch, navigateHash } from './hashRouter';
 import { DIMENSIONLESS } from '@/kernel/units';
@@ -49,6 +50,31 @@ const CAMERA_CYCLE = ['iso', '+x', '+y', '+z'] as const; // V key (§16)
 // own render loop is fully imperative (`instance.update()`, outside
 // React) and stays at full rate regardless of this throttle.
 const READOUT_THROTTLE_MS = 100;
+
+/**
+ * X-34: a bookmarked link's `up=`/`th=`/`pj=`/`gr=`/`gxy=`/`gxz=`/`gyz=`
+ * should take effect for the session it's opened in, without becoming a
+ * second persisted source of truth alongside the settings panel's
+ * localStorage profile (`prefsStorage.ts`). Returns a full prefs object
+ * with ONLY the fields the URL actually specified
+ * (`decoded.prefsPresent`) overriding `current` — everything else falls
+ * through to whatever's already live (saved profile, or an earlier
+ * session override) — or `undefined` when the URL specified no prefs at
+ * all, so the caller can skip touching `prefs` entirely.
+ */
+export function applyUrlPrefs(
+  current: AppState['prefs'],
+  decoded: DecodedState,
+): AppState['prefs'] | undefined {
+  if (!decoded.prefs || !decoded.prefsPresent) return undefined;
+  const patch: Partial<AppState['prefs']> = {};
+  for (const key of Object.keys(decoded.prefsPresent) as (keyof AppState['prefs'])[]) {
+    if (decoded.prefsPresent[key]) {
+      (patch as Record<string, unknown>)[key] = decoded.prefs[key];
+    }
+  }
+  return Object.keys(patch).length > 0 ? { ...current, ...patch } : undefined;
+}
 
 /**
  * X-41: owns the ONLY subscription to `state.time` in the whole
@@ -240,6 +266,10 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
         );
       }
     }
+    // X-34: apply a bookmarked link's up-axis/theme/projector/grid
+    // prefs for THIS SESSION only — never write them to localStorage
+    // (that stays the settings panel's job, via savePrefs).
+    const prefsOverride = applyUrlPrefs(useAppStore.getState().prefs, decoded);
     useAppStore.getState().hydrate({
       moduleId: module.manifest.id,
       params,
@@ -247,6 +277,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       time: decoded.time ?? DEFAULT_APP_STATE.time,
       camera: decoded.camera ?? defaultCamera,
       ui: DEFAULT_APP_STATE.ui,
+      ...(prefsOverride ? { prefs: prefsOverride } : {}),
     });
     setSeeded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps

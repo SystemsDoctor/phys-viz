@@ -306,6 +306,26 @@ test('settings menu (M3-41/42): up-axis choice persists across reload via localS
   await expect(page.locator('html')).toHaveClass(/projector-mode/);
 });
 
+test("X-34: a bookmarked link's up=/pj= prefs apply for the session, without touching the saved localStorage profile", async ({
+  page,
+}) => {
+  // Open a link carrying URL prefs the viewer's own saved profile
+  // doesn't have (default up axis is y, default projector is off).
+  await page.goto('#/m/vector-algebra?up=z&pj=1');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+
+  await page.getByLabel('Display settings').click();
+  await expect(page.getByLabel('Up axis')).toHaveValue('z');
+  await expect(page.getByRole('checkbox', { name: 'Projector mode' })).toBeChecked();
+  await expect(page.locator('html')).toHaveClass(/projector-mode/);
+
+  // Session-only per ADR 0017: this must NOT have been written to
+  // localStorage — savePrefs() is only ever called from the settings
+  // panel, never from this URL-hydration path.
+  const saved = await page.evaluate(() => window.localStorage.getItem('phys-viz:prefs'));
+  expect(saved).toBeNull();
+});
+
 test('X-14: switching to a non-default rotational-dynamics panel actually renders its glyphs, not just their labels', async ({
   page,
 }) => {

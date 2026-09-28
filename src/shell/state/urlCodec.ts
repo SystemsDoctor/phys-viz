@@ -268,6 +268,17 @@ export interface DecodedState extends Partial<AppState> {
    * already uses for an unmigratable OLDER version.
    */
   unrecognizedVersion?: boolean;
+  /**
+   * X-34: which of `prefs`'s fields were actually present in the URL
+   * (as opposed to `prefs` itself, which is always fully resolved —
+   * URL value if present, else `DEFAULT_PREFS`, same "fully resolved"
+   * contract every other field follows). A caller that wants to apply
+   * only the bookmark's explicit overrides on top of the viewer's own
+   * saved/session prefs — not stomp every other prefs field back to
+   * default — needs this to tell "absent" from "present and equal to
+   * the default".
+   */
+  prefsPresent?: Record<keyof AppState['prefs'], boolean>;
 }
 
 /** X-35: caps how large a `z=` blob's INPUT and its decompressed OUTPUT
@@ -366,6 +377,17 @@ function decodeStateInner(search: string, ctx: CodecContext): DecodedState {
     gridPlaneXZ: gxz === '1',
     gridPlaneYZ: gyz === '1',
   };
+  // X-34: record presence separately from value, so a caller can apply
+  // only the fields an author actually put in the bookmark.
+  out.prefsPresent = {
+    upAxis: up !== null,
+    theme: th !== null,
+    projector: pj !== null,
+    showGrid: gr !== null,
+    gridPlaneXY: gxy !== null,
+    gridPlaneXZ: gxz !== null,
+    gridPlaneYZ: gyz !== null,
+  };
 
   return out;
 }
@@ -387,6 +409,15 @@ function defaultsOnly(ctx: CodecContext): DecodedState {
     time: { t: 0, playing: false, speed: 1, direction: 1 },
     camera: defaultCamera,
     prefs: { ...DEFAULT_PREFS },
+    prefsPresent: {
+      upAxis: false,
+      theme: false,
+      projector: false,
+      showGrid: false,
+      gridPlaneXY: false,
+      gridPlaneXZ: false,
+      gridPlaneYZ: false,
+    },
   };
 }
 

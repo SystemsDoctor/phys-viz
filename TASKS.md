@@ -1150,12 +1150,37 @@ test tests/e2e/smoke.spec.ts -g "work-energy"`: 1/1 pass.
   `format:check`) all pass. `npx playwright test tests/e2e/smoke.spec.ts
 --workers=3`: 34/34 pass (sanity check — this touches the config
   every layer's own build depends on).
-- [READY] **X-34** URL prefs (`up=`/`th=`/`pj=`/`gr=`/`gxy=`/`gxz=`/`gyz=`)
+- [DONE] **X-34** URL prefs (`up=`/`th=`/`pj=`/`gr=`/`gxy=`/`gxz=`/`gyz=`)
   are encoded and decoded but never applied: `ModuleView.tsx:203-210`
   hydrates without `decoded.prefs` and `store.hydrate` keeps
   `get().prefs`. A z-up demo link opens y-up for a student. Decide:
   apply for the session (no `savePrefs`), or ADR retracting prefs from
   the URL
+  **Verified:** decision (pre-approved, ADR 0017): apply for the
+  session only, never persist. `urlCodec.ts`'s `decodeState` now also
+  returns `prefsPresent` (which of the 7 prefs keys were actually IN
+  the URL, as opposed to `prefs` itself which is always fully
+  resolved/default-filled). A new pure helper, `applyUrlPrefs(current,
+  decoded)` in `ModuleView.tsx`, merges only the URL-present fields
+  onto the viewer's current store prefs and returns `undefined` when
+  the URL had none — so `hydrate()` only touches `prefs` when there's
+  something to override, and an absent field falls through to the
+  viewer's saved/session prefs rather than snapping back to
+  `DEFAULT_PREFS`. `savePrefs`/`localStorage` is never called from this
+  path. Added 2 new `urlCodec.test.ts` cases for `prefsPresent` and 3
+  new `ModuleView.test.tsx` cases for `applyUrlPrefs` (including one
+  asserting it never reaches back to `DEFAULT_APP_STATE.prefs` for an
+  unspecified field) — confirmed all 4 new assertions (1 in urlCodec,
+  3 in ModuleView) fail against the pre-fix code (`applyUrlPrefs` didn't
+  exist; `prefsPresent` was `undefined`) and pass against the fix. `npx
+vitest run src/shell/routes/ModuleView.test.tsx
+  src/shell/state/urlCodec.test.ts`: 38/38 pass. Full sweep
+  (`typecheck`, `lint`, `test:unit` 649/649, `test:contract` 228/228,
+  `build`, `check:budget`, `format:check`) all pass. `npx playwright
+test tests/e2e/smoke.spec.ts -g "X-34|X-11|up-axis" --workers=2`: 3/3
+  pass, including a new e2e case confirming `?up=z&pj=1` applies
+  in-session AND that `localStorage['phys-viz:prefs']` stays untouched
+  by that path.
 - [DONE] **X-35** X-20's decode guard is incomplete (`urlCodec.ts`):
   `t=` is raw `Number` (NaN/negative/1e308 reach modules; `:261-262`);
   camera `c=` parts use `?? default`, which NaN passes (`:161-168`);

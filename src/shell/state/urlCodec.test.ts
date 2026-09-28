@@ -144,6 +144,30 @@ describe('encodeState / decodeState round-trip', () => {
     });
   });
 
+  it('X-34: prefsPresent flags only the fields actually present in the URL, not every field at default', () => {
+    // No prefs in the URL at all: every field reports absent.
+    expect(decodeState('', ctx).prefsPresent).toEqual({
+      upAxis: false,
+      theme: false,
+      projector: false,
+      showGrid: false,
+      gridPlaneXY: false,
+      gridPlaneXZ: false,
+      gridPlaneYZ: false,
+    });
+    // Only `up=` and `pj=` present — the rest, including gr= which has
+    // a non-boolean-looking default, must still be reported absent.
+    expect(decodeState('?up=z&pj=1', ctx).prefsPresent).toEqual({
+      upAxis: true,
+      theme: false,
+      projector: true,
+      showGrid: false,
+      gridPlaneXY: false,
+      gridPlaneXZ: false,
+      gridPlaneYZ: false,
+    });
+  });
+
   it('falls back to a compressed ?z= blob past 1800 characters and still round-trips', () => {
     const longExpr = 'x*'.repeat(2000) + 'x';
     const state = baseState({ params: { ...baseState().params, f: longExpr } });

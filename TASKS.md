@@ -1922,7 +1922,7 @@ unlockedProjection, timers?)` owns the live `ui.lockTo2D` change:
   `kernel/ode`, doctrine-compatible) that integrates the exact equations
   at a large Ω and checks the module's closed-form approximation tracks
   it within the fast-top regime's expected error
-- [READY] **X-62** `curvedArrow`'s head cone has the same centred-
+- [DONE] **X-62** `curvedArrow`'s head cone has the same centred-
   `ConeGeometry` quirk X-48 fixed for `arrow`: it is positioned AT the
   arc end (`curvedArrow.ts`, `head.position.copy(scratchPoint)`), so
   the visible tip overshoots the arc end by half a head length (14px/2)
@@ -1930,6 +1930,13 @@ unlockedProjection, timers?)` owns the live `ui.lockTo2D` change:
   Translate the cone once (as `arrow` does) and assert the apex lands on
   the arc end point, via the real head mesh like `arrow.test.ts`'s X-48
   tests
+  Verified: `curvedArrow.test.ts` gains 2 tests (counter-clockwise and
+  clockwise, oblique axis) taking the real head mesh's apex vertex through
+  its world matrix and matching the arc's last vertex; both FAIL against
+  the pre-fix `curvedArrow.ts` (stashed) and pass after. The cone is
+  translated once (base at origin, apex +y) and placed one head length
+  back along the tangent; the older "positions the tangential head" test
+  was updated to that base placement. File: 9/9.
 - [READY] **X-61** `patch.applyProps` clobbers the projector opacity
   floor (split out of X-49, where the audit's sub-report first flagged
   it): `createPatch` registers its material as a themed `'fill'` (so

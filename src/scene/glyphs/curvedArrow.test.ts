@@ -12,7 +12,47 @@ import { createFakeHost } from '../internal/fakeHost.test-utils';
 const isArcLine = (c: THREE.Object3D): c is Line2 => c.constructor === Line2;
 const isConeMesh = (c: THREE.Object3D): c is THREE.Mesh => c.constructor === THREE.Mesh;
 
+/** World position of a head cone's apex (its highest-y vertex, in local space). */
+function apexWorld(mesh: THREE.Mesh): THREE.Vector3 {
+  mesh.updateWorldMatrix(true, false);
+  const pos = mesh.geometry.attributes.position;
+  let apex = new THREE.Vector3();
+  let maxY = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) > maxY) {
+      maxY = pos.getY(i);
+      apex = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+    }
+  }
+  return mesh.localToWorld(apex);
+}
+
 describe('createCurvedArrow', () => {
+  // X-62: the cone was centred on its own origin but placed AT the arc end,
+  // so the visible tip overshot the arc end by half a head length.
+  for (const [name, start, end] of [
+    ['counter-clockwise', 0, Math.PI / 2],
+    ['clockwise', Math.PI / 2, 0],
+  ] as const) {
+    it(`the ${name} head apex lands exactly on the arc end (X-62)`, () => {
+      const host = createFakeHost();
+      const handle = createCurvedArrow(
+        { center: [0.5, -1, 2], axis: [0, 1, 1], radius: 1.5, startAngle: start, endAngle: end },
+        host,
+      );
+      host.fireFrame();
+      const root = host.root.children[0] as THREE.Group;
+      const line = root.children.find(isArcLine) as Line2;
+      const positions = rawPositionBuffer(line.geometry as LineGeometry);
+      const n = positions.length;
+      const apex = apexWorld(root.children.find(isConeMesh) as THREE.Mesh);
+      expect(apex.x).toBeCloseTo(positions[n - 3], 5);
+      expect(apex.y).toBeCloseTo(positions[n - 2], 5);
+      expect(apex.z).toBeCloseTo(positions[n - 1], 5);
+      handle.dispose();
+    });
+  }
+
   it('draws the arc as a Line2/LineMaterial that projector mode can thicken (X-49)', () => {
     const host = createFakeHost();
     const handle = createCurvedArrow(
@@ -93,9 +133,11 @@ describe('createCurvedArrow', () => {
     host.fireFrame();
     const root = host.root.children[0] as THREE.Group;
     const head = root.children.find(isConeMesh) as THREE.Mesh;
-    // endAngle = pi/2 -> point = center + radius*v = (1, 0, 0)
+    // endAngle = pi/2 -> point = center + radius*v = (1, 0, 0), tangent +y;
+    // X-62: the cone's BASE sits one head length back along the tangent.
     expect(head.position.x).toBeCloseTo(1, 5);
-    expect(head.position.y).toBeCloseTo(0, 5);
+    expect(head.scale.y).toBeGreaterThan(0);
+    expect(head.position.y).toBeCloseTo(-head.scale.y, 5);
     handle.dispose();
   });
 

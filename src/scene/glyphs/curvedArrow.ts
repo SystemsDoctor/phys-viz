@@ -44,6 +44,17 @@ const scratchTangent = new THREE.Vector3();
 const scratchQuat = new THREE.Quaternion();
 const upHint = new THREE.Vector3(0, 1, 0);
 
+/**
+ * Unit-height cone with its BASE at the local origin and its APEX at +y.
+ * `ConeGeometry` is centred on its origin, so a head positioned at the arc
+ * end overshot it by half a head length; the head is now placed one head
+ * length back along the tangent and the apex lands on the arc end (X-62,
+ * same fix as `arrow`'s X-48).
+ */
+function headGeometry(): THREE.ConeGeometry {
+  return new THREE.ConeGeometry(HEAD_RADIUS_RATIO, 1, 10).translate(0, 0.5, 0);
+}
+
 /** A right-handed (u, v, axis) basis so +angle runs counter-clockwise viewed from +axis (ADR 0008). */
 function computeBasis(axis: readonly [number, number, number]): void {
   scratchAxis.set(axis[0], axis[1], axis[2]).normalize();
@@ -92,7 +103,7 @@ export function createCurvedArrow(props: CurvedArrowProps, host: SubstrateHost):
   const unTheme = host.registerThemedMaterial(arcMaterial, 'line');
 
   const headMaterial = new THREE.MeshBasicMaterial({ color: DEFAULT_COLOR });
-  const head = new THREE.Mesh(new THREE.ConeGeometry(HEAD_RADIUS_RATIO, 1, 10), headMaterial);
+  const head = new THREE.Mesh(headGeometry(), headMaterial);
   root.add(head);
   const unHeadTheme = host.registerThemedMaterial(headMaterial, 'fill');
 
@@ -147,7 +158,7 @@ export function createCurvedArrow(props: CurvedArrowProps, host: SubstrateHost):
     const headLength =
       HEAD_LENGTH_PX * worldUnitsPerPixel(info.camera, distance, info.rendererHeight);
     head.scale.set(headLength, headLength, headLength);
-    head.position.copy(scratchPoint);
+    head.position.copy(scratchPoint).addScaledVector(scratchTangent, -headLength);
     scratchQuat.setFromUnitVectors(upHint, scratchTangent);
     head.quaternion.copy(scratchQuat);
   });

@@ -1,9 +1,37 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { createFrame } from './frame';
 import { createFakeHost } from '../internal/fakeHost.test-utils';
 
 describe('createFrame', () => {
+  it('draws its three axes as Line2/LineMaterial that projector mode can thicken (X-49)', () => {
+    const host = createFakeHost();
+    const handle = createFrame({ origin: [0, 0, 0], orientation: [0, 0, 0, 1], scale: 2 }, host);
+    const group = host.root.children[0] as THREE.Group;
+    const lines = group.children.filter((c) => c.constructor === Line2) as Line2[];
+    expect(lines.length).toBe(3);
+    const materials = lines.map((l) => l.material as LineMaterial);
+    for (const material of materials) {
+      expect(material).toBeInstanceOf(LineMaterial);
+      expect(material.linewidth).toBeGreaterThan(1);
+      expect(material.worldUnits).toBe(false);
+      expect(host.themedMaterials.some((m) => m.material === material && m.kind === 'line')).toBe(
+        true,
+      );
+    }
+    // Three distinct axis colours (x, y, z), not one shared material.
+    expect(new Set(materials.map((m) => m.color.getHex())).size).toBe(3);
+    host.fireFrame({ rendererWidth: 512, rendererHeight: 256 });
+    for (const material of materials) {
+      expect(material.resolution.x).toBe(512);
+      expect(material.resolution.y).toBe(256);
+    }
+    handle.dispose();
+    expect(host.themedMaterials.length).toBe(0);
+  });
+
   it('attaches to the scene root when no group or parent is given', () => {
     const host = createFakeHost();
     const handle = createFrame({ origin: [0, 0, 0], orientation: [0, 0, 0, 1] }, host);

@@ -11,6 +11,9 @@
  * the actual Object3D to attach under.
  */
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
 import type { SubstrateHost } from '../internal/SubstrateHost';
@@ -26,6 +29,10 @@ export interface FrameGlyphProps {
 export type FrameGlyphHandle = Handle<FrameGlyphProps>;
 
 const AXIS_COLORS = [0xd55e00, 0x009e73, 0x0072b2]; // x, y, z — conventional RGB-ish, orthogonal to the physics semantic palette
+// X-49: pixel screen-space width (see arrow.ts) — a real number the
+// projector multiplier can act on, unlike an ANGLE-clamped `THREE.Line`.
+// `worldUnits: false` keeps it constant under the frame's own `scale`.
+const AXIS_LINE_WIDTH_PX = 3;
 const AXES: readonly [number, number, number][] = [
   [1, 0, 0],
   [0, 1, 0],
@@ -37,20 +44,30 @@ const frameGroups = new WeakMap<FrameGlyphHandle, THREE.Group>();
 export function createFrame(props: FrameGlyphProps, host: SubstrateHost): FrameGlyphHandle {
   const root = new THREE.Group();
 
-  const lineGeometries: THREE.BufferGeometry[] = [];
-  const lineMaterials: THREE.LineBasicMaterial[] = [];
+  const lineGeometries: LineGeometry[] = [];
+  const lineMaterials: LineMaterial[] = [];
   const unThemes: Array<() => void> = [];
   for (let i = 0; i < 3; i++) {
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array([0, 0, 0, AXES[i][0], AXES[i][1], AXES[i][2]]);
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const material = new THREE.LineBasicMaterial({ color: AXIS_COLORS[i] });
-    const line = new THREE.Line(geometry, material);
+    // Fixed 2-point axis, never moved (the frame's transform does that),
+    // so one `setPositions()` at construction is all it ever needs.
+    const geometry = new LineGeometry();
+    geometry.setPositions([0, 0, 0, AXES[i][0], AXES[i][1], AXES[i][2]]);
+    const material = new LineMaterial({
+      color: AXIS_COLORS[i],
+      linewidth: AXIS_LINE_WIDTH_PX,
+      worldUnits: false,
+    });
+    const line = new Line2(geometry, material);
     root.add(line);
     lineGeometries.push(geometry);
     lineMaterials.push(material);
     unThemes.push(host.registerThemedMaterial(material, 'line'));
   }
+
+  const unFrame = host.onFrame((info) => {
+    for (const material of lineMaterials)
+      material.resolution.set(info.rendererWidth, info.rendererHeight);
+  });
 
   let attachedParent: THREE.Object3D | null = null;
 
@@ -85,6 +102,7 @@ export function createFrame(props: FrameGlyphProps, host: SubstrateHost): FrameG
       root.visible = show;
     },
     dispose() {
+      unFrame();
       for (const unTheme of unThemes) unTheme();
       attachedParent?.remove(root);
       for (const geometry of lineGeometries) geometry.dispose();

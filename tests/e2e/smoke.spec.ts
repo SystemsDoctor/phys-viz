@@ -1000,3 +1000,17 @@ test('X-49: projector mode actually thickens a per-plane grid (gridPlane glyph)'
   expect(withoutProjector).toBeGreaterThan(0);
   expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
 });
+
+test('X-49: projector mode actually thickens a coordinate-frame triad (frame glyph)', async ({
+  page,
+}) => {
+  // vector-algebra's "Components on rotated basis" layer (`L=cp`) draws a
+  // `ctx.frame` whose x axis is #d55e00; a = b = 0 and the grid off leave
+  // nothing else of that colour on screen.
+  const frameX = { r: 0xd5, g: 0x5e, b: 0x00 };
+  const base = '#/m/vector-algebra?a=0,0,0&b=0,0,0&L=cp&gr=0';
+  const withoutProjector = await countMatchingPixels(page, base, frameX, 40);
+  const withProjector = await countMatchingPixels(page, `${base}&pj=1`, frameX, 40, true);
+  expect(withoutProjector).toBeGreaterThan(0);
+  expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
+});

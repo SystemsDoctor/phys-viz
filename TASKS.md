@@ -1623,9 +1623,20 @@ context`, which passed solo and on the rerun (same transient-
     every frame (check whether it currently rebuilds per-frame or only
     on prop change before choosing the in-place-vs-`setPositions`
     approach).
-  - [READY] `frame` (`src/scene/glyphs/frame.ts`) — the RGB coordinate-
-    triad glyph; each axis is a fixed 2-point segment, another
-    in-place-buffer candidate.
+  - [DONE] `frame` (`src/scene/glyphs/frame.ts`) — three static
+    2-point `Line2` axes (one `setPositions()` each at construction;
+    nothing to update in place — the frame's own Group transform moves
+    them), 3px, `worldUnits: false` so the width is constant under the
+    frame's `scale`. One shared `onFrame` syncs all three materials'
+    `resolution` (unsubscribed in `dispose`). Verified: `frame.test.ts`
+    6/6 pass post-fix, 1/6 FAIL against the pre-fix file (new golden:
+    three `Line2`s with three distinct `LineMaterial` colours, linewidth
+    > 1, themed 'line', `resolution` synced). New e2e "X-49: ...
+    > coordinate-frame triad (frame glyph)" (vector-algebra `L=cp`, zero
+    > vectors, grid off, x-axis `#d55e00` within 40): 412 -> 550 with
+    > `?pj=1` post-fix; pre-fix fails (136 vs. 136). Full sweep
+    > (`test:unit` 664/664, `test:contract` 228/228) and full smoke
+    > (43/43, `--workers=3`) pass.
   - [READY] `surface`'s wireframe mode (`src/scene/glyphs/surface.ts`)
     — the largest remaining migration (a full wireframe mesh's edges,
     not a simple 2-endpoint shaft); scope this one out carefully before

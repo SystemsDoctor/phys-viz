@@ -69,6 +69,9 @@ function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x));
 }
 
+/** Vertices per side of each divergence-box face (also the span the shared colour range is sampled over). */
+const DIV_BOX_RESOLUTION = 6;
+
 /** Cube face parametrizations, each verified to produce an OUTWARD normal via ∂u×∂v (checked analytically and re-confirmed by the divergence-theorem golden test in module.test.ts). */
 function cubeFaces(center: V3, h: number): ((u: number, v: number) => V3)[] {
   const [cx, cy, cz] = center;
@@ -186,7 +189,7 @@ const module: PhysicsModule = {
         parametric: () => [0, 0, 0],
         uRange: [0, 1],
         vRange: [0, 1],
-        resolution: [6, 6],
+        resolution: [DIV_BOX_RESOLUTION, DIV_BOX_RESOLUTION],
       }),
     );
 
@@ -297,14 +300,32 @@ const module: PhysicsModule = {
         const boxCenter = s.params.boxCenter as V3;
         const boxHalfSize = s.params.boxHalfSize as number;
         const faces = cubeFaces(boxCenter, boxHalfSize);
+        const outwardFlux = (faceSurf: (u: number, v: number) => V3, u: number, v: number) => {
+          const [dSdu, dSdv] = surfacePartials(faceSurf, u, v);
+          const normal = normalize(cross(dSdu, dSdv));
+          return dot(F(faceSurf(u, v)), normal);
+        };
+        // X-45: all six faces share ONE symmetric colour range, so the sign
+        // and size of the flux are comparable between faces (outward and
+        // inward faces get opposite ends of the ramp, a zero-flux face is
+        // mid-colour) — normalising each face to its own min..max made a
+        // uniformly-fluxed face always render mid-colour. The bound is the
+        // largest |flux| at the vertices the faces are actually drawn at.
+        let maxAbsFlux = 0;
+        for (const faceSurf of faces) {
+          for (let vi = 0; vi <= DIV_BOX_RESOLUTION; vi++) {
+            for (let ui = 0; ui <= DIV_BOX_RESOLUTION; ui++) {
+              const flux = outwardFlux(faceSurf, ui / DIV_BOX_RESOLUTION, vi / DIV_BOX_RESOLUTION);
+              if (Math.abs(flux) > maxAbsFlux) maxAbsFlux = Math.abs(flux);
+            }
+          }
+        }
+        const fluxRange = maxAbsFlux > 1e-9 ? maxAbsFlux : 1;
         faces.forEach((faceSurf, i) => {
           divBoxFaces[i].set({
             parametric: (u, v) => mut3(faceSurf(u, v)),
-            colorField: (u, v) => {
-              const [dSdu, dSdv] = surfacePartials(faceSurf, u, v);
-              const normal = normalize(cross(dSdu, dSdv));
-              return dot(F(faceSurf(u, v)), normal);
-            },
+            colorField: (u, v) => outwardFlux(faceSurf, u, v),
+            colorRange: [-fluxRange, fluxRange],
           });
         });
         // Curl paddlewheel — zero pointer code: curlProbe is a plain

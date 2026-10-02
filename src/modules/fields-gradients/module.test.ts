@@ -28,7 +28,71 @@ function stateWith(overrides: Record<string, ModuleState['params'][string]>, t =
   return { params: { ...defaultParams(), ...overrides }, layers: {}, t };
 }
 
+/**
+ * A SceneContext that records every `surface()` call's creation props and
+ * every later `set()` payload, so a test can inspect what the module
+ * actually hands each glyph.
+ */
+function recordingCtx() {
+  const surfaces: { created: Record<string, unknown>; sets: Record<string, unknown>[] }[] = [];
+  const ctx = new Proxy({} as SceneContext, {
+    get(_target, prop) {
+      if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+      if (prop === 'up') return 'y';
+      if (prop === 'group') return (name: string) => ({ id: name });
+      if (prop === 'surface') {
+        return (created: Record<string, unknown>) => {
+          const rec = { created, sets: [] as Record<string, unknown>[] };
+          surfaces.push(rec);
+          return {
+            set: (next: Record<string, unknown>) => rec.sets.push(next),
+            visible: () => {},
+            dispose: () => {},
+          };
+        };
+      }
+      return () => noopHandle;
+    },
+  });
+  return { ctx, surfaces };
+}
+
 describe(module.manifest.id, () => {
+  // X-45: each divergence-box face used to normalise its colour ramp to
+  // its OWN min..max, so a uniformly-fluxed face always rendered mid-colour
+  // and outward / zero / inward flux were indistinguishable.
+  it('colours all six divergence-box faces on ONE shared symmetric range (X-45)', () => {
+    const { ctx, surfaces } = recordingCtx();
+    const instance = module.create(ctx);
+    // F = default field; a box off the origin so faces have different fluxes.
+    instance.update(stateWith({ boxCenter: [0.7, -0.3, 1.1] }));
+    const faces = surfaces.filter((s) => (s.created.resolution as number[])[0] === 6);
+    expect(faces.length).toBe(6);
+    const payloads = faces.map((f) => f.sets[f.sets.length - 1]);
+    const ranges = payloads.map((p) => p.colorRange as [number, number] | undefined);
+    for (const r of ranges) expect(r).toBeDefined();
+    const [lo, hi] = ranges[0]!;
+    expect(hi).toBeGreaterThan(0);
+    expect(lo).toBeCloseTo(-hi, 12); // symmetric: zero flux sits mid-ramp
+    for (const r of ranges) expect(r).toEqual([lo, hi]); // identical on every face
+    // ...and the range really bounds every drawn vertex's flux (nothing clamps).
+    for (const p of payloads) {
+      const colorField = p.colorField as (u: number, v: number) => number;
+      for (let vi = 0; vi <= 6; vi++) {
+        for (let ui = 0; ui <= 6; ui++) {
+          expect(Math.abs(colorField(ui / 6, vi / 6))).toBeLessThanOrEqual(hi + 1e-9);
+        }
+      }
+    }
+    // Opposite faces of a box in a field with non-zero divergence differ in
+    // sign somewhere: outward and inward flux must both occur.
+    const sampleFlux = payloads.map((p) =>
+      (p.colorField as (u: number, v: number) => number)(0.5, 0.5),
+    );
+    expect(Math.max(...sampleFlux)).toBeGreaterThan(0);
+    expect(Math.min(...sampleFlux)).toBeLessThan(0);
+  });
+
   it('has a manifest id matching its folder name', () => {
     expect(module.manifest.id).toBe('fields-gradients');
   });

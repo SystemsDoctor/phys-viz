@@ -17,6 +17,45 @@ function getWire(host: ReturnType<typeof createFakeHost>): LineSegments2 {
   return host.root.children.find((c): c is LineSegments2 => c.constructor === LineSegments2)!;
 }
 
+describe('createSurface colorRange (X-45)', () => {
+  // The rendered colour of a uniform-scalar surface: red channel of its
+  // first vertex (LOW 0x0072b2 has r=0, HIGH 0xd55e00 has r>0).
+  const uniformSurfaceRed = (value: number, colorRange?: [number, number]): number => {
+    const host = createFakeHost();
+    const handle = createSurface(
+      {
+        parametric: (u, v) => [u, v, 0],
+        uRange: [0, 1],
+        vRange: [0, 1],
+        resolution: [2, 2],
+        colorField: () => value,
+        colorRange,
+      },
+      host,
+    );
+    const red = getMesh(host).geometry.attributes.color.array[0] as number;
+    handle.dispose();
+    return red;
+  };
+
+  it('without colorRange a uniform scalar always renders mid-colour, whatever its sign (the bug)', () => {
+    expect(uniformSurfaceRed(-5)).toBeCloseTo(uniformSurfaceRed(5), 9);
+  });
+
+  it('with a shared fixed colorRange, negative / zero / positive uniform scalars render DIFFERENT colours, ordered along the ramp', () => {
+    const negative = uniformSurfaceRed(-1, [-1, 1]);
+    const zero = uniformSurfaceRed(0, [-1, 1]);
+    const positive = uniformSurfaceRed(1, [-1, 1]);
+    expect(negative).toBeLessThan(zero);
+    expect(zero).toBeLessThan(positive);
+  });
+
+  it('clamps scalars outside the range to the ramp ends', () => {
+    expect(uniformSurfaceRed(50, [-1, 1])).toBeCloseTo(uniformSurfaceRed(1, [-1, 1]), 9);
+    expect(uniformSurfaceRed(-50, [-1, 1])).toBeCloseTo(uniformSurfaceRed(-1, [-1, 1]), 9);
+  });
+});
+
 describe('createSurface', () => {
   it('evaluates the parametric function at every grid vertex', () => {
     const host = createFakeHost();

@@ -1471,10 +1471,30 @@ exceeded` out of `compileExpr`; 104 nested parens, a 500-term `2^2^…`
   `test:contract` 228/228, `build`, `check:budget`, `format:check`) all
   pass. `npx playwright test tests/e2e/smoke.spec.ts -g
 "rotational-dynamics" --workers=2`: 2/2 pass.
-- [READY] **X-45** `fields-gradients` divergence-box faces normalize
+- [DONE] **X-45** `fields-gradients` divergence-box faces normalize
   `colorField` per face (`surface.ts:108-114`, six separate surfaces at
   `index.ts:300-309`), so outward/zero/inward flux faces can render the
   same colour. Add an optional fixed `colorRange` to `surface` (Layer 1)
+  **Verified:** `SurfaceProps` gained optional `colorRange: [low, high]`
+  (values clamped; omitted = the old own-min..max behaviour, so every
+  other surface is unchanged; one-line note added to ARCHITECTURE.md's
+  glyph table). `fields-gradients` computes ONE symmetric range
+  `[-m, m]`, `m` = the largest |outward flux| at the vertices the six
+  faces are actually drawn at (new `DIV_BOX_RESOLUTION` shared by
+  creation and sampling), and passes it to all six `divBoxFaces[i].set()`
+  calls, so outward/zero/inward flux land at the ramp's ends/middle.
+  Golden tests: `surface.test.ts` "createSurface colorRange (X-45)" (3
+  tests; the sign-ordering one FAILS pre-fix, the "uniform scalar is
+  always mid-colour whatever its sign" one documents the old behaviour)
+  and `fields-gradients/module.test.ts` "colours all six divergence-box
+  faces on ONE shared symmetric range" — captures the actual `.set()`
+  payloads of the six faces (identical symmetric `colorRange`, bounds
+  every drawn vertex's flux, both signs occur); FAILS pre-fix
+  (`colorRange` undefined). Against the pre-fix files 2 of the 21 tests
+  in those two files fail. Full sweep (`test:unit` 677/677,
+  `test:contract` 228/228) pass; smoke 44/45 on `--workers=3` — the one
+  failure was `gravitation: renders ... disposes its WebGL context`, the
+  known X-18 flake (passes solo).
 - [READY] **X-46** `rotational-dynamics` Dzhanibekov panel always spins
   about body y (`reset()`, `index.ts:654`) and reports
   `dzOmegaIntermediate: w2` (`:624`); with an edited `boxSize` (e.g.

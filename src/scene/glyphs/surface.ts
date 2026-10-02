@@ -33,6 +33,14 @@ export interface SurfaceProps {
   vRange: [number, number];
   resolution?: [number, number];
   colorField?: (u: number, v: number) => number;
+  /**
+   * Fixed `[low, high]` scalar range the colour ramp maps onto (values
+   * outside are clamped). Omitted: the ramp spans this surface's OWN
+   * min..max, so a surface with a uniform scalar always renders
+   * mid-colour. Pass the same range to several surfaces to make their
+   * colours comparable across surfaces (X-45).
+   */
+  colorRange?: [number, number];
   wireframe?: boolean;
   clipPlane?: { point: [number, number, number]; normal: [number, number, number] };
 }
@@ -148,9 +156,11 @@ export function createSurface(props: SurfaceProps, host: SubstrateHost): Surface
     geometry.computeBoundingSphere();
 
     if (p.colorField) {
-      const range = maxScalar - minScalar;
+      const lo = p.colorRange ? p.colorRange[0] : minScalar;
+      const range = (p.colorRange ? p.colorRange[1] : maxScalar) - lo;
       for (let i = 0; i < vertexCount; i++) {
-        const t = range > 1e-12 ? (scalars[i] - minScalar) / range : 0.5;
+        const raw = range > 1e-12 ? (scalars[i] - lo) / range : 0.5;
+        const t = raw < 0 ? 0 : raw > 1 ? 1 : raw;
         scratchColor.copy(LOW_COLOR).lerp(HIGH_COLOR, t);
         colors[i * 3] = scratchColor.r;
         colors[i * 3 + 1] = scratchColor.g;

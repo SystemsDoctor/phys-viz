@@ -1563,8 +1563,21 @@ src/modules/control-showcase/module.test.ts src/kernel/frames`: 56/56
     matching pixels with `?pj=1` post-fix; pre-fix fails (252 vs. 252,
     needs > 289). Full sweep (`test:unit` 657/657, `test:contract`
     228/228) and full smoke (39/39, `--workers=3`) pass.
-  - [READY] `annotate/dimensionLine.ts` — fixed small point count
-    (like `arrow`'s shaft), likely another in-place-buffer candidate.
+  - [DONE] `annotate/dimensionLine.ts` — fixed 2-point line, `Line2`
+    with in-place writes (3px; a first 2px attempt was too close to
+    sub-pixel to measure, same lesson as arrow). `dashed` is now a real
+    `LineMaterial.dashed` toggle (`computeLineDistances` only when
+    dashed) instead of the `dashSize: 1e6` fake-solid hack. It had NO
+    test file; added `src/scene/annotate/dimensionLine.test.ts` (4
+    tests: Line2/LineMaterial/themed/resolution golden, endpoints +
+    perpendicular-offset buffer contents, dashed toggle, label
+    lifecycle). Verified: 4/4 pass post-fix, 3/4 FAIL against the
+    pre-fix file. New e2e "X-49: ... dimensionLine (work-energy
+    kinetic-energy bracket)" (`t=0.5&gr=0`, pixel count clipped to the
+    bracket's column via a new optional `clip` arg on the shared
+    `countMatchingPixels`): 753 -> 900 post-fix; pre-fix fails (576 vs.
+    549). Full sweep (`test:unit` 661/661, `test:contract` 228/228) and
+    full smoke (40/40, `--workers=3`) pass.
   - [READY] `axes` (`src/scene/glyphs/axes.ts`) — the shell-owned
     reference grid/axes glyph (`Viewport`'s own `gridHandle`, not
     module-authored) — largely static per orientation, low per-frame

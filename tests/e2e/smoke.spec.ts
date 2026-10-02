@@ -388,13 +388,15 @@ async function countMatchingPixels(
   rgb: { r: number; g: number; b: number },
   tol = 12,
   forceReload = false,
+  /** Optional clip rect in canvas fractions (0..1) to isolate one glyph. */
+  clip: { x0: number; x1: number; y0: number; y1: number } = { x0: 0, x1: 1, y0: 0, y1: 1 },
 ): Promise<number> {
   await page.goto(url);
   if (forceReload) await page.reload();
   await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
   await page.waitForTimeout(300);
   return page.evaluate(
-    ({ r, g, b, tol }) =>
+    ({ r, g, b, tol, clip }) =>
       new Promise<number>((resolve) => {
         requestAnimationFrame(() => {
           const webgl = document.querySelector('canvas.pv-viewport-canvas') as HTMLCanvasElement;
@@ -403,7 +405,11 @@ async function countMatchingPixels(
           offscreen.height = webgl.height;
           const ctx2d = offscreen.getContext('2d')!;
           ctx2d.drawImage(webgl, 0, 0);
-          const { data } = ctx2d.getImageData(0, 0, offscreen.width, offscreen.height);
+          const x0 = Math.floor(clip.x0 * offscreen.width);
+          const y0 = Math.floor(clip.y0 * offscreen.height);
+          const w = Math.floor((clip.x1 - clip.x0) * offscreen.width);
+          const h = Math.floor((clip.y1 - clip.y0) * offscreen.height);
+          const { data } = ctx2d.getImageData(x0, y0, w, h);
           let count = 0;
           for (let i = 0; i < data.length; i += 4) {
             const dr = data[i] - r;
@@ -414,7 +420,7 @@ async function countMatchingPixels(
           resolve(count);
         });
       }),
-    { ...rgb, tol },
+    { ...rgb, tol, clip },
   );
 }
 
@@ -936,6 +942,22 @@ test('X-49: projector mode actually thickens a curvedArrow arc (vector-algebra r
   const base = '#/m/vector-algebra?a=1,0,0&b=0,1,0&L=xp&gr=0';
   const withoutProjector = await countMatchingPixels(page, base, angular, 20);
   const withProjector = await countMatchingPixels(page, `${base}&pj=1`, angular, 20, true);
+  expect(withoutProjector).toBeGreaterThan(0);
+  expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
+});
+
+test('X-49: projector mode actually thickens a dimensionLine (work-energy kinetic-energy bracket)', async ({
+  page,
+}) => {
+  // The dimension line is drawn in flat black (grid off via `gr=0`;
+  // labels are DOM, not canvas). At t=0.5 the bracket is non-degenerate.
+  const black = { r: 0, g: 0, b: 0 };
+  const base = '#/m/work-energy?t=0.5&gr=0';
+  // Clip to the vertical dashed bracket's column (above the ball and the
+  // potential curve) so only the dimension line's own pixels are counted.
+  const clip = { x0: 0.33, x1: 0.39, y0: 0.28, y1: 0.5 };
+  const withoutProjector = await countMatchingPixels(page, base, black, 170, false, clip);
+  const withProjector = await countMatchingPixels(page, `${base}&pj=1`, black, 170, true, clip);
   expect(withoutProjector).toBeGreaterThan(0);
   expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
 });

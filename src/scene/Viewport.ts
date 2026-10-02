@@ -402,6 +402,13 @@ export class Viewport {
         materials.push({ material: m, baseOpacity: m.opacity, wasTransparent: m.transparent });
         m.transparent = true;
         m.opacity = 0;
+        // three bakes `transparent === false` into the compiled program as
+        // `#define OPAQUE` (alpha forced to 1 — WebGLPrograms.js `opaque`),
+        // and none of the renderer's cheap per-draw "does the program need
+        // rebuilding" checks look at `transparent`, so a material that has
+        // already been drawn opaque would keep ignoring the fade's opacity
+        // until something else bumped its version (X-55).
+        m.needsUpdate = true;
       }
     });
     this.activeFades.set(name, { group, materials, startMs: null });
@@ -419,6 +426,7 @@ export class Viewport {
         for (const m of fade.materials) {
           m.material.opacity = m.baseOpacity;
           m.material.transparent = m.wasTransparent;
+          m.material.needsUpdate = true; // recompile back to the opaque program (X-55)
         }
         this.activeFades.delete(name);
       }

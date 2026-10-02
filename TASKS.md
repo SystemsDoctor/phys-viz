@@ -1812,12 +1812,29 @@ disposes its WebGL context`, the known X-18 flake (passes solo).
   pre-fix; the existing fade test now passes `persistence` explicitly.
   Full sweep (`test:unit` 701/701, `test:contract` 228/228) and full
   smoke (46/46, `--workers=3`) pass.
-- [READY] **X-55** Layer fade-in is a no-op for any layer that has been
+- [DONE] **X-55** Layer fade-in is a no-op for any layer that has been
   drawn before: `Viewport.ts:352` flips `material.transparent` without
   `needsUpdate`, and three r160 bakes `OPAQUE` (alpha forced to 1) from
   `transparent` into the compiled program (`WebGLPrograms.js:248`); no
   `needsProgramChange` check looks at `transparent`. Set `needsUpdate`
   at fade start and end (read-only — confirmed from three.js source)
+  **Verified:** `Viewport.setGroupVisible` now sets `m.needsUpdate = true`
+  when it flips `transparent` on at fade start, and
+  `advanceFades` sets it again when it restores `wasTransparent` at the
+  end (so the material recompiles back to the opaque program). New e2e
+  "X-55: re-showing a layer that was drawn before actually fades it in":
+  Playwright's fake clock (`install({time: 0})`, frozen with `pauseAt`
+  so Playwright's own real-time actions can't finish the 150 ms fade),
+  gravitation's default-on `vectors` layer unchecked then re-checked,
+  one 16 ms frame into the fade, counting the velocity arrowhead's flat
+  green from a canvas SCREENSHOT (the on-demand viewport's WebGL buffer
+  reads blank when idle — an early version of this test sampled that and
+  was flaky): 281 px settled -> **0** early in the fade -> 281 settled
+  post-fix; pre-fix the head pops in at once (79 px early, needs < 28).
+  (The arrow shaft is a `LineMaterial`, whose shader writes alpha itself,
+  so only mesh materials showed the bug.) Full sweep (`test:unit`
+  701/701, `test:contract` 228/228) and the ENTIRE Playwright suite
+  (`--workers=3`: 53/53, repeated 6+ times stable) pass.
 - [READY] **X-56** Service-worker update notice is missed when a worker
   is already `waiting` at page load: only `updatefound` triggers it
   (`register.ts:43-55`). After `register()`, notify if

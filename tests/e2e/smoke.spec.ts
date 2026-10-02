@@ -1085,3 +1085,69 @@ test('X-50: a backgrounded tab resuming does not make stepped playback race', as
   expect(t).toBeGreaterThan(0.3);
   expect(t).toBeLessThan(2);
 });
+
+test('X-55: re-showing a layer that was drawn before actually fades it in (opaque-program bake)', async ({
+  page,
+}) => {
+  // three bakes OPAQUE (alpha forced to 1) into a mesh material's compiled
+  // program when `transparent` is false. The fade flips `transparent` on
+  // (and opacity to 0) without `needsUpdate`, so for a layer already drawn
+  // once the program stays opaque and the "fade-in" is a hard pop to full
+  // colour. Gravitation's velocity arrowhead (flat green MeshBasicMaterial,
+  // in the default-on `vectors` layer) is such a mesh.
+  await page.clock.install({ time: 0 });
+  await page.goto('#/m/gravitation?gr=0');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+  await page.clock.runFor(1000);
+  // Freeze time: Playwright's own actions (check/uncheck) take real time
+  // that a running fake clock would count, finishing the 150 ms fade
+  // before we could look at it on a loaded machine. From here the fade
+  // only advances when this test says so.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+
+  const layer = page.getByRole('checkbox', { name: /Position, velocity & gravity vectors/ });
+  // Count pixels of the arrowhead's green in what the compositor currently
+  // shows. A screenshot (not `drawImage` on the live WebGL canvas) because
+  // the viewport renders on demand and a WebGL drawing buffer is only
+  // readable in the frame that rendered it — a settled scene reads blank.
+  const countGreen = async (): Promise<number> => {
+    const png = await page.locator('canvas.pv-viewport-canvas').screenshot();
+    return page.evaluate(async (b64) => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${b64}`;
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.width;
+      c.height = img.height;
+      const ctx2d = c.getContext('2d')!;
+      ctx2d.drawImage(img, 0, 0);
+      const { data } = ctx2d.getImageData(0, 0, c.width, c.height);
+      let count = 0;
+      for (let k = 0; k < data.length; k += 4) {
+        const dr = data[k] - 0x00;
+        const dg = data[k + 1] - 0x9e;
+        const db = data[k + 2] - 0x73;
+        if (Math.sqrt(dr * dr + dg * dg + db * db) < 30) count++;
+      }
+      return count;
+    }, png.toString('base64'));
+  };
+
+  const settledBefore = await countGreen();
+  expect(settledBefore).toBeGreaterThan(0);
+
+  await layer.uncheck();
+  await page.clock.runFor(300);
+  await layer.check();
+  await page.clock.runFor(16); // one frame into the 150 ms fade
+  const earlyInFade = await countGreen();
+  await page.clock.runFor(500);
+  const settledAfter = await countGreen();
+
+  expect(settledAfter).toBeGreaterThan(settledBefore * 0.8);
+  // The arrow SHAFT is a LineMaterial (its shader writes alpha itself, so it
+  // fades correctly either way); the flat-green HEAD is the MeshBasicMaterial
+  // that pops. One frame into a working 150 ms fade nothing is visible yet
+  // (measured 2 of 283 px); with the bug the head pops in at once (81 of 283).
+  expect(earlyInFade).toBeLessThan(settledAfter * 0.1);
+});

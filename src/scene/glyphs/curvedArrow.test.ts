@@ -1,9 +1,39 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import type { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { createCurvedArrow } from './curvedArrow';
+import { rawPositionBuffer } from '../internal/line2';
 import { createFakeHost } from '../internal/fakeHost.test-utils';
 
+// X-49: the arc is a `Line2` (a `THREE.Mesh` subclass), so only an
+// exact-constructor check finds the real cone head.
+const isArcLine = (c: THREE.Object3D): c is Line2 => c.constructor === Line2;
+const isConeMesh = (c: THREE.Object3D): c is THREE.Mesh => c.constructor === THREE.Mesh;
+
 describe('createCurvedArrow', () => {
+  it('draws the arc as a Line2/LineMaterial that projector mode can thicken (X-49)', () => {
+    const host = createFakeHost();
+    const handle = createCurvedArrow(
+      { center: [0, 0, 0], axis: [0, 0, 1], radius: 1, startAngle: 0, endAngle: Math.PI / 2 },
+      host,
+    );
+    const root = host.root.children[0] as THREE.Group;
+    const line = root.children.find(isArcLine) as Line2;
+    expect(line).toBeDefined();
+    const material = line.material as LineMaterial;
+    expect(material).toBeInstanceOf(LineMaterial);
+    expect(material.linewidth).toBeGreaterThan(1);
+    expect(host.themedMaterials.some((m) => m.material === material && m.kind === 'line')).toBe(
+      true,
+    );
+    host.fireFrame({ rendererWidth: 640, rendererHeight: 480 });
+    expect(material.resolution.x).toBe(640);
+    expect(material.resolution.y).toBe(480);
+    handle.dispose();
+  });
+
   it('builds an arc line attached to the scene root', () => {
     const host = createFakeHost();
     const handle = createCurvedArrow(
@@ -11,7 +41,7 @@ describe('createCurvedArrow', () => {
       host,
     );
     const root = host.root.children[0] as THREE.Group;
-    const line = root.children.find((c) => c instanceof THREE.Line) as THREE.Line;
+    const line = root.children.find(isArcLine) as Line2;
     expect(line).toBeDefined();
     handle.dispose();
   });
@@ -28,8 +58,8 @@ describe('createCurvedArrow', () => {
       host,
     );
     const root = host.root.children[0] as THREE.Group;
-    const line = root.children.find((c) => c instanceof THREE.Line) as THREE.Line;
-    const positions = line.geometry.attributes.position.array;
+    const line = root.children.find(isArcLine) as Line2;
+    const positions = rawPositionBuffer(line.geometry as LineGeometry);
     // start (angle=0): center + radius*u = (0, -2, 0)
     expect(positions[0]).toBeCloseTo(0, 5);
     expect(positions[1]).toBeCloseTo(-2, 5);
@@ -42,8 +72,8 @@ describe('createCurvedArrow', () => {
       host,
     );
     const root = host.root.children[0] as THREE.Group;
-    const line = root.children.find((c) => c instanceof THREE.Line) as THREE.Line;
-    const positions = line.geometry.attributes.position.array;
+    const line = root.children.find(isArcLine) as Line2;
+    const positions = rawPositionBuffer(line.geometry as LineGeometry);
     const p0 = new THREE.Vector3(positions[0], positions[1], positions[2]); // angle=0 -> radius*u
     const pEnd = new THREE.Vector3(
       positions[positions.length - 3],
@@ -62,7 +92,7 @@ describe('createCurvedArrow', () => {
     );
     host.fireFrame();
     const root = host.root.children[0] as THREE.Group;
-    const head = root.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh;
+    const head = root.children.find(isConeMesh) as THREE.Mesh;
     // endAngle = pi/2 -> point = center + radius*v = (1, 0, 0)
     expect(head.position.x).toBeCloseTo(1, 5);
     expect(head.position.y).toBeCloseTo(0, 5);

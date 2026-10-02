@@ -36,3 +36,30 @@ export function rawColorBuffer(geometry: LineGeometry): Float32Array {
 export function markColorBufferDirty(geometry: LineGeometry): void {
   interleaved(geometry, 'instanceColorStart').data.needsUpdate = true;
 }
+
+/**
+ * Writes polyline vertex `i` (of `pointCount`) into a raw segment-record
+ * buffer from `rawPositionBuffer`/`rawColorBuffer`: it is the START of
+ * record `i` and the END of record `i - 1`.
+ */
+export function setPolylineVertex(
+  buffer: Float32Array,
+  i: number,
+  pointCount: number,
+  a: number,
+  b: number,
+  c: number,
+): void {
+  if (i < pointCount - 1) {
+    const o = i * 6;
+    buffer[o] = a;
+    buffer[o + 1] = b;
+    buffer[o + 2] = c;
+  }
+  if (i > 0) {
+    const o = (i - 1) * 6 + 3;
+    buffer[o] = a;
+    buffer[o + 1] = b;
+    buffer[o + 2] = c;
+  }
+}

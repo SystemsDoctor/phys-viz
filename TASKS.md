@@ -1549,8 +1549,20 @@ src/modules/control-showcase/module.test.ts src/kernel/frames`: 56/56
     > needs > 72). Smoke helper `countMatchingPixels` hoisted to file
     > scope, now shared. Full sweep (`test:unit` 656/656, `test:contract`
     > 228/228) and full smoke (38/38, `--workers=3`) pass.
-  - [READY] `curvedArrow` (`src/scene/glyphs/curvedArrow.ts`) — same
-    variable-point-count shape as `path`.
+  - [DONE] `curvedArrow` (`src/scene/glyphs/curvedArrow.ts`) — fixed
+    `SEGMENTS + 1` points, so `Line2` with in-place writes through a new
+    shared `setPolylineVertex` helper (`internal/line2.ts`) — no
+    per-frame or per-`set()` allocation. Arc width 3px. Verified:
+    `curvedArrow.test.ts` 7/7 pass post-fix, 4/7 FAIL against the
+    pre-fix file, incl. new golden "draws the arc as a Line2/LineMaterial
+    that projector mode can thicken" (constructor, linewidth > 1,
+    registered as themed 'line', `resolution` synced); the existing
+    head test switched to an exact-constructor `isConeMesh`. New e2e
+    "X-49: ... curvedArrow arc (vector-algebra right-hand-rule curl)"
+    (`a=1,0,0&b=0,1,0&L=xp&gr=0`, cross arrow end-on): 760 -> 1232
+    matching pixels with `?pj=1` post-fix; pre-fix fails (252 vs. 252,
+    needs > 289). Full sweep (`test:unit` 657/657, `test:contract`
+    228/228) and full smoke (39/39, `--workers=3`) pass.
   - [READY] `annotate/dimensionLine.ts` — fixed small point count
     (like `arrow`'s shaft), likely another in-place-buffer candidate.
   - [READY] `axes` (`src/scene/glyphs/axes.ts`) — the shell-owned

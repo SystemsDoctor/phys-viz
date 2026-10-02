@@ -3,9 +3,13 @@
  * See ARCHITECTURE.md §8.
  */
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
 import type { SubstrateHost } from '../internal/SubstrateHost';
+import { rawPositionBuffer, markPositionBufferDirty, setPolylineVertex } from '../internal/line2';
 import { worldUnitsPerPixel } from '../internal/screenSpace';
 import { createLabel } from '../annotate/label';
 import type { LabelHandle } from '../annotate/label';
@@ -27,6 +31,9 @@ const SEGMENTS = 48;
 const HEAD_LENGTH_PX = 14;
 const HEAD_RADIUS_RATIO = 0.4;
 const DEFAULT_COLOR = 0x12161d;
+// X-49: pixel screen-space width (see arrow.ts) — a real number projector
+// mode's multiplier can act on, unlike a ANGLE-clamped `THREE.Line`.
+const ARC_LINE_WIDTH_PX = 3;
 
 const scratchAxis = new THREE.Vector3();
 const scratchHelper = new THREE.Vector3();
@@ -72,11 +79,15 @@ export function createCurvedArrow(props: CurvedArrowProps, host: SubstrateHost):
   const root = new THREE.Group();
   parent.add(root);
 
-  const arcGeometry = new THREE.BufferGeometry();
-  const arcPositions = new Float32Array((SEGMENTS + 1) * 3);
-  arcGeometry.setAttribute('position', new THREE.BufferAttribute(arcPositions, 3));
-  const arcMaterial = new THREE.LineBasicMaterial({ color: DEFAULT_COLOR });
-  const arcLine = new THREE.Line(arcGeometry, arcMaterial);
+  const arcGeometry = new LineGeometry();
+  arcGeometry.setPositions(new Float32Array((SEGMENTS + 1) * 3));
+  const arcPositions = rawPositionBuffer(arcGeometry);
+  const arcMaterial = new LineMaterial({
+    color: DEFAULT_COLOR,
+    linewidth: ARC_LINE_WIDTH_PX,
+    worldUnits: false,
+  });
+  const arcLine = new Line2(arcGeometry, arcMaterial);
   root.add(arcLine);
   const unTheme = host.registerThemedMaterial(arcMaterial, 'line');
 
@@ -93,11 +104,16 @@ export function createCurvedArrow(props: CurvedArrowProps, host: SubstrateHost):
     for (let i = 0; i <= SEGMENTS; i++) {
       const angle = p.startAngle + ((p.endAngle - p.startAngle) * i) / SEGMENTS;
       pointAt(p.center, p.radius, angle, scratchPoint);
-      arcPositions[i * 3] = scratchPoint.x;
-      arcPositions[i * 3 + 1] = scratchPoint.y;
-      arcPositions[i * 3 + 2] = scratchPoint.z;
+      setPolylineVertex(
+        arcPositions,
+        i,
+        SEGMENTS + 1,
+        scratchPoint.x,
+        scratchPoint.y,
+        scratchPoint.z,
+      );
     }
-    arcGeometry.attributes.position.needsUpdate = true;
+    markPositionBufferDirty(arcGeometry);
     arcGeometry.computeBoundingSphere();
   }
 
@@ -121,6 +137,7 @@ export function createCurvedArrow(props: CurvedArrowProps, host: SubstrateHost):
   applyStaticProps(current);
 
   const unFrame = host.onFrame((info) => {
+    arcMaterial.resolution.set(info.rendererWidth, info.rendererHeight);
     computeBasis(current.axis);
     pointAt(current.center, current.radius, current.endAngle, scratchPoint);
     tangentAt(current.endAngle, scratchTangent);

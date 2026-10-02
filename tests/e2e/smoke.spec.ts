@@ -924,3 +924,18 @@ test('X-49: projector mode actually thickens a path trace (gravitation orbit out
   expect(withoutProjector).toBeGreaterThan(0);
   expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
 });
+
+test('X-49: projector mode actually thickens a curvedArrow arc (vector-algebra right-hand-rule curl)', async ({
+  page,
+}) => {
+  // a = x̂, b = ŷ puts a×b along +z, i.e. straight at the default 2D
+  // camera: the cross-product arrow itself is end-on (a point), so the
+  // visible `palette.angular` (#7a4fbf) stroke is the curl arc. Grid off
+  // via `gr=0` so no axis lines share the pixel pool.
+  const angular = { r: 0x7a, g: 0x4f, b: 0xbf };
+  const base = '#/m/vector-algebra?a=1,0,0&b=0,1,0&L=xp&gr=0';
+  const withoutProjector = await countMatchingPixels(page, base, angular, 20);
+  const withProjector = await countMatchingPixels(page, `${base}&pj=1`, angular, 20, true);
+  expect(withoutProjector).toBeGreaterThan(0);
+  expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
+});

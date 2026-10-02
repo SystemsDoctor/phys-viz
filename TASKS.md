@@ -1617,26 +1617,17 @@ context`, which passed solo and on the rerun (same transient-
     post-fix; pre-fix fails (42176 vs. 42176). Full sweep (`test:unit`
     663/663, `test:contract` 228/228) and full smoke (42/42,
     `--workers=3`) pass.
-  - [READY] `arc` (`src/scene/glyphs/arc.ts`) — used by
-    `control-showcase`'s angle arc and others; fixed sample count per
-    `radius`/`from`/`to`, likely rebuildable each `.set()` rather than
-    every frame (check whether it currently rebuilds per-frame or only
-    on prop change before choosing the in-place-vs-`setPositions`
-    approach).
-  - [DONE] `frame` (`src/scene/glyphs/frame.ts`) — three static
-    2-point `Line2` axes (one `setPositions()` each at construction;
-    nothing to update in place — the frame's own Group transform moves
-    them), 3px, `worldUnits: false` so the width is constant under the
-    frame's `scale`. One shared `onFrame` syncs all three materials'
-    `resolution` (unsubscribed in `dispose`). Verified: `frame.test.ts`
-    6/6 pass post-fix, 1/6 FAIL against the pre-fix file (new golden:
-    three `Line2`s with three distinct `LineMaterial` colours, linewidth
-    > 1, themed 'line', `resolution` synced). New e2e "X-49: ...
-    > coordinate-frame triad (frame glyph)" (vector-algebra `L=cp`, zero
-    > vectors, grid off, x-axis `#d55e00` within 40): 412 -> 550 with
-    > `?pj=1` post-fix; pre-fix fails (136 vs. 136). Full sweep
-    > (`test:unit` 664/664, `test:contract` 228/228) and full smoke
-    > (43/43, `--workers=3`) pass.
+  - [DONE] `arc` (`src/scene/glyphs/arc.ts`) — rebuilt only in
+    `applyProps` (on create/`set()`), never per frame, so: `Line2` with a
+    fixed `SEGMENTS + 1` buffer written in place via `setPolylineVertex`
+    (no allocation on `set()`); a new `onFrame` only syncs `resolution`
+    (unsubscribed in `dispose`). 2px. Verified: `arc.test.ts` 7/7 pass
+    post-fix, 5/7 FAIL against the pre-fix file (new golden + the
+    endpoint/NaN tests, which now read the instance buffer). New e2e
+    "X-49: ... angle arc (arc glyph)" (vector-algebra `a=1,0,0&b=0,1,0&
+gr=0`, `#7b8494` within 40): 229 -> 439 with `?pj=1` post-fix;
+    pre-fix fails (50 vs. 50). Full sweep (`test:unit` 665/665,
+    `test:contract` 228/228) and full smoke (44/44, `--workers=3`) pass.
   - [READY] `surface`'s wireframe mode (`src/scene/glyphs/surface.ts`)
     — the largest remaining migration (a full wireframe mesh's edges,
     not a simple 2-endpoint shaft); scope this one out carefully before

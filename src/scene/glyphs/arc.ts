@@ -8,9 +8,13 @@
  * no explicit `center`; it's always the origin.
  */
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
 import type { SubstrateHost } from '../internal/SubstrateHost';
+import { rawPositionBuffer, markPositionBufferDirty, setPolylineVertex } from '../internal/line2';
 import { createLabel } from '../annotate/label';
 import type { LabelHandle } from '../annotate/label';
 
@@ -27,6 +31,9 @@ export type ArcHandle = Handle<ArcProps>;
 
 const SEGMENTS = 32;
 const DEFAULT_COLOR = 0x7b8494;
+// X-49: pixel screen-space width (see arrow.ts) — a real number the
+// projector multiplier can act on, unlike an ANGLE-clamped `THREE.Line`.
+const ARC_LINE_WIDTH_PX = 2;
 
 const scratchFrom = new THREE.Vector3();
 const scratchTo = new THREE.Vector3();
@@ -63,13 +70,20 @@ export function createArc(props: ArcProps, host: SubstrateHost): ArcHandle {
   const root = new THREE.Group();
   parent.add(root);
 
-  const geometry = new THREE.BufferGeometry();
-  const positions = new Float32Array((SEGMENTS + 1) * 3);
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const material = new THREE.LineBasicMaterial({ color: DEFAULT_COLOR });
-  const line = new THREE.Line(geometry, material);
+  const geometry = new LineGeometry();
+  geometry.setPositions(new Float32Array((SEGMENTS + 1) * 3));
+  const positions = rawPositionBuffer(geometry);
+  const material = new LineMaterial({
+    color: DEFAULT_COLOR,
+    linewidth: ARC_LINE_WIDTH_PX,
+    worldUnits: false,
+  });
+  const line = new Line2(geometry, material);
   root.add(line);
   const unTheme = host.registerThemedMaterial(material, 'line');
+  const unFrame = host.onFrame((info) => {
+    material.resolution.set(info.rendererWidth, info.rendererHeight);
+  });
 
   let label: LabelHandle | null = null;
 
@@ -82,11 +96,9 @@ export function createArc(props: ArcProps, host: SubstrateHost): ArcHandle {
         .copy(scratchU)
         .multiplyScalar(Math.cos(t) * p.radius)
         .addScaledVector(scratchV, Math.sin(t) * p.radius);
-      positions[i * 3] = scratchPoint.x;
-      positions[i * 3 + 1] = scratchPoint.y;
-      positions[i * 3 + 2] = scratchPoint.z;
+      setPolylineVertex(positions, i, SEGMENTS + 1, scratchPoint.x, scratchPoint.y, scratchPoint.z);
     }
-    geometry.attributes.position.needsUpdate = true;
+    markPositionBufferDirty(geometry);
     geometry.computeBoundingSphere();
 
     if (p.label) {
@@ -117,6 +129,7 @@ export function createArc(props: ArcProps, host: SubstrateHost): ArcHandle {
       label?.visible(show);
     },
     dispose() {
+      unFrame();
       unTheme();
       parent.remove(root);
       geometry.dispose();

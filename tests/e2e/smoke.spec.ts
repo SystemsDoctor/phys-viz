@@ -1014,3 +1014,15 @@ test('X-49: projector mode actually thickens a coordinate-frame triad (frame gly
   expect(withoutProjector).toBeGreaterThan(0);
   expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
 });
+
+test('X-49: projector mode actually thickens an angle arc (arc glyph)', async ({ page }) => {
+  // vector-algebra's default layers draw the a-b angle arc in
+  // `palette.construction` (#7b8494); a = x̂, b = ŷ with the grid off
+  // leaves that arc as the only construction-coloured stroke.
+  const construction = { r: 0x7b, g: 0x84, b: 0x94 };
+  const base = '#/m/vector-algebra?a=1,0,0&b=0,1,0&gr=0';
+  const withoutProjector = await countMatchingPixels(page, base, construction, 40);
+  const withProjector = await countMatchingPixels(page, `${base}&pj=1`, construction, 40, true);
+  expect(withoutProjector).toBeGreaterThan(0);
+  expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
+});

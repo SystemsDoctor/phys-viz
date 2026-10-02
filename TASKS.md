@@ -1937,7 +1937,7 @@ unlockedProjection, timers?)` owns the live `ui.lockTo2D` change:
   translated once (base at origin, apex +y) and placed one head length
   back along the tangent; the older "positions the tangential head" test
   was updated to that base placement. File: 9/9.
-- [READY] **X-61** `patch.applyProps` clobbers the projector opacity
+- [DONE] **X-61** `patch.applyProps` clobbers the projector opacity
   floor (split out of X-49, where the audit's sub-report first flagged
   it): `createPatch` registers its material as a themed `'fill'` (so
   `Viewport.applyProjectorToMaterial` records the DEFAULT 0.25 as the
@@ -1951,6 +1951,14 @@ DEFAULT_OPACITY` — at creation (after registration) and on every
   `applyProps` and re-register / re-apply the floor when `opacity`
   changes (or have the host expose an `applyProjector(material)`), with
   a golden test using a fake host that applies a real floor
+  Verified: reproduced first -- `patch.test.ts` gains 3 tests using a
+  fake host that records base opacity at registration and applies a real
+  `max(base, minOpacity)` floor (floor 0.5, module opacity 0.18); all 3
+  FAIL against the pre-fix `patch.ts` (got 0.18 / 0.25 instead of 0.5 /
+  0.18) and pass after (8/8 in file). Fix: `applyProps` puts the module's
+  opacity on the material BEFORE `registerThemedMaterial`, re-registers
+  only when the opacity value changes, and never re-assigns an unchanged
+  opacity (so set() keeps the floor).
 
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 

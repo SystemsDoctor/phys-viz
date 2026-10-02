@@ -45,11 +45,23 @@ export function createPatch(props: PatchProps, host: SubstrateHost): PatchHandle
   });
   const mesh = new THREE.Mesh(geometry, material);
   parent.add(mesh);
-  const unTheme = host.registerThemedMaterial(material, 'fill');
+  // X-61: the host records the material's opacity AT registration as the
+  // base its projector floor is computed from, then applies the floor. So
+  // the module's own opacity must be on the material BEFORE registering,
+  // and a changed opacity needs a re-register (re-record + re-floor). An
+  // unchanged opacity must not be re-assigned, or it would clobber the floor.
+  let unTheme: (() => void) | null = null;
+  let registeredOpacity = Number.NaN;
 
   function applyProps(p: PatchProps): void {
     material.color.set(p.color ?? DEFAULT_COLOR);
-    material.opacity = p.opacity ?? DEFAULT_OPACITY;
+    const opacity = p.opacity ?? DEFAULT_OPACITY;
+    if (opacity !== registeredOpacity) {
+      unTheme?.();
+      material.opacity = opacity;
+      unTheme = host.registerThemedMaterial(material, 'fill');
+      registeredOpacity = opacity;
+    }
 
     const n = Math.min(p.points.length, MAX_POINTS);
     const triangleCount = Math.max(0, n - 2);
@@ -85,7 +97,7 @@ export function createPatch(props: PatchProps, host: SubstrateHost): PatchHandle
       mesh.visible = show;
     },
     dispose() {
-      unTheme();
+      unTheme?.();
       parent.remove(mesh);
       geometry.dispose();
       material.dispose();

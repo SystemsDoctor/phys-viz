@@ -1776,11 +1776,25 @@ disposes its WebGL context`, the known X-18 flake (passes solo).
   3 of the 5 (periapsis, e=0.9, tight) FAIL against the pre-fix module.
   Full sweep (`test:unit` 696/696, `test:contract` 228/228) and the
   gravitation smoke tests (2/2) pass.
-- [READY] **X-53** Two small module bugs: `non-inertial-frames`' lab-frame
+- [DONE] **X-53** Two small module bugs: `non-inertial-frames`' lab-frame
   platform mark stops turning once the puck exits, because θ = ω·t uses
   the exit-clamped `t` (`index.ts:234-237`); `projectile-motion`'s
   default `launchVelocity` `[8.49, 8.49, 0]` (`params.ts:74`) has zero
   vertical component under z-up, so vector mode freezes at t=0
+  **Verified:** (1) `sceneAt()` now returns a separate `platformTheta =
+ω·max(state.t, 0)` (unclamped) that the lab-frame mark's `.set()` uses;
+  the puck's rotating-frame kinematics keep the clamped `theta`. New
+  `module.test.ts` test captures the lab mark arrow's real `.set({to})`
+  and checks its angle equals `ω·t` (wrapped) at t=12 and t=15, both far
+  past the exit, and that the two differ — FAILS pre-fix (frozen at
+  ω·t_exit). (2) The default `launchVelocity` is now
+  `[12/√2, 6, 6]` (still |v| = 12; equal y/z components so it has a
+  vertical component whichever of y/z is up; help text updated). New
+  `projectile-motion` tests read `module.params`'s actual default and
+  check `timeOfFlight > 0.5` and `range > 1` under `up = y` and `up = z`;
+  the z-up case FAILS pre-fix (flight 0). Full sweep (`test:unit`
+  700/700, `test:contract` 228/228) and full smoke (46/46,
+  `--workers=3`) pass.
 - [READY] **X-54** `path` always fades its oldest vertex to the
   background, with or without `persistence` (`path.ts:72`) — two-point
   axis lines and closed outlines (`gravitation`'s orbit, the

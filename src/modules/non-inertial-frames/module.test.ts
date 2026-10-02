@@ -266,4 +266,50 @@ describe(module.manifest.id, () => {
     // `ctx.up`.
     expect(capturedTo).toEqual([1, 0, 2]);
   });
+
+  // X-53: the lab panel's platform reference mark used theta = omega * t
+  // with t CLAMPED at the puck's exit, so the mark stopped turning the
+  // moment the puck left. The platform keeps spinning for the whole timeline.
+  describe('platform mark keeps turning after the puck exits (X-53)', () => {
+    function recordLabMarkAngle(t: number): number {
+      let markTo: number[] = [0, 0, 0];
+      const ctx = new Proxy({} as SceneContext, {
+        get(_target, prop) {
+          if (prop === 'palette') return new Proxy({}, { get: () => '#000000' });
+          if (prop === 'up') return 'y';
+          if (prop === 'group') return (name: string) => ({ id: name });
+          if (prop === 'arrow') {
+            return (props: { group?: { id: string }; to: number[] }) => {
+              const isLabMark = props.group?.id === 'labFrame' && Math.hypot(...props.to) > 1.5;
+              const rec = {
+                set: (next: { to?: number[] }) => {
+                  if (isLabMark && next.to) markTo = [...next.to];
+                },
+                visible: () => {},
+                dispose: () => {},
+              };
+              if (isLabMark) markTo = [...props.to];
+              return rec;
+            };
+          }
+          return () => noopHandle;
+        },
+      });
+      const omega = 1.2;
+      const instance = module.create(ctx);
+      instance.update(stateAt(t, omega, 1, 0.3, -2.2, 0.4));
+      return Math.atan2(markTo[1], markTo[0]);
+    }
+
+    const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
+
+    it('the mark angle follows omega * t well past the puck exit, not omega * t_exit', () => {
+      const omega = 1.2;
+      // Default puck leaves the platform at roughly t = 3-6 s; 12 s and 15 s
+      // are both far past it.
+      expect(recordLabMarkAngle(12)).toBeCloseTo(wrap(omega * 12), 9);
+      expect(recordLabMarkAngle(15)).toBeCloseTo(wrap(omega * 15), 9);
+      expect(recordLabMarkAngle(15)).not.toBeCloseTo(recordLabMarkAngle(12), 3);
+    });
+  });
 });

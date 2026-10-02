@@ -264,11 +264,17 @@ function sceneAt(state: ModuleState) {
   const t = Math.min(Math.max(state.t, 0), tExit);
 
   const lab = labKinematics(t, x0, y0, speed, launchAngle);
+  // The puck's own time is clamped at its exit, but the PLATFORM keeps
+  // turning for as long as the timeline runs — its reference mark's angle
+  // must come from the unclamped time (X-53), or the mark freezes the
+  // instant the puck leaves. The puck's rotating-frame kinematics still
+  // use the clamped `theta`, since they describe the puck at its own t.
   const theta = omega * t;
+  const platformTheta = omega * Math.max(state.t, 0);
   const rot = rotatingKinematics(omega, theta, lab.x, lab.y, lab.vx, lab.vy);
   const terms = fictitiousTermsAt(omega, [rot.x, rot.y], [rot.vx, rot.vy]);
 
-  return { omega, x0, y0, speed, launchAngle, t, theta, lab, rot, terms };
+  return { omega, x0, y0, speed, launchAngle, t, theta, platformTheta, lab, rot, terms };
 }
 
 const module: PhysicsModule = {
@@ -403,7 +409,8 @@ const module: PhysicsModule = {
         const up = ctx.up;
         const embed = (x: number, y: number): V3 => toWorld(up, x, y);
 
-        const { x0, y0, speed, launchAngle, omega, t, theta, lab, rot, terms } = sceneAt(state);
+        const { x0, y0, speed, launchAngle, omega, t, platformTheta, lab, rot, terms } =
+          sceneAt(state);
 
         // Lab panel — the disc's geometry is fixed except its
         // orientation, which is recomputed from the live `up` every
@@ -411,7 +418,10 @@ const module: PhysicsModule = {
         // the puck's own motion also change per frame.
         discLab.set({ orientation: discOrientationFor(up) });
         discLab.visible(labOn);
-        const markPosLab = embed(MARK_RADIUS * Math.cos(theta), MARK_RADIUS * Math.sin(theta));
+        const markPosLab = embed(
+          MARK_RADIUS * Math.cos(platformTheta),
+          MARK_RADIUS * Math.sin(platformTheta),
+        );
         markArrowLab.set({ to: markPosLab });
         markArrowLab.visible(labOn);
         markDotLab.set({ position: markPosLab });

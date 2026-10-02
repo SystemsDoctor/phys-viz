@@ -71,11 +71,15 @@ export const params: ParamDef[] = [
     urlKey: 'lv',
     label: 'Launch velocity',
     symbol: '\\vec{v}_0',
-    default: [12 * Math.SQRT1_2, 12 * Math.SQRT1_2, 0],
+    // Equal y and z components (X-53): the vertical axis is whichever of y/z
+    // is currently "up", and a default with z = 0 had NO vertical component
+    // under z-up, so vector mode launched flat along the ground and froze at
+    // t = 0. Speed is still 12 (|v|² = 72 + 36 + 36 = 144).
+    default: [12 * Math.SQRT1_2, 6, 6],
     range: 30,
     unit: VELOCITY,
     forLayer: 'vectorMode',
-    help: 'Direction AND magnitude of the launch, given directly — defaults to the same 2D (x,y) plane as the angle option (z = 0).',
+    help: 'Direction AND magnitude of the launch, given directly as a literal world x/y/z vector. The default has equal y and z components, so it launches upward whichever of the two is "up".',
   },
   {
     kind: 'number',

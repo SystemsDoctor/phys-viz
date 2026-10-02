@@ -237,4 +237,26 @@ describe(module.manifest.id, () => {
     expect(underZUp.range).toBeCloseTo(expectedZUpRange, 8);
     expect(underZUp.maxHeight).toBeCloseTo(expectedZUpMaxHeight, 10);
   });
+
+  // X-53: the default launchVelocity was [8.49, 8.49, 0] — zero vertical
+  // component under z-up, so vector mode launched flat along the ground
+  // and the projectile never left t = 0.
+  describe('default launchVelocity launches upward under either up-axis (X-53)', () => {
+    const defaultLaunchVelocity = module.params.find((p) => p.key === 'launchVelocity')!
+      .default as V3;
+
+    for (const up of ['y', 'z'] as const) {
+      it(`up = ${up}: the default vector-mode launch has a real flight and actually moves`, () => {
+        const instance = module.create(makeFakeCtx({ current: up }));
+        const flight = instance.scalars(vectorState(0, defaultLaunchVelocity, 9.8)).timeOfFlight;
+        expect(flight).toBeGreaterThan(0.5);
+        const range = instance.scalars(vectorState(0, defaultLaunchVelocity, 9.8)).range;
+        expect(range).toBeGreaterThan(1);
+      });
+    }
+
+    it('keeps the default speed at 12', () => {
+      expect(Math.hypot(...defaultLaunchVelocity)).toBeCloseTo(12, 9);
+    });
+  });
 });

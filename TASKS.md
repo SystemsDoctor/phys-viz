@@ -1910,7 +1910,7 @@ unlockedProjection, timers?)` owns the live `ui.lockTo2D` change:
   store change. That test now clicks Play for real and asserts t
   advanced. Full sweep (`test:unit` 718/718, `test:contract` 228/228)
   and the ENTIRE Playwright suite (54/54, `--workers=3`, run twice) pass.
-- [READY] **X-60** `rotational-dynamics` precession panel has no
+- [DONE] **X-60** `rotational-dynamics` precession panel has no
   regression test against the exact heavy-top equations. X-29's fix
   (dropping a factor of 2 in `baseSwing`) was verified against the
   fast-top linearization's own closed form and a golden `.set()` capture
@@ -1922,6 +1922,17 @@ unlockedProjection, timers?)` owns the live `ui.lockTo2D` change:
   `kernel/ode`, doctrine-compatible) that integrates the exact equations
   at a large Ω and checks the module's closed-form approximation tracks
   it within the fast-top regime's expected error
+  Verified: new `src/modules/rotational-dynamics/precession.test.ts`
+  (4 tests) compares the flywheel position actually handed to
+  `ctx.body` against an independent RK4 (`kernel/ode`) integration of the
+  exact heavy-top Lagrangian equations (theta'', phi' from conserved
+  p_phi), at Omega=600, for k=0/1/-1 releases: mean precession rate within
+  1.5% (measured 0.7%/0.2%/0.2%), azimuth within 3%, nutation swing
+  within 10%, tilt error under 12% of swing; plus a convergence test
+  (rate error halves from Omega 300 -> 600 -> 1200). Temporarily
+  restoring the X-29 factor of 2 in `baseSwing` makes 3 of the 4 fail
+  (k=0, k=-1, convergence; k=1 has no swing so is unaffected, as it
+  should be); restored, 4/4 pass. No module bug exposed; src unchanged.
 - [DONE] **X-62** `curvedArrow`'s head cone has the same centred-
   `ConeGeometry` quirk X-48 fixed for `arrow`: it is positioned AT the
   arc end (`curvedArrow.ts`, `head.position.copy(scratchPoint)`), so

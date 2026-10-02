@@ -1578,10 +1578,29 @@ src/modules/control-showcase/module.test.ts src/kernel/frames`: 56/56
     `countMatchingPixels`): 753 -> 900 post-fix; pre-fix fails (576 vs.
     549). Full sweep (`test:unit` 661/661, `test:contract` 228/228) and
     full smoke (40/40, `--workers=3`) pass.
-  - [READY] `axes` (`src/scene/glyphs/axes.ts`) — the shell-owned
-    reference grid/axes glyph (`Viewport`'s own `gridHandle`, not
-    module-authored) — largely static per orientation, low per-frame
-    churn.
+  - [DONE] `axes` (`src/scene/glyphs/axes.ts`) — disconnected segments,
+    so `LineSegments2`/`LineSegmentsGeometry` (whose buffer layout is
+    already one start/end record per segment): fixed-capacity buffers
+    written in place, tick count via `instanceCount` (a tick rebuild —
+    only on spacing change — allocates nothing). Axes 2px, ticks 1.5px.
+    `internal/line2.ts` helpers widened to accept
+    `LineSegmentsGeometry` (`LineGeometry` extends it). Because this is
+    the shell-owned reference grid shown in every module it was checked
+    visually (screenshot) as well. Verified: `axes.test.ts` 6/6 pass
+    post-fix, 4/6 FAIL against the pre-fix file, incl. new golden "draws
+    axes and ticks as LineSegments2/LineMaterial that projector mode can
+    thicken" (both segment objects: exact constructor, linewidth > 1,
+    registered themed 'line', `resolution` synced from `FrameInfo`); the
+    old `instanceof THREE.LineSegments` lookups became
+    exact-constructor. New e2e "X-49: ... reference axes and tick marks"
+    (vector-algebra default grid, `#7b8494` within 60): 2657 -> 5204
+    with `?pj=1` post-fix; pre-fix fails (1235 vs. 1230). Full sweep
+    (`test:unit` 662/662, `test:contract` 228/228); full smoke 41/41
+    (`--workers=3`) on rerun — the first `--workers=3` run had ONE
+    failure, `rotational-dynamics: renders ... disposes its WebGL
+context`, which passed solo and on the rerun (same transient-
+    under-parallel-workers family as X-18; not reproducible, not
+    attributable to this change).
   - [READY] `gridPlane` (`src/scene/glyphs/gridPlane.ts`) — same
     shell-owned, low-churn shape as `axes`.
   - [READY] `arc` (`src/scene/glyphs/arc.ts`) — used by

@@ -13,27 +13,27 @@
  * Layout: the underlying buffer holds one 6-float record per SEGMENT
  * (start xyz, end xyz) — a polyline of N points is N-1 records.
  */
-import type { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import type { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 
 type InterleavedLike = { data: { array: Float32Array; needsUpdate: boolean } };
 
-function interleaved(geometry: LineGeometry, name: string): InterleavedLike {
+function interleaved(geometry: LineSegmentsGeometry, name: string): InterleavedLike {
   return geometry.attributes[name] as unknown as InterleavedLike;
 }
 
 /** Raw 6-floats-per-segment position array (start xyz, end xyz). */
-export function rawPositionBuffer(geometry: LineGeometry): Float32Array {
+export function rawPositionBuffer(geometry: LineSegmentsGeometry): Float32Array {
   return interleaved(geometry, 'instanceStart').data.array;
 }
-export function markPositionBufferDirty(geometry: LineGeometry): void {
+export function markPositionBufferDirty(geometry: LineSegmentsGeometry): void {
   interleaved(geometry, 'instanceStart').data.needsUpdate = true;
 }
 
 /** Raw 6-floats-per-segment colour array (start rgb, end rgb). */
-export function rawColorBuffer(geometry: LineGeometry): Float32Array {
+export function rawColorBuffer(geometry: LineSegmentsGeometry): Float32Array {
   return interleaved(geometry, 'instanceColorStart').data.array;
 }
-export function markColorBufferDirty(geometry: LineGeometry): void {
+export function markColorBufferDirty(geometry: LineSegmentsGeometry): void {
   interleaved(geometry, 'instanceColorStart').data.needsUpdate = true;
 }
 

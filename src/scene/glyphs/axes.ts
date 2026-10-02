@@ -8,9 +8,13 @@
  * is only rebuilt when that spacing actually changes, not every frame.
  */
 import * as THREE from 'three';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
 import type { SubstrateHost } from '../internal/SubstrateHost';
+import { rawPositionBuffer, markPositionBufferDirty } from '../internal/line2';
 import { worldUnitsPerPixel } from '../internal/screenSpace';
 import { createLabel } from '../annotate/label';
 import type { LabelHandle } from '../annotate/label';
@@ -28,6 +32,11 @@ const TARGET_TICK_PX = 60;
 const TICK_MARK_HALF_LENGTH = 0.06;
 const MAX_TICKS_PER_AXIS = 64;
 const AXIS_COLOR = 0x7b8494;
+// X-49: pixel screen-space widths (see arrow.ts) — real numbers the
+// projector multiplier can act on, unlike ANGLE-clamped `THREE.Line`s.
+// Ticks are finer than the axes they sit on.
+const AXIS_LINE_WIDTH_PX = 2;
+const TICK_LINE_WIDTH_PX = 1.5;
 
 const AXES: readonly [number, number, number][] = [
   [1, 0, 0],
@@ -61,20 +70,32 @@ export function createAxes(props: AxesProps, host: SubstrateHost): AxesHandle {
   const root = new THREE.Group();
   parent.add(root);
 
-  const axisGeometry = new THREE.BufferGeometry();
-  const axisPositions = new Float32Array(3 * 2 * 3); // 3 axes, 2 points each
-  axisGeometry.setAttribute('position', new THREE.BufferAttribute(axisPositions, 3));
-  const axisMaterial = new THREE.LineBasicMaterial({ color: AXIS_COLOR });
-  const axisLines = new THREE.LineSegments(axisGeometry, axisMaterial);
+  // `LineSegments*` geometry is already one 6-float (start xyz, end xyz)
+  // record per segment, so the fixed-capacity buffers below are written
+  // directly (see internal/line2.ts) and `instanceCount` selects how many
+  // records are live — nothing here allocates after construction.
+  const axisGeometry = new LineSegmentsGeometry();
+  axisGeometry.setPositions(new Float32Array(3 * 2 * 3)); // 3 axes, 2 points each
+  const axisPositions = rawPositionBuffer(axisGeometry);
+  const axisMaterial = new LineMaterial({
+    color: AXIS_COLOR,
+    linewidth: AXIS_LINE_WIDTH_PX,
+    worldUnits: false,
+  });
+  const axisLines = new LineSegments2(axisGeometry, axisMaterial);
   root.add(axisLines);
   const unAxisTheme = host.registerThemedMaterial(axisMaterial, 'line');
 
-  const tickGeometry = new THREE.BufferGeometry();
-  const tickPositions = new Float32Array(3 * MAX_TICKS_PER_AXIS * 2 * 3);
-  tickGeometry.setAttribute('position', new THREE.BufferAttribute(tickPositions, 3));
-  tickGeometry.setDrawRange(0, 0);
-  const tickMaterial = new THREE.LineBasicMaterial({ color: AXIS_COLOR });
-  const tickLines = new THREE.LineSegments(tickGeometry, tickMaterial);
+  const tickGeometry = new LineSegmentsGeometry();
+  tickGeometry.setPositions(new Float32Array(3 * MAX_TICKS_PER_AXIS * 2 * 3));
+  const tickPositions = rawPositionBuffer(tickGeometry);
+  tickGeometry.instanceCount = 0;
+  const tickMaterial = new LineMaterial({
+    color: AXIS_COLOR,
+    linewidth: TICK_LINE_WIDTH_PX,
+    worldUnits: false,
+  });
+  const tickLines = new LineSegments2(tickGeometry, tickMaterial);
   root.add(tickLines);
   const unTickTheme = host.registerThemedMaterial(tickMaterial, 'line');
 
@@ -92,7 +113,7 @@ export function createAxes(props: AxesProps, host: SubstrateHost): AxesHandle {
       axisPositions[a * 6 + 4] = dy * extent;
       axisPositions[a * 6 + 5] = dz * extent;
     }
-    axisGeometry.attributes.position.needsUpdate = true;
+    markPositionBufferDirty(axisGeometry);
     axisGeometry.computeBoundingSphere();
   }
 
@@ -118,8 +139,8 @@ export function createAxes(props: AxesProps, host: SubstrateHost): AxesHandle {
         tickPositions[cursor++] = cz + pz * TICK_MARK_HALF_LENGTH;
       }
     }
-    tickGeometry.setDrawRange(0, cursor / 3);
-    tickGeometry.attributes.position.needsUpdate = true;
+    tickGeometry.instanceCount = cursor / 6;
+    markPositionBufferDirty(tickGeometry);
     if (cursor > 0) tickGeometry.computeBoundingSphere();
   }
 
@@ -148,6 +169,8 @@ export function createAxes(props: AxesProps, host: SubstrateHost): AxesHandle {
   rebuildTicks(niceSpacing(DEFAULT_EXTENT / 10));
 
   const unFrame = host.onFrame((info) => {
+    axisMaterial.resolution.set(info.rendererWidth, info.rendererHeight);
+    tickMaterial.resolution.set(info.rendererWidth, info.rendererHeight);
     const distance = info.camera.position.distanceTo(scratchOrigin);
     const roughSpacing =
       TARGET_TICK_PX * worldUnitsPerPixel(info.camera, distance, info.rendererHeight);

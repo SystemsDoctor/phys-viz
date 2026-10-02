@@ -961,3 +961,17 @@ test('X-49: projector mode actually thickens a dimensionLine (work-energy kineti
   expect(withoutProjector).toBeGreaterThan(0);
   expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
 });
+
+test('X-49: projector mode actually thickens the reference axes and tick marks (axes glyph)', async ({
+  page,
+}) => {
+  // The shell-owned reference grid (`gr` defaults on) is the `axes` glyph
+  // in `palette.construction`'s hex (#7b8494). vector-algebra's default
+  // layers draw only `a`/`b` arrows, so the axes dominate that colour.
+  const axisGrey = { r: 0x7b, g: 0x84, b: 0x94 };
+  const base = '#/m/vector-algebra?a=1,0,0&b=0,1,0';
+  const withoutProjector = await countMatchingPixels(page, base, axisGrey, 60);
+  const withProjector = await countMatchingPixels(page, `${base}&pj=1`, axisGrey, 60, true);
+  expect(withoutProjector).toBeGreaterThan(0);
+  expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
+});

@@ -9,7 +9,64 @@ import { createFakeHost } from '../internal/fakeHost.test-utils';
 // cone mesh, same discriminator every other migrated glyph's tests use.
 const isConeMesh = (c: THREE.Object3D): c is THREE.Mesh => c.constructor === THREE.Mesh;
 
+/** World position of a head cone's apex (its highest-y vertex, in local space). */
+function apexWorld(mesh: THREE.Mesh): THREE.Vector3 {
+  mesh.updateWorldMatrix(true, false);
+  const pos = mesh.geometry.attributes.position;
+  let apex = new THREE.Vector3();
+  let maxY = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) > maxY) {
+      maxY = pos.getY(i);
+      apex = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+    }
+  }
+  return mesh.localToWorld(apex);
+}
+
 describe('createArrow', () => {
+  // X-48: the cone was centred on its own origin but placed at the shaft
+  // end, so the visible tip fell half a head length short of `to`.
+  it('the head apex lands exactly on `to` (X-48)', () => {
+    const host = createFakeHost();
+    const handle = createArrow({ from: [0, 0, 0], to: [2, 0, 0] }, host);
+    host.fireFrame();
+    const root = host.root.children[0] as THREE.Group;
+    const head = root.children.find(isConeMesh) as THREE.Mesh;
+    const apex = apexWorld(head);
+    expect(apex.x).toBeCloseTo(2, 5);
+    expect(apex.y).toBeCloseTo(0, 5);
+    expect(apex.z).toBeCloseTo(0, 5);
+    handle.dispose();
+  });
+
+  it('the head apex lands on `to` for an oblique arrow too (X-48)', () => {
+    const host = createFakeHost();
+    const to: [number, number, number] = [1, 2, -0.5];
+    const handle = createArrow({ from: [-1, 0.5, 0.25], to }, host);
+    host.fireFrame();
+    const root = host.root.children[0] as THREE.Group;
+    const head = root.children.find(isConeMesh) as THREE.Mesh;
+    const apex = apexWorld(head);
+    expect(apex.x).toBeCloseTo(to[0], 5);
+    expect(apex.y).toBeCloseTo(to[1], 5);
+    expect(apex.z).toBeCloseTo(to[2], 5);
+    handle.dispose();
+  });
+
+  it('the double-head tail apex lands exactly on `from` (X-48)', () => {
+    const host = createFakeHost();
+    const handle = createArrow({ from: [-1, 0, 0], to: [2, 0, 0], doubleHead: true }, host);
+    host.fireFrame();
+    const root = host.root.children[0] as THREE.Group;
+    const cones = root.children.filter(isConeMesh) as THREE.Mesh[];
+    const apexes = cones.map(apexWorld);
+    const xs = apexes.map((a) => a.x).sort((p, q) => p - q);
+    expect(xs[0]).toBeCloseTo(-1, 5);
+    expect(xs[1]).toBeCloseTo(2, 5);
+    handle.dispose();
+  });
+
   it('attaches to the scene root when no group is given', () => {
     const host = createFakeHost();
     const handle = createArrow({ from: [0, 0, 0], to: [1, 0, 0] }, host);

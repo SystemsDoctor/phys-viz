@@ -48,8 +48,16 @@ const scratchPoint = new THREE.Vector3();
 const scratchQuat = new THREE.Quaternion();
 const upHint = new THREE.Vector3(0, 1, 0);
 
+/**
+ * Unit-height cone with its BASE at the local origin and its APEX at +y.
+ * `ConeGeometry` is centred on its origin, and the head is positioned at
+ * the shaft's end (`to - headLength*dir`) — centred, the apex stopped half
+ * a head length short of `to` (and a double head's tail apex half a head
+ * length short of `from`). Translating once here makes the apex land
+ * exactly on the endpoint (X-48).
+ */
 function coneGeometry(): THREE.ConeGeometry {
-  return new THREE.ConeGeometry(HEAD_RADIUS_RATIO, 1, 10);
+  return new THREE.ConeGeometry(HEAD_RADIUS_RATIO, 1, 10).translate(0, 0.5, 0);
 }
 
 export function createArrow(props: ArrowProps, host: SubstrateHost): ArrowHandle {

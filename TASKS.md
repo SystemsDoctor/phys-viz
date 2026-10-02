@@ -1539,11 +1539,24 @@ exceeded` out of `compileExpr`; 104 nested parens, a 500-term `2^2^…`
   `test:contract` 228/228, `build`, `check:budget`, `format:check`) all
   pass. `npx playwright test tests/e2e/smoke.spec.ts -g
 "vector-algebra"`: 2/2 pass.
-- [READY] **X-48** `arrow` tip falls short of `to` by half a head length:
+- [DONE] **X-48** `arrow` tip falls short of `to` by half a head length:
   `ConeGeometry` is centred on its origin (`arrow.ts:41-43`) but placed
   at `to − h·dir` (`:125`); a double head misses `from` the same way.
   `arrow.test.ts:28` only checks `0 < x ≤ 2`. Translate the cone once, or
   place at `to − h/2·dir`; assert the apex
+  **Verified:** `coneGeometry()` now `.translate(0, 0.5, 0)`s the unit
+  cone once, so its BASE sits at the local origin and its APEX at +y —
+  with the head still placed at the shaft end (`to − h·dir`), the apex
+  lands exactly on `to`, and a double head's tail apex exactly on `from`
+  (the shaft already ended at the cone's base, so it now meets it).
+  Three new tests in `arrow.test.ts` take the real head mesh's
+  highest-y vertex through its world matrix and assert it equals `to`
+  (axis-aligned and oblique) and, for `doubleHead`, `from`; all 3 FAIL
+  against the pre-fix `arrow.ts` (apex half a head short), the existing
+  10 pass unchanged. Full sweep (`test:unit` 682/682, `test:contract`
+  228/228) and full smoke (45/45, `--workers=3`; the arrow-shaft X-49
+  e2e still passes) pass. Same centred-cone pattern in `curvedArrow`
+  (overshoot, not shortfall) logged as X-62, not fixed here.
 - [DONE] **X-49** Projector mode doesn't thicken scene lines: every line
   is `THREE.Line` with `LineBasicMaterial`/`LineDashedMaterial`, whose
   `linewidth > 1` is ignored under ANGLE (Chrome/Edge/Firefox on
@@ -1771,6 +1784,14 @@ gr=0`, `#7b8494` within 40): 229 -> 439 with `?pj=1` post-fix;
   `kernel/ode`, doctrine-compatible) that integrates the exact equations
   at a large Ω and checks the module's closed-form approximation tracks
   it within the fast-top regime's expected error
+- [READY] **X-62** `curvedArrow`'s head cone has the same centred-
+  `ConeGeometry` quirk X-48 fixed for `arrow`: it is positioned AT the
+  arc end (`curvedArrow.ts`, `head.position.copy(scratchPoint)`), so
+  the visible tip overshoots the arc end by half a head length (14px/2)
+  along the tangent and the base sits half a head inside the arc. Cosmetic.
+  Translate the cone once (as `arrow` does) and assert the apex lands on
+  the arc end point, via the real head mesh like `arrow.test.ts`'s X-48
+  tests
 - [READY] **X-61** `patch.applyProps` clobbers the projector opacity
   floor (split out of X-49, where the audit's sub-report first flagged
   it): `createPatch` registers its material as a themed `'fill'` (so

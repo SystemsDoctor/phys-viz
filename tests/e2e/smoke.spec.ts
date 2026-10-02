@@ -833,9 +833,14 @@ test('M3-G gate: control-showcase renders a complete usable UI with zero module 
   // Both plot types (M3-15/16), from a module that declares nothing
   // about plots itself. TimeSeriesPlot only renders once >1 point has
   // accumulated, which needs time actually advancing (playing defaults
-  // to false) — press Space first.
-  await page.locator('body').press(' ');
+  // to false). X-59: this used to press Space, but the click on "Exit
+  // predict mode" just above leaves that button focused, so Space
+  // activated IT (X-36) and time never advanced — the plot only appeared
+  // because the series used to append a duplicate point on every store
+  // change, even at an unchanged t. Click Play for real instead.
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
   await page.waitForTimeout(1500);
+  await expect(page.locator('.pv-timeline__t')).not.toHaveText('0.00s');
   await expect(page.locator('.pv-plot')).toHaveCount(2);
 
   // 2D lock (ADR 0007, M3-31) + ADR 0011: dimensions: 2 suppresses
@@ -1150,4 +1155,43 @@ test('X-55: re-showing a layer that was drawn before actually fades it in (opaqu
   // that pops. One frame into a working 150 ms fade nothing is visible yet
   // (measured 2 of 283 px); with the bug the head pops in at once (81 of 283).
   expect(earlyInFade).toBeLessThan(settledAfter * 0.1);
+});
+
+test('X-59: toggling 2D-only back off within the 420 ms re-lock window is not re-locked by a stale timer', async ({
+  page,
+}) => {
+  // Re-checking "2D-only" eases the camera to +z and then, 420 ms later,
+  // freezes rotation AND forces an orthographic projection. That timer was
+  // never cancelled, so un-checking again inside the window still got
+  // re-locked (ortho) when it fired. rotational-dynamics' own default is a
+  // PERSPECTIVE camera, so a wrongly-forced ortho shows up as a different
+  // frame. Fake clock, frozen with pauseAt: Playwright's own actions take
+  // real time that a running clock would count against the 420 ms.
+  await page.clock.install({ time: 0 });
+  await page.goto('#/m/rotational-dynamics');
+  const canvas = page.locator('canvas.pv-viewport-canvas');
+  await expect(canvas).toBeVisible();
+  await page.clock.runFor(1000);
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+
+  const twoDOnly = page.getByRole('checkbox', { name: '2D-only' });
+  await page.getByLabel('Display settings').click();
+
+  // Control: lock fully (timer fires, ortho), then unlock and settle ->
+  // the unlocked perspective camera at the canonical +z view.
+  await twoDOnly.uncheck();
+  await twoDOnly.check();
+  await page.clock.runFor(1500);
+  await twoDOnly.uncheck();
+  await page.clock.runFor(1500);
+  const unlockedFrame = await canvas.screenshot();
+
+  // Race: re-lock then immediately unlock again, inside the 420 ms window,
+  // then run far past it. The cancelled timer must not fire.
+  await twoDOnly.check();
+  await twoDOnly.uncheck();
+  await page.clock.runFor(1500);
+  const afterRace = await canvas.screenshot();
+
+  expect(afterRace.equals(unlockedFrame)).toBe(true);
 });

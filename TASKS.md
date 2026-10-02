@@ -1877,13 +1877,39 @@ disposes its WebGL context`, the known X-18 flake (passes solo).
   wireframe hidden, `visible(true)` restores them — all 3 FAIL against
   the pre-fix files. Full sweep (`test:unit` 710/710, `test:contract`
   228/228) and smoke (47/47, `--workers=3`) pass.
-- [READY] **X-59** Two `ModuleView` lifecycle races: the 420ms 2D-lock
+- [DONE] **X-59** Two `ModuleView` lifecycle races: the 420ms 2D-lock
   `setTimeout` is never cleared (`ModuleView.tsx:443-446`), so toggling
   back within 420ms re-locks anyway and after unmount it touches a
   disposed camera; the time series appends on every store change
   (`:339-345`), so a paused param drag floods it and a reset makes x
   non-monotonic. Clear the timer; append only when `t` advances, clear
   when it goes back
+  **Verified:** (1) New exported `createPlaneLockController(camera,
+unlockedProjection, timers?)` owns the live `ui.lockTo2D` change:
+  unlock is immediate; re-lock eases to +z and defers the freeze +
+  ortho to a 420 ms timer that every later `set()` and `dispose()`
+  cancels. `ModuleView` builds one per live Viewport (rebuilt if the
+  Viewport instance changes) and disposes it in the effect cleanup, so
+  nothing can touch a disposed camera after unmount. (2) New exported
+  `appendSeriesPoint(prev, point)`: strictly-advancing `t` appends
+  (capped at 500), an unchanged `t` replaces the last point's y (no
+  duplicates from a paused param drag), an earlier `t` (reset / scrub
+  back) restarts the series so x stays monotonic. 8 new unit tests in
+  `ModuleView.test.tsx` (the helpers are new, so these prove the
+  contract, not fail-pre-fix; the pre-fix proof is the e2e). New e2e
+  "X-59: toggling 2D-only back off within the 420 ms re-lock
+  window...": fake clock (frozen with `pauseAt`), rotational-dynamics'
+  default PERSPECTIVE camera — control: lock fully then unlock and
+  settle -> screenshot; race: re-check + un-check inside the window, run
+  1.5 s -> screenshot; they must be identical. PASSES post-fix (2/2),
+  FAILS pre-fix (2/2, a stale timer forced ortho). Fixing the series
+  exposed that the pre-existing `M3-G gate` e2e only saw its time-series
+  plot BECAUSE of the flood bug: its Space press landed on the focused
+  "Exit predict mode" button (X-36), time never advanced (`0.00s`,
+  button still "Play"), and the old series appended a duplicate point per
+  store change. That test now clicks Play for real and asserts t
+  advanced. Full sweep (`test:unit` 718/718, `test:contract` 228/228)
+  and the ENTIRE Playwright suite (54/54, `--workers=3`, run twice) pass.
 - [READY] **X-60** `rotational-dynamics` precession panel has no
   regression test against the exact heavy-top equations. X-29's fix
   (dropping a factor of 2 in `baseSwing`) was verified against the

@@ -76,6 +76,91 @@ export function applyUrlPrefs(
   return Object.keys(patch).length > 0 ? { ...current, ...patch } : undefined;
 }
 
+/** The slice of `Viewport['camera']` the 2D-lock controller drives. */
+export interface PlaneLockCamera {
+  goTo(preset: '+z', durationMs?: number, fitBounds?: undefined, recenterTarget?: boolean): void;
+  setLockedToPlane(locked: boolean): void;
+  setProjection(projection: 'ortho' | 'persp'): void;
+}
+
+/** How long the re-lock eased transition takes, plus a margin so the lock lands after it settles. */
+const LOCK_TRANSITION_MS = 400;
+const LOCK_SETTLE_MS = 420;
+
+/**
+ * X-59: applies a live `ui.lockTo2D` change to the camera. Unlocking is
+ * immediate. Re-locking eases back to the canonical +z view over
+ * ~400 ms and only THEN freezes rotation and forces orthographic
+ * (locking immediately would freeze it mid-transition) — that deferred
+ * step is a timer, and it used to be fire-and-forget: toggling back to
+ * unlocked within 420 ms still got re-locked when it fired, and after
+ * unmount it called into a disposed camera. Every new `set()` and
+ * `dispose()` now cancels the pending lock.
+ */
+export function createPlaneLockController(
+  camera: PlaneLockCamera,
+  unlockedProjection: 'ortho' | 'persp',
+  timers: {
+    setTimeout: (fn: () => void, ms: number) => number;
+    clearTimeout: (id: number) => void;
+  } = {
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimeout: (id) => window.clearTimeout(id),
+  },
+): { set(locked: boolean): void; dispose(): void } {
+  let pending: number | null = null;
+  const cancel = (): void => {
+    if (pending !== null) timers.clearTimeout(pending);
+    pending = null;
+  };
+  return {
+    set(locked) {
+      cancel();
+      if (!locked) {
+        camera.setLockedToPlane(false);
+        camera.setProjection(unlockedProjection);
+        return;
+      }
+      // Re-lock into the canonical x/y-plane view — always +z, never
+      // `module.defaultView.preset` ("2D-only" means the SAME fixed view
+      // every time, not wherever this module's own iso/etc default
+      // points) — via the same ~400ms eased transition camera presets
+      // use, recentering pan back to the origin in the same tween (so a
+      // pan made while unlocked doesn't linger), THEN force orthographic
+      // and freeze rotation once it settles.
+      camera.goTo('+z', LOCK_TRANSITION_MS, undefined, true);
+      pending = timers.setTimeout(() => {
+        pending = null;
+        camera.setLockedToPlane(true);
+        camera.setProjection('ortho');
+      }, LOCK_SETTLE_MS);
+    },
+    dispose: cancel,
+  };
+}
+
+/** Longest time series kept for the sweep/plot panel. */
+const SERIES_MAX_POINTS = 500;
+
+/**
+ * X-59: appends a (t, y) sample to the plotted time series. The series is
+ * x-ordered by construction: a sample at the SAME t as the last one
+ * (a paused parameter drag, which fires a store update per pointer move)
+ * replaces its y instead of piling up duplicates, and a sample at an
+ * EARLIER t (a reset, or scrubbing back) discards the stale later points
+ * and starts again from here, so x never goes non-monotonic.
+ */
+export function appendSeriesPoint(
+  prev: readonly { x: number; y: number }[],
+  point: { x: number; y: number },
+): { x: number; y: number }[] {
+  const last = prev[prev.length - 1];
+  if (!last || point.x < last.x) return [point];
+  if (point.x === last.x) return [...prev.slice(0, -1), point];
+  const next = [...prev, point];
+  return next.length > SERIES_MAX_POINTS ? next.slice(next.length - SERIES_MAX_POINTS) : next;
+}
+
 /**
  * X-41: owns the ONLY subscription to `state.time` in the whole
  * component tree below `ModuleViewInner`. Isolating it here means a
@@ -425,10 +510,7 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
         setScalars(values);
         const plottableKey = module.scalars.find((sc) => sc.plottable)?.key;
         if (plottableKey && module.manifest.timeModel !== 'static') {
-          setSeries((prev) => {
-            const next = [...prev, { x: s.time.t, y: values[plottableKey] }];
-            return next.length > 500 ? next.slice(next.length - 500) : next;
-          });
+          setSeries((prev) => appendSeriesPoint(prev, { x: s.time.t, y: values[plottableKey] }));
         }
       } catch (e) {
         setExternalError(e instanceof Error ? e : new Error(String(e)));
@@ -481,7 +563,14 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     let lastGridPlaneXZ = useAppStore.getState().prefs.gridPlaneXZ;
     let lastGridPlaneYZ = useAppStore.getState().prefs.gridPlaneYZ;
     let lastLockTo2D = useAppStore.getState().ui.lockTo2D;
-    return useAppStore.subscribe((s) => {
+    // One controller per live Viewport (the Viewport can be rebuilt without
+    // this effect re-running), so its pending re-lock timer always targets
+    // the camera that is actually mounted.
+    const lock: {
+      viewport: Viewport | null;
+      controller: ReturnType<typeof createPlaneLockController> | null;
+    } = { viewport: null, controller: null };
+    const unsubscribe = useAppStore.subscribe((s) => {
       const viewport = viewportRef.current;
       if (!viewport) return;
       if (s.prefs.upAxis !== lastUpAxis) {
@@ -514,31 +603,18 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       }
       if (s.ui.lockTo2D !== lastLockTo2D) {
         lastLockTo2D = s.ui.lockTo2D;
-        if (!s.ui.lockTo2D) {
-          // Restore full orbit AND the module's own natural projection
-          // (persp for a module that declared one) — applies to every
-          // module, not just `dimensions: 2` ones (ADR 0011).
-          viewport.camera.setLockedToPlane(false);
-          viewport.camera.setProjection(defaultCamera.projection);
-        } else {
-          // Re-lock into the canonical x/y-plane view — always +z,
-          // never `module.defaultView.preset` ("2D-only" means the SAME
-          // fixed view every time, not wherever this module's own
-          // iso/etc default points, which is what produced the reported
-          // "axes return to an arbitrary position" bug) — via the same
-          // ~400ms eased transition camera presets use, recentering pan
-          // back to the origin in the same tween (so a pan made while
-          // unlocked doesn't linger), THEN force orthographic and freeze
-          // rotation once it settles — locking immediately would freeze
-          // it mid-transition.
-          viewport.camera.goTo('+z', 400, undefined, true);
-          window.setTimeout(() => {
-            viewport.camera.setLockedToPlane(true);
-            viewport.camera.setProjection('ortho');
-          }, 420);
+        if (lock.viewport !== viewport || !lock.controller) {
+          lock.controller?.dispose();
+          lock.controller = createPlaneLockController(viewport.camera, defaultCamera.projection);
+          lock.viewport = viewport;
         }
+        lock.controller.set(s.ui.lockTo2D);
       }
     });
+    return () => {
+      lock.controller?.dispose();
+      unsubscribe();
+    };
   }, [mounted, module, defaultCamera]);
 
   // Time driving: parametric advances t directly; stepped drives a

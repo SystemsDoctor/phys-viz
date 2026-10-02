@@ -22,7 +22,7 @@ import { Viewport } from '@/scene/Viewport';
 import { ParamPanel } from '../params';
 import { LayerManager } from '../layers';
 import { Timeline, DEFAULT_MAX_T } from '../timeline';
-import { FixedStepAccumulator, SteppedScrubber, FIXED_DT } from '../timeline/driver';
+import { FixedStepAccumulator, SteppedScrubber, FIXED_DT, clampFrameDt } from '../timeline/driver';
 import { ReadoutTable } from '../readouts';
 import { TimeSeriesPlot } from '../plots/TimeSeriesPlot';
 import { SweepPlot } from '../plots/SweepPlot';
@@ -560,7 +560,9 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
     let lastMs = 0;
 
     function tick(nowMs: number): void {
-      const dt = lastMs ? (nowMs - lastMs) / 1000 : 0;
+      // Clamped (X-50): the first frame after a backgrounded tab resumes
+      // would otherwise carry the whole time it was hidden.
+      const dt = lastMs ? clampFrameDt((nowMs - lastMs) / 1000) : 0;
       lastMs = nowMs;
       const s = useAppStore.getState();
       const instance = instanceRef.current;
@@ -581,7 +583,11 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
         );
         programmaticRef.current = true;
         useAppStore.getState().patchTime({ t: progress.t });
-      } else if (s.time.playing) {
+      } else if (!s.time.playing) {
+        // Paused: whatever fractional step the accumulator still holds
+        // belongs to the run that just stopped (X-50).
+        accumulatorRef.current.reset();
+      } else {
         // Clamp playback to the timeline's own [0, DEFAULT_MAX_T] bound
         // and stop once a bound is reached — a bare `<input type="range"
         // max={maxT}>` only clamps where the thumb is DRAWN, it never
@@ -635,6 +641,9 @@ function ModuleViewInner(props: { module: PhysicsModule }): React.ReactElement {
       lastTRef.current = s.time.t;
       const instance = instanceRef.current;
       if (!instance?.reset) return;
+      // A scrub restarts the simulation from t=0 — a stale accumulator
+      // remainder from before it must not leak into the new run (X-50).
+      accumulatorRef.current.reset();
       scrubberRef.current.begin(s.time.t, () => instance.reset?.(moduleStateOf(s)));
     });
   }, [mounted, module, moduleStateOf]);

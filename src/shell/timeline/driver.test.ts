@@ -1,7 +1,51 @@
 import { describe, it, expect, vi } from 'vitest';
-import { FixedStepAccumulator, SteppedScrubber, FIXED_DT, MAX_FASTFORWARD_STEPS } from './driver';
+import {
+  FixedStepAccumulator,
+  SteppedScrubber,
+  FIXED_DT,
+  MAX_FASTFORWARD_STEPS,
+  MAX_FRAME_DT,
+  clampFrameDt,
+} from './driver';
+
+describe('clampFrameDt (X-50)', () => {
+  it('passes ordinary frame deltas through unchanged', () => {
+    expect(clampFrameDt(1 / 60)).toBe(1 / 60);
+    expect(clampFrameDt(MAX_FRAME_DT)).toBe(MAX_FRAME_DT);
+  });
+
+  it('clamps the huge delta of a backgrounded tab resuming', () => {
+    expect(clampFrameDt(60)).toBe(MAX_FRAME_DT);
+    expect(clampFrameDt(Infinity)).toBe(MAX_FRAME_DT);
+  });
+
+  it('treats a negative or NaN delta as no time passing', () => {
+    expect(clampFrameDt(-1)).toBe(0);
+    expect(clampFrameDt(NaN)).toBe(0);
+  });
+});
 
 describe('FixedStepAccumulator', () => {
+  // X-50: a stalled frame (backgrounded tab) used to leave its whole
+  // backlog in the accumulator, so EVERY following frame also ran
+  // MAX_STEPS_PER_FRAME steps until it drained.
+  it('drops the backlog past the per-frame cap instead of racing through it on later frames (X-50)', () => {
+    const acc = new FixedStepAccumulator();
+    const firstFrame = acc.advance(60, 1, () => {}); // 60 s stall
+    expect(firstFrame).toBeGreaterThan(0);
+    // A normal 60 fps frame afterwards must take at most its own ~4 steps,
+    // not another full capped batch from the leftover 59 s.
+    const nextFrame = acc.advance(1 / 60, 1, () => {});
+    expect(nextFrame).toBeLessThanOrEqual(Math.ceil(1 / 60 / FIXED_DT) + 1);
+  });
+
+  it('still keeps the fractional remainder when the cap is NOT hit', () => {
+    const acc = new FixedStepAccumulator();
+    let calls = 0;
+    acc.advance(FIXED_DT * 1.5, 1, () => calls++);
+    acc.advance(FIXED_DT * 0.5, 1, () => calls++);
+    expect(calls).toBe(2); // 1.5 + 0.5 = 2 whole steps, nothing lost
+  });
   it('calls step() the same total number of times regardless of frame rate (determinism, §12)', () => {
     const totalTime = 1; // 1 second of playback
     const stepsA: number[] = [];

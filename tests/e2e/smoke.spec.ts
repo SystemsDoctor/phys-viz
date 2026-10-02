@@ -1060,3 +1060,28 @@ test('X-49: projector mode actually thickens a surface wireframe (surface glyph,
   expect(withoutProjector).toBeGreaterThan(0);
   expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
 });
+
+test('X-50: a backgrounded tab resuming does not make stepped playback race', async ({ page }) => {
+  // Simulate the tab being hidden for a minute with Playwright's fake
+  // clock: rAF stops, then the next frame arrives 60 s later. Before the
+  // fix that frame's raw dt went straight into the stepped accumulator,
+  // which kept its backlog past the per-frame step cap, so EVERY
+  // following frame also ran flat-out and `t` raced ahead by about a
+  // simulated second per frame.
+  await page.clock.install();
+  await page.goto('#/m/rotational-dynamics');
+  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+  await page.clock.runFor(500);
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.clock.runFor(200);
+
+  await page.clock.fastForward(60_000);
+  await page.clock.runFor(500); // 30 more ordinary 60 fps frames
+
+  const tText = await page.locator('.pv-timeline__t').innerText();
+  const t = parseFloat(tText);
+  // ~0.2 s before + <= 0.1 s clamped jump + ~0.5 s after = ~0.8 s of
+  // simulated time. Pre-fix this was tens of seconds.
+  expect(t).toBeGreaterThan(0.3);
+  expect(t).toBeLessThan(2);
+});

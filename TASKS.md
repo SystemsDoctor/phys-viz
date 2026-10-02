@@ -1723,11 +1723,28 @@ gr=0`, `#7b8494` within 40): 229 -> 439 with `?pj=1` post-fix;
     (51/51, `--workers=3`) pass.
   - `patch.applyProps` opacity-floor overwrite: investigated, confirmed
     still reproducible, split out as **X-61** (below, after X-60).
-- [READY] **X-50** Stepped playback runs flat-out after a backgrounded
+- [DONE] **X-50** Stepped playback runs flat-out after a backgrounded
   tab resumes: the rAF `dt` is unclamped (`ModuleView.tsx:471`) and
   `FixedStepAccumulator` keeps its backlog past `MAX_STEPS_PER_FRAME`,
   never reset on pause/scrub (`driver.ts:37-46`). Clamp `frameDt` or
   drop the backlog at the cap; reset on pause and scrub
+  **Verified:** [ADR 0021](docs/adr/0021-playback-frame-dt-clamp.md).
+  New `clampFrameDt`/`MAX_FRAME_DT = 0.1` in `shell/timeline/driver.ts`,
+  applied to the rAF delta in `ModuleView`'s tick (stepped AND
+  parametric); `FixedStepAccumulator.advance` zeroes its backlog when it
+  hits `MAX_STEPS_PER_FRAME` with time still owed (the fractional
+  remainder is still kept below the cap, so §12 determinism is
+  unchanged); `ModuleView` resets the accumulator while paused and when
+  a scrub begins. `driver.test.ts` +5 tests (20/20 pass; against the
+  pre-fix files the clamp tests fail for the missing function and the
+  accumulator test fails because a 60 s stall left a full capped batch for
+  the next frame). New e2e "X-50: a backgrounded tab resuming does not
+  make stepped playback race" (Playwright fake clock: play
+  rotational-dynamics, `fastForward(60_000)`, 0.5 s more): `t` = 0.83s
+  post-fix; pre-fix `t` = 20.00s (ran to the end of the timeline). Full
+  sweep (`test:unit` 687/687, `test:contract` 228/228) and smoke 45/46 on
+  `--workers=3` — the one failure was `gravitation: renders ...
+disposes its WebGL context`, the known X-18 flake (passes solo).
 - [READY] **X-51** `vector-algebra` `theta` can be `NaN`: `Math.acos`
   unclamped (`index.ts:249`) — `a=[−0.5,0,−3]`, `b=−0.5a` gives
   cos = −1.0000000000000004 (reproduced); `a=0` also NaNs θ and the

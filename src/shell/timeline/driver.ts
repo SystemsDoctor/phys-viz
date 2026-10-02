@@ -19,6 +19,20 @@ export const FIXED_DT = 1 / 240;
 export const MAX_FASTFORWARD_STEPS = 20_000;
 /** How many fixed steps a single advance()/tick() call may take before yielding back to the next animation frame. Keeps a single frame's work bounded even if `step()` is not as cheap as §12 asks for. */
 const MAX_STEPS_PER_FRAME = 240;
+/**
+ * Longest wall-clock gap one animation frame is allowed to advance playback
+ * by. A backgrounded tab stops delivering rAF callbacks, so the first frame
+ * after it resumes sees a `dt` of seconds or minutes; unclamped, that fed a
+ * huge jump to parametric time and an enormous backlog to the stepped
+ * accumulator (X-50). 0.1 s is a frame rate of 10 fps — slower than that
+ * playback simply slows down instead of lurching.
+ */
+export const MAX_FRAME_DT = 0.1;
+
+/** Clamps a raw rAF delta to `[0, MAX_FRAME_DT]` (a negative or NaN delta becomes 0). */
+export function clampFrameDt(dt: number): number {
+  return dt > 0 ? Math.min(dt, MAX_FRAME_DT) : 0;
+}
 
 /**
  * Drives NORMAL playback (not scrubbing) for a `stepped` module: turns
@@ -42,6 +56,12 @@ export class FixedStepAccumulator {
       this.acc -= this.dt;
       taken++;
     }
+    // Hit the per-frame cap with time still owed: drop the backlog rather
+    // than carry it. Keeping it made every later frame also run flat-out
+    // at the cap until it drained — minutes of simulation racing past for
+    // a tab that was merely backgrounded (X-50). Only a frame that stalled
+    // for over a second of simulated time can get here.
+    if (taken === MAX_STEPS_PER_FRAME && this.acc >= this.dt) this.acc = 0;
     return taken;
   }
 

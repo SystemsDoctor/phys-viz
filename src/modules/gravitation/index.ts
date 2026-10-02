@@ -46,6 +46,14 @@ const CENTRAL_BODY_DIAMETER = 0.4;
 const ORBITING_BODY_DIAMETER = 0.22;
 const VELOCITY_ARROW_SCALE = 0.4; // schematic: velocity units aren't length units, so this just needs to read clearly at this module's default a/mu range
 const ACCEL_ARROW_SCALE = 0.15;
+// X-52: the gravity arrow's raw length (0.15 * mu / r^2) reaches 1.2 at the
+// default periapsis and ~30 at e = 0.9, running straight through the
+// central mass. Its length now saturates smoothly (tanh) toward this cap
+// and is additionally clamped to ACCEL_ARROW_CLEARANCE of the gap between
+// the orbiting body and the central body's surface, so the tip can never
+// reach — let alone pass — the central mass.
+const ACCEL_ARROW_MAX_LENGTH = 1.5;
+const ACCEL_ARROW_CLEARANCE = 0.85;
 const ANGULAR_MOMENTUM_ARROW_LENGTH = 1.4; // fixed schematic length — h's own magnitude has different units than world-space length
 const ORBIT_PATH_SAMPLES = 96;
 
@@ -272,10 +280,16 @@ const module: PhysicsModule = {
         // central mass, i.e. along -position (the central mass sits at
         // the origin).
         const towardCenter = norm(orbit.position) > 0 ? normalize(orbit.position) : [0, 0, 0];
+        const gapToCentralSurface = Math.max(0, norm(orbit.position) - CENTRAL_BODY_DIAMETER / 2);
+        const accelLength = Math.min(
+          ACCEL_ARROW_MAX_LENGTH *
+            Math.tanh((orbit.accel * ACCEL_ARROW_SCALE) / ACCEL_ARROW_MAX_LENGTH),
+          ACCEL_ARROW_CLEARANCE * gapToCentralSurface,
+        );
         const accelTip = toMut([
-          orbit.position[0] - towardCenter[0] * orbit.accel * ACCEL_ARROW_SCALE,
-          orbit.position[1] - towardCenter[1] * orbit.accel * ACCEL_ARROW_SCALE,
-          orbit.position[2] - towardCenter[2] * orbit.accel * ACCEL_ARROW_SCALE,
+          orbit.position[0] - towardCenter[0] * accelLength,
+          orbit.position[1] - towardCenter[1] * accelLength,
+          orbit.position[2] - towardCenter[2] * accelLength,
         ]);
         accelArrow.set({ from: posMut, to: accelTip });
         accelArrow.visible(vectorsOn);

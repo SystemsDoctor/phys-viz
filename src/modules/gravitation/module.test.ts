@@ -42,6 +42,36 @@ const fakeCtx = new Proxy({} as SceneContext, {
   },
 });
 
+// X-52: records each arrow's colour (the palette proxy echoes the token
+// name, so 'accel' identifies the gravity arrow) and its latest set()
+// payload, to inspect the arrow the module actually draws.
+function recordingCtx() {
+  const arrows: { color: string; last: { from: number[]; to: number[] } }[] = [];
+  const ctx = new Proxy({} as SceneContext, {
+    get(_target, prop) {
+      if (prop === 'palette') return new Proxy({}, { get: (_t, key) => String(key) });
+      if (prop === 'up') return 'y';
+      if (prop === 'group') return (name: string) => ({ id: name });
+      if (prop === 'arrow') {
+        return (props: { color: string; from: number[]; to: number[] }) => {
+          const rec = { color: props.color, last: { from: props.from, to: props.to } };
+          arrows.push(rec);
+          return {
+            set: (next: { from?: number[]; to?: number[] }) => {
+              if (next.from) rec.last.from = [...next.from];
+              if (next.to) rec.last.to = [...next.to];
+            },
+            visible: () => {},
+            dispose: () => {},
+          };
+        };
+      }
+      return () => noopHandle;
+    },
+  });
+  return { ctx, arrows };
+}
+
 function stateAt(
   t: number,
   mu: number,
@@ -235,5 +265,54 @@ describe(module.manifest.id, () => {
     // shape now lives there, not collapsed onto the line world-z=0).
     for (const [, y] of points) expect(y).toBe(0);
     expect(points.some(([, , z]) => Math.abs(z) > 1e-6)).toBe(true);
+  });
+
+  // X-52: the gravity arrow (0.15 mu / r^2 long) used to run straight
+  // through the central mass — 1.2 long at the default periapsis r = 1,
+  // ~30 long at e = 0.9.
+  describe('gravity arrow never reaches the central mass (X-52)', () => {
+    const CENTRAL_RADIUS = 0.2; // CENTRAL_BODY_DIAMETER / 2
+
+    const cases: { name: string; mu: number; a: number; e: number; t: number }[] = [
+      { name: 'defaults at periapsis (r = 1, raw length 1.2)', mu: 8, a: 2, e: 0.5, t: 0 },
+      { name: 'e = 0.9 near periapsis (raw length ~30)', mu: 8, a: 2, e: 0.9, t: 0 },
+      { name: 'strong, tight orbit', mu: 20, a: 1.5, e: 0.7, t: 0 },
+      { name: 'defaults at apoapsis', mu: 8, a: 2, e: 0.5, t: 0.5 },
+    ];
+
+    for (const c of cases) {
+      it(`${c.name}: the tip stays on the near side of, and clear of, the central body`, () => {
+        const { ctx, arrows } = recordingCtx();
+        const instance = module.create(ctx);
+        const period = 2 * Math.PI * Math.sqrt((c.a * c.a * c.a) / c.mu);
+        instance.update(stateAt(c.t === 0 ? 0 : c.t * period, c.mu, c.a, c.e));
+        const g = arrows.find((r) => r.color === 'accel')!;
+        const [fx, fy, fz] = g.last.from;
+        const [tx, ty, tz] = g.last.to;
+        const r = Math.hypot(fx, fy, fz);
+        // Same side of the origin as the body (never overshoots through it)...
+        expect(fx * tx + fy * ty + fz * tz).toBeGreaterThanOrEqual(0);
+        // ...and stops outside the central body's surface.
+        expect(Math.hypot(tx, ty, tz)).toBeGreaterThanOrEqual(CENTRAL_RADIUS - 1e-9);
+        // Still points toward the centre (tip no farther out than the body).
+        expect(Math.hypot(tx, ty, tz)).toBeLessThanOrEqual(r + 1e-9);
+      });
+    }
+
+    it('a weaker field still draws a shorter arrow (the length remains informative)', () => {
+      const lengthAt = (t: number): number => {
+        const { ctx, arrows } = recordingCtx();
+        const instance = module.create(ctx);
+        instance.update(stateAt(t, 8, 2, 0.5));
+        const g = arrows.find((r) => r.color === 'accel')!;
+        return Math.hypot(
+          g.last.to[0] - g.last.from[0],
+          g.last.to[1] - g.last.from[1],
+          g.last.to[2] - g.last.from[2],
+        );
+      };
+      const period = 2 * Math.PI * Math.sqrt((2 * 2 * 2) / 8);
+      expect(lengthAt(0.5 * period)).toBeLessThan(lengthAt(0.25 * period));
+    });
   });
 });

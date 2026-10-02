@@ -1760,10 +1760,22 @@ disposes its WebGL context`, the known X-18 flake (passes solo).
   both ways — kept as a regression guard). Full sweep (`test:unit`
   691/691, `test:contract` 228/228) and the vector-algebra smoke tests
   (3/3) pass.
-- [READY] **X-52** `gravitation` gravity arrow (length `0.15·μ/r²`,
+- [DONE] **X-52** `gravitation` gravity arrow (length `0.15·μ/r²`,
   `index.ts:256-260`) overshoots the central mass — 1.2 long at the
   default periapsis r=1, ~30 at e=0.9. Saturate and clamp below
   `r − central radius`
+  **Verified:** arrow length is now `min(1.5·tanh(0.15·g / 1.5),
+0.85·(r − centralRadius))` (new `ACCEL_ARROW_MAX_LENGTH`/
+  `ACCEL_ARROW_CLEARANCE`): smooth saturation keeps weaker fields
+  visibly shorter, the clearance clamp keeps the tip outside the central
+  body's surface. 5 new tests in `module.test.ts` capture the accel
+  arrow's real `.set()` payload (palette proxy echoes token names to
+  find the `accel`-coloured arrow): for four orbits (default periapsis,
+  e=0.9, strong/tight, apoapsis) the tip is on the body's side of the
+  origin and outside radius 0.2, plus a weaker-field-draws-shorter check;
+  3 of the 5 (periapsis, e=0.9, tight) FAIL against the pre-fix module.
+  Full sweep (`test:unit` 696/696, `test:contract` 228/228) and the
+  gravitation smoke tests (2/2) pass.
 - [READY] **X-53** Two small module bugs: `non-inertial-frames`' lab-frame
   platform mark stops turning once the puck exits, because θ = ω·t uses
   the exit-clamped `t` (`index.ts:234-237`); `projectile-motion`'s

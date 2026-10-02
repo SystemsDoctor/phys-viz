@@ -32,7 +32,11 @@ export interface PathProps {
   group?: GroupHandle;
   points: [number, number, number][];
   color?: string;
-  /** Max trailing points to render (oldest are dropped first). Default: no limit up to MAX_POINTS. */
+  /**
+   * Max trailing points to render (oldest are dropped first). Default: no limit
+   * up to MAX_POINTS — and NO fade: only a path with `persistence` set is a
+   * fading tail; without it every vertex is drawn at full colour (X-54).
+   */
   persistence?: number;
 }
 
@@ -87,14 +91,19 @@ export function createPath(props: PathProps, host: SubstrateHost): PathHandle {
     const limit = Math.min(p.persistence ?? MAX_POINTS, MAX_POINTS);
     const start = Math.max(0, p.points.length - limit);
     const count = p.points.length - start;
+    const fades = p.persistence !== undefined;
 
     // Segment record s joins point s to point s+1 (6 floats: start xyz,
     // end xyz), for both positions and colours.
     for (let i = 0; i < count; i++) {
       const [x, y, z] = p.points[start + i];
-      // Fade the trailing (oldest, index 0) end toward the background;
-      // the leading (newest) end stays full colour.
-      const fadeT = count > 1 ? i / (count - 1) : 1;
+      // A path with `persistence` is a fading tail: the trailing (oldest,
+      // index 0) end blends toward the background while the leading
+      // (newest) end stays full colour. Without it (a fixed outline, an
+      // axis line) every vertex stays full colour — fading the first
+      // vertex of a two-point axis or a closed orbit left one end
+      // invisible (X-54).
+      const fadeT = fades && count > 1 ? i / (count - 1) : 1;
       const r = scratchBg.r + (scratchColor.r - scratchBg.r) * fadeT;
       const g = scratchBg.g + (scratchColor.g - scratchBg.g) * fadeT;
       const b = scratchBg.b + (scratchColor.b - scratchBg.b) * fadeT;

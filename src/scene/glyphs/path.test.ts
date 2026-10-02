@@ -77,6 +77,7 @@ describe('createPath', () => {
           [2, 0, 0],
         ],
         color: '#000000',
+        persistence: 10, // a fading tail (X-54: only with persistence)
       },
       host,
     );
@@ -86,6 +87,30 @@ describe('createPath', () => {
     const oldestBrightness = colors[0] + colors[1] + colors[2];
     const newestBrightness = colors[9] + colors[10] + colors[11];
     expect(oldestBrightness).toBeGreaterThan(newestBrightness);
+    handle.dispose();
+  });
+
+  // X-54: a path with no `persistence` is a fixed outline / axis line, not a
+  // fading tail — fading its first vertex left one end invisible.
+  it('draws every vertex at full colour when no persistence is set (X-54)', () => {
+    const host = createFakeHost();
+    const handle = createPath(
+      {
+        points: [
+          [0, 0, 0],
+          [1, 0, 0],
+          [2, 0, 0],
+        ],
+        color: '#000000',
+      },
+      host,
+    );
+    const colors = rawColorBuffer(geom(getLine(host)));
+    // segment 0 start (oldest vertex) and the last segment's end (newest)
+    // are both the path's own colour (black = 0,0,0), not blended toward
+    // the light background.
+    expect(Array.from(colors.slice(0, 3))).toEqual([0, 0, 0]);
+    expect(Array.from(colors.slice(9, 12))).toEqual([0, 0, 0]);
     handle.dispose();
   });
 

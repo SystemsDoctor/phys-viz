@@ -1795,11 +1795,23 @@ disposes its WebGL context`, the known X-18 flake (passes solo).
   the z-up case FAILS pre-fix (flight 0). Full sweep (`test:unit`
   700/700, `test:contract` 228/228) and full smoke (46/46,
   `--workers=3`) pass.
-- [READY] **X-54** `path` always fades its oldest vertex to the
+- [DONE] **X-54** `path` always fades its oldest vertex to the
   background, with or without `persistence` (`path.ts:72`) — two-point
   axis lines and closed outlines (`gravitation`'s orbit, the
   `fields-gradients` cap boundary) render with an invisible end. Fade
   only when `persistence` is set (or add `fade?: boolean`)
+  **Verified:** `applyProps` fades only when `p.persistence !== undefined`
+  (chosen over a new `fade` prop — `persistence` already means "fading
+  tail" in ARCHITECTURE.md §8 and MODULE_AUTHORING.md; documented on the
+  prop); otherwise every vertex stays full colour. The only two callers
+  that set `persistence` (`rotational-dynamics`' two traces, 200) keep
+  their fading tails; gravitation's orbit, the fields-gradients
+  boundary/tangent paths and axis lines now render fully. New `path.test.ts`
+  test reads the real colour buffer — first and last vertex both the
+  path's own black, not blended to the light background — and FAILS
+  pre-fix; the existing fade test now passes `persistence` explicitly.
+  Full sweep (`test:unit` 701/701, `test:contract` 228/228) and full
+  smoke (46/46, `--workers=3`) pass.
 - [READY] **X-55** Layer fade-in is a no-op for any layer that has been
   drawn before: `Viewport.ts:352` flips `material.transparent` without
   `needsUpdate`, and three r160 bakes `OPAQUE` (alpha forced to 1) from

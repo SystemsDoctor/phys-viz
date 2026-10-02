@@ -1,10 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import type { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { createSurface } from './surface';
+import { rawPositionBuffer } from '../internal/line2';
 import { createFakeHost } from '../internal/fakeHost.test-utils';
 
+// X-49: the wireframe overlay is a `LineSegments2` (a `THREE.Mesh`
+// subclass), so the filled surface is the child with the EXACT `Mesh`
+// constructor.
 function getMesh(host: ReturnType<typeof createFakeHost>): THREE.Mesh {
-  return host.root.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh;
+  return host.root.children.find((c): c is THREE.Mesh => c.constructor === THREE.Mesh)!;
+}
+function getWire(host: ReturnType<typeof createFakeHost>): LineSegments2 {
+  return host.root.children.find((c): c is LineSegments2 => c.constructor === LineSegments2)!;
 }
 
 describe('createSurface', () => {
@@ -63,13 +73,62 @@ describe('createSurface', () => {
     handle.dispose();
   });
 
+  it('draws the wireframe as LineSegments2/LineMaterial that projector mode can thicken (X-49)', () => {
+    const host = createFakeHost();
+    const handle = createSurface(
+      { parametric: (u, v) => [u, v, 0], uRange: [0, 1], vRange: [0, 1], wireframe: true },
+      host,
+    );
+    const wire = getWire(host);
+    const material = wire.material as LineMaterial;
+    expect(material).toBeInstanceOf(LineMaterial);
+    expect(material.linewidth).toBeGreaterThan(1);
+    expect(material.worldUnits).toBe(false);
+    expect(host.themedMaterials.some((m) => m.material === material && m.kind === 'line')).toBe(
+      true,
+    );
+    host.fireFrame({ rendererWidth: 320, rendererHeight: 200 });
+    expect(material.resolution.x).toBe(320);
+    expect(material.resolution.y).toBe(200);
+    handle.dispose();
+  });
+
+  it('wireframe edges are the unique triangle edges, rewritten in place on set()', () => {
+    const host = createFakeHost();
+    const handle = createSurface(
+      {
+        parametric: (u, v) => [u, v, 0],
+        uRange: [0, 1],
+        vRange: [0, 1],
+        resolution: [2, 2],
+        wireframe: true,
+      },
+      host,
+    );
+    const wire = getWire(host);
+    const buffer = rawPositionBuffer(wire.geometry as LineSegmentsGeometry);
+    // 3x3 vertices: 12 grid edges + 4 quad diagonals = 16 unique edges.
+    expect(buffer.length).toBe(16 * 6);
+    // Every endpoint is a real surface vertex (here the 3x3 grid on z=0).
+    for (let i = 0; i < buffer.length; i += 3) {
+      expect([0, 0.5, 1]).toContain(buffer[i]);
+      expect([0, 0.5, 1]).toContain(buffer[i + 1]);
+      expect(buffer[i + 2]).toBe(0);
+    }
+    // Moving the surface rewrites the SAME typed array.
+    handle.set({ parametric: (u, v) => [u, v, 2] });
+    expect(rawPositionBuffer(wire.geometry as LineSegmentsGeometry)).toBe(buffer);
+    for (let i = 2; i < buffer.length; i += 3) expect(buffer[i]).toBe(2);
+    handle.dispose();
+  });
+
   it('toggles the wireframe overlay visibility', () => {
     const host = createFakeHost();
     const handle = createSurface(
       { parametric: (u, v) => [u, v, 0], uRange: [0, 1], vRange: [0, 1], wireframe: false },
       host,
     );
-    const wireframeLines = host.root.children.find((c) => c instanceof THREE.LineSegments);
+    const wireframeLines = getWire(host);
     expect(wireframeLines?.visible).toBe(false);
     handle.set({ wireframe: true });
     expect(wireframeLines?.visible).toBe(true);

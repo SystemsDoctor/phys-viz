@@ -395,13 +395,17 @@ async function countMatchingPixels(
 ): Promise<number> {
   await page.goto(url);
   if (forceReload) await page.reload();
-  await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
+  // Real module routes tag the viewport canvas; the dev demo scene's is bare.
+  await expect(
+    page.locator('canvas.pv-viewport-canvas').or(page.locator('canvas')).first(),
+  ).toBeVisible();
   await page.waitForTimeout(300);
   return page.evaluate(
     ({ r, g, b, tol, clip, invert }) =>
       new Promise<number>((resolve) => {
         requestAnimationFrame(() => {
-          const webgl = document.querySelector('canvas.pv-viewport-canvas') as HTMLCanvasElement;
+          const webgl = (document.querySelector('canvas.pv-viewport-canvas') ??
+            document.querySelector('canvas')) as HTMLCanvasElement;
           const offscreen = document.createElement('canvas');
           offscreen.width = webgl.width;
           offscreen.height = webgl.height;
@@ -1023,6 +1027,36 @@ test('X-49: projector mode actually thickens an angle arc (arc glyph)', async ({
   const base = '#/m/vector-algebra?a=1,0,0&b=0,1,0&gr=0';
   const withoutProjector = await countMatchingPixels(page, base, construction, 40);
   const withProjector = await countMatchingPixels(page, `${base}&pj=1`, construction, 40, true);
+  expect(withoutProjector).toBeGreaterThan(0);
+  expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
+});
+
+test('X-49: projector mode actually thickens a surface wireframe (surface glyph, via the dev demo scene)', async ({
+  page,
+}) => {
+  // No real module draws a wireframe yet, so this uses the dev demo
+  // scene (`wireframe: true` surface; `?pj=1` is a dev hook there). The
+  // wire is flat #12161d; clip to the surface's footprint, which holds
+  // nothing else of that colour (the dimension line is black, the
+  // arrow/curved arrow/path/arc are coloured).
+  const wire = { r: 0x12, g: 0x16, b: 0x1d };
+  const clip = { x0: 0.1, x1: 0.9, y0: 0.1, y1: 0.9 };
+  const withoutProjector = await countMatchingPixels(
+    page,
+    '#/_dev/demo-scene',
+    wire,
+    60,
+    false,
+    clip,
+  );
+  const withProjector = await countMatchingPixels(
+    page,
+    '#/_dev/demo-scene?pj=1',
+    wire,
+    60,
+    true,
+    clip,
+  );
   expect(withoutProjector).toBeGreaterThan(0);
   expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
 });

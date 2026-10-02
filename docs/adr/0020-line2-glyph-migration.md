@@ -4,7 +4,7 @@ Date: 2026-09-28
 
 ## Status
 
-Accepted (in progress — see Consequences for what's migrated so far)
+Accepted — complete (all line-drawing glyphs migrated; see Addendum)
 
 ## Context
 
@@ -118,3 +118,50 @@ LineMaterial}.js` adds to the initial JS chunk (`arrow` is used by
   should re-check the budget as more glyphs migrate, since each pulls
   in the same already-imported line classes (no additional bundle cost
   per additional glyph, since they're the same modules).
+
+## Addendum: completion (2026-10-02)
+
+Every remaining glyph was migrated one commit each, in this order: `path`,
+`curvedArrow`, `dimensionLine`, `axes`, `gridPlane`, `frame`, `arc`,
+`surface`'s wireframe. A `grep` of `src/` for `THREE.Line`/`LineSegments`/
+`LineBasicMaterial`/`LineDashedMaterial` constructions now finds only
+comments. What the later slices added to the pattern above:
+
+- **Shared helpers** (`src/scene/internal/line2.ts`): `rawPositionBuffer`/
+  `rawColorBuffer`, their `mark…Dirty` partners and `setPolylineVertex`
+  (a polyline vertex is the START of segment record `i` and the END of
+  record `i - 1`). They accept `LineSegmentsGeometry` (the base of
+  `LineGeometry`). `arrow.ts` now imports them instead of defining its own.
+- **§5 refined — variable counts don't need per-frame `setPositions()`
+  either.** `path`, the `axes` ticks, the `gridPlane` lines and the
+  `surface` wireframe allocate their instance buffers ONCE at a fixed
+  capacity and carry the live count in `geometry.instanceCount`, so even
+  the variable-length glyphs allocate nothing per `set()`/rebuild.
+  Capacity-padded geometries set `frustumCulled = false` where the
+  one-time bounding sphere would be wrong (`path`).
+- **Disconnected segments use `LineSegments2` + `LineSegmentsGeometry`**
+  (whose buffer is already one start/end record per segment); connected
+  polylines use `Line2` + `LineGeometry`. Both are `THREE.Mesh`
+  subclasses, so every test that looked a line up with `instanceof
+THREE.Line`/`LineSegments`/`Mesh` now matches by exact constructor.
+- **Per-vertex colour** (`path`'s fade) works with `LineMaterial
+{ vertexColors: true }` via `setColors()`/`rawColorBuffer`.
+- **Translucency survives**: `gridPlane` keeps `transparent` +
+  `opacity: 0.5` on its `LineMaterial`, so `Viewport`'s opacity-floor path
+  still applies to it. (The separate `patch` opacity-floor bug is X-61.)
+- **Widths** (screen-space px; the projector multiplier is 1.6x): arrow
+  3, `dimensionLine` 3, `curvedArrow` 3, `frame` 3, `path` 2.5, axes 2 /
+  ticks 1.5, `arc` 2, `gridPlane` 1.5, wireframe 1.5. A 2px first attempt
+  at `dimensionLine` was too close to sub-pixel to measure — same lesson
+  as the arrow's 1.5px.
+- **Every slice has a real-render proof** (`tests/e2e/smoke.spec.ts`,
+  `X-49: …`), via the shared `countMatchingPixels` helper (colour
+  tolerance, optional clip rect, optional invert), each shown to fail
+  against the pre-fix glyph and pass after. `surface`'s wireframe is drawn
+  by no real module, so its proof runs in the dev demo scene, which now
+  sets `wireframe: true` on its surface and honours a dev-only
+  `#/_dev/demo-scene?pj=1` (documented in `demoScene.ts`; the route is
+  unlisted and is not part of the shell/URL contract). `perf.spec.ts`
+  (heap growth/frame rate on that scene) still passes.
+- `check:budget` still passes: all slices share the same already-bundled
+  `three/examples/jsm/lines` modules.

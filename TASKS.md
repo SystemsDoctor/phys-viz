@@ -1493,16 +1493,20 @@ src/modules/control-showcase/module.test.ts src/kernel/frames`: 56/56
   at `to − h·dir` (`:125`); a double head misses `from` the same way.
   `arrow.test.ts:28` only checks `0 < x ≤ 2`. Translate the cone once, or
   place at `to − h/2·dir`; assert the apex
-- [READY] **X-49** Projector mode doesn't thicken scene lines: every line
+- [DONE] **X-49** Projector mode doesn't thicken scene lines: every line
   is `THREE.Line` with `LineBasicMaterial`/`LineDashedMaterial`, whose
   `linewidth > 1` is ignored under ANGLE (Chrome/Edge/Firefox on
   Windows), so `lineWidthMultiplier` (`Viewport.ts:486-504`) is a no-op;
   a sub-audit also reports `patch.applyProps` overwriting the opacity
   floor. Consider `Line2`/`LineMaterial` from `three/examples/jsm/lines`
   (no new dependency) (read-only)
-  **In progress — glyph-by-glyph, per the audit's own note that this
-  touches every line-drawing glyph (see ADR 0020 for the full plan and
-  the reusable pattern discovered):**
+  **Done glyph-by-glyph (9 commits), per the audit's own note that this
+  touched every line-drawing glyph — see ADR 0020 for the plan and the
+  reusable pattern. Confirmed complete: `grep` of `src/` for
+  `THREE.Line`/`LineSegments`/`LineBasicMaterial`/`LineDashedMaterial`
+  constructions finds none left (only comments). The audit sub-report's
+  `patch.applyProps` opacity-floor overwrite was investigated and IS
+  still reproducible — split out as X-61, not folded in here.**
   - [DONE] `arrow`'s shaft (`src/scene/glyphs/arrow.ts`) — migrated to
     `Line2`/`LineGeometry`/`LineMaterial` (`worldUnits: false`,
     `resolution` set every frame from `FrameInfo`, in-place position
@@ -1628,14 +1632,33 @@ context`, which passed solo and on the rerun (same transient-
 gr=0`, `#7b8494` within 40): 229 -> 439 with `?pj=1` post-fix;
     pre-fix fails (50 vs. 50). Full sweep (`test:unit` 665/665,
     `test:contract` 228/228) and full smoke (44/44, `--workers=3`) pass.
-  - [READY] `surface`'s wireframe mode (`src/scene/glyphs/surface.ts`)
-    — the largest remaining migration (a full wireframe mesh's edges,
-    not a simple 2-endpoint shaft); scope this one out carefully before
-    starting, it may warrant its own ADR addendum.
-  - Not yet investigated: the `patch.applyProps` opacity-floor
-    overwrite the audit's sub-report also flagged under X-49 — confirm
-    whether it's still reproducible before folding a fix into a future
-    X-49 commit or splitting it into its own X-id.
+  - [DONE] `surface`'s wireframe mode (`src/scene/glyphs/surface.ts`)
+    — `LineSegments2`/`LineSegmentsGeometry`. The mesh topology
+    (`resolution`) is fixed at creation, so the unique triangle-edge list
+    (same set `THREE.WireframeGeometry` emitted: grid edges plus each
+    quad's diagonal) is computed ONCE and each `set()` rewrites the edge
+    endpoints in place — it no longer rebuilds and disposes a
+    `WireframeGeometry` per `set()`. 1.5px (thin, so a dense mesh doesn't
+    swamp the surface); `onFrame` only syncs `resolution`. No real module
+    draws a wireframe yet, so the e2e proof uses the dev demo scene:
+    `demoScene` now sets `wireframe: true` on its surface and reads a
+    dev-only `#/_dev/demo-scene?pj=1` to turn projector mode on
+    (documented in its header; no shell/URL contract involved; the ADR
+    0020 addendum records it). Verified: `surface.test.ts` 8/8 pass
+    post-fix, 3/8 FAIL against the pre-fix file (new goldens: the
+    `LineSegments2`/`LineMaterial`/themed/`resolution` object, and the
+    16-unique-edges-for-a-2x2-grid buffer rewritten in place on `set()`
+    with the SAME typed array; the filled-mesh lookup became
+    exact-constructor). New e2e "X-49: ... surface wireframe (... dev demo
+    scene)" (wire `#12161d` within 60, clipped to the surface's
+    footprint): 12567 -> 19906 with `?pj=1` post-fix; pre-fix fails
+    (9945 vs. 9909). `countMatchingPixels` now also finds the bare demo
+    canvas. Full sweep (`test:unit` 667/667, `test:contract` 228/228)
+    and the ENTIRE Playwright suite, incl. `perf.spec.ts` (heap/frame-rate
+    on the now-wireframed demo scene) and the demo-scene smoke
+    (51/51, `--workers=3`) pass.
+  - `patch.applyProps` opacity-floor overwrite: investigated, confirmed
+    still reproducible, split out as **X-61** (below, after X-60).
 - [READY] **X-50** Stepped playback runs flat-out after a backgrounded
   tab resumes: the rAF `dt` is unclamped (`ModuleView.tsx:471`) and
   `FixedStepAccumulator` keeps its backlog past `MAX_STEPS_PER_FRAME`,
@@ -1697,6 +1720,20 @@ gr=0`, `#7b8494` within 40): 229 -> 439 with `?pj=1` post-fix;
   `kernel/ode`, doctrine-compatible) that integrates the exact equations
   at a large Ω and checks the module's closed-form approximation tracks
   it within the fast-top regime's expected error
+- [READY] **X-61** `patch.applyProps` clobbers the projector opacity
+  floor (split out of X-49, where the audit's sub-report first flagged
+  it): `createPatch` registers its material as a themed `'fill'` (so
+  `Viewport.applyProjectorToMaterial` records the DEFAULT 0.25 as the
+  base opacity and applies the `minOpacity` floor), and then
+  `applyProps` unconditionally runs `material.opacity = p.opacity ??
+DEFAULT_OPACITY` — at creation (after registration) and on every
+  `set()` — overwriting that floor with the module's own, often lower,
+  opacity (e.g. vector-algebra's parallelogram area is 0.18). Projector
+  mode therefore never raises patch opacity, and the recorded base
+  opacity doesn't match the prop. Fix: register after the first
+  `applyProps` and re-register / re-apply the floor when `opacity`
+  changes (or have the host expose an `applyProjector(material)`), with
+  a golden test using a fake host that applies a real floor
 
 ## Contract gaps — the spec requires it, `types.ts` cannot express it
 

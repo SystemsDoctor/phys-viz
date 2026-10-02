@@ -14,11 +14,18 @@
  * scratch tuples are pre-allocated and mutated in place so this loop
  * itself allocates nothing beyond the one small props object each
  * `.set()` call takes — the same shape every module author writes.
+ *
+ * Dev-only hook (X-49): `#/_dev/demo-scene?pj=1` turns projector mode on,
+ * so the e2e suite can prove the wireframe surface — which no real module
+ * draws yet — really thickens under it.
  */
 import { Viewport } from './Viewport';
 
 export function mountDemoScene(canvas: HTMLCanvasElement): () => void {
   const viewport = new Viewport({ canvas });
+  if (new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('pj') === '1') {
+    viewport.setProjectorMode(true);
+  }
   const ctx = viewport.ctx;
 
   const vectors = ctx.group('vectors');
@@ -74,6 +81,7 @@ export function mountDemoScene(canvas: HTMLCanvasElement): () => void {
     uRange: [0, 1],
     vRange: [0, 1],
     resolution: [16, 16],
+    wireframe: true,
   });
   const arc = ctx.arc({
     group: vectors,

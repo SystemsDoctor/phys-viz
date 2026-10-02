@@ -6,14 +6,25 @@
  * `resolution` defines the mesh TOPOLOGY (vertex/index counts) and is
  * fixed at creation — changing it via `set()` has no effect. Everything
  * else (`parametric`, `colorField`, `wireframe`, `clipPlane`) can change
- * on every `set()` call. No `onFrame` work is needed: unlike a screen-
- * space glyph, a filled surface has a real world-space size, and
- * clipping/colouring don't depend on the camera.
+ * on every `set()` call. The filled surface needs no `onFrame` work
+ * (it has a real world-space size, and clipping/colouring don't depend
+ * on the camera); only the wireframe overlay's `LineMaterial` needs the
+ * renderer size every frame (X-49, ADR 0020).
+ *
+ * The wireframe is a `LineSegments2` (so projector mode can really
+ * thicken it — `THREE.LineSegments` is clamped to 1px by ANGLE). Because
+ * the topology is fixed, its edge list is computed ONCE at construction
+ * and each `set()` only rewrites the edge endpoints in place — nothing
+ * is rebuilt or reallocated per `set()`.
  */
 import * as THREE from 'three';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
 import type { SubstrateHost } from '../internal/SubstrateHost';
+import { rawPositionBuffer, markPositionBufferDirty } from '../internal/line2';
 
 export interface SurfaceProps {
   group?: GroupHandle;
@@ -28,6 +39,9 @@ export interface SurfaceProps {
 
 export type SurfaceHandle = Handle<SurfaceProps>;
 
+// X-49: pixel screen-space width (see arrow.ts) — thin, since a dense mesh
+// of thick lines would swamp the surface it annotates.
+const WIREFRAME_LINE_WIDTH_PX = 1.5;
 const DEFAULT_RESOLUTION: [number, number] = [24, 24];
 const LOW_COLOR = new THREE.Color(0x0072b2);
 const HIGH_COLOR = new THREE.Color(0xd55e00);
@@ -70,12 +84,40 @@ export function createSurface(props: SurfaceProps, host: SubstrateHost): Surface
   parent.add(mesh);
   const unTheme = host.registerThemedMaterial(material, 'fill');
 
-  const wireGeometry = new THREE.WireframeGeometry(geometry);
-  const wireMaterial = new THREE.LineBasicMaterial({ color: 0x12161d });
-  const wireframeLines = new THREE.LineSegments(wireGeometry, wireMaterial);
+  // Unique triangle edges (a quad's two triangles share its diagonal; a
+  // grid's interior edges are shared by neighbours), same set
+  // `THREE.WireframeGeometry` would emit — as vertex-index pairs.
+  const edgePairs: number[] = [];
+  const seenEdges = new Set<number>();
+  for (let t = 0; t < indices.length; t += 3) {
+    for (let k = 0; k < 3; k++) {
+      const i0 = indices[t + k];
+      const i1 = indices[t + ((k + 1) % 3)];
+      const lo = Math.min(i0, i1);
+      const hi = Math.max(i0, i1);
+      const key = lo * vertexCount + hi;
+      if (seenEdges.has(key)) continue;
+      seenEdges.add(key);
+      edgePairs.push(i0, i1);
+    }
+  }
+  const edgeCount = edgePairs.length / 2;
+
+  const wireGeometry = new LineSegmentsGeometry();
+  wireGeometry.setPositions(new Float32Array(edgeCount * 6));
+  const wirePositions = rawPositionBuffer(wireGeometry);
+  const wireMaterial = new LineMaterial({
+    color: 0x12161d,
+    linewidth: WIREFRAME_LINE_WIDTH_PX,
+    worldUnits: false,
+  });
+  const wireframeLines = new LineSegments2(wireGeometry, wireMaterial);
   wireframeLines.visible = false;
   parent.add(wireframeLines);
   const unWireTheme = host.registerThemedMaterial(wireMaterial, 'line');
+  const unFrame = host.onFrame((info) => {
+    wireMaterial.resolution.set(info.rendererWidth, info.rendererHeight);
+  });
 
   let clipPlaneObj: THREE.Plane | null = null;
 
@@ -121,9 +163,19 @@ export function createSurface(props: SurfaceProps, host: SubstrateHost): Surface
 
     wireframeLines.visible = !!p.wireframe;
     if (p.wireframe) {
-      const rebuilt = new THREE.WireframeGeometry(geometry);
-      wireframeLines.geometry.dispose();
-      wireframeLines.geometry = rebuilt;
+      for (let e = 0; e < edgeCount; e++) {
+        const a = edgePairs[e * 2] * 3;
+        const b = edgePairs[e * 2 + 1] * 3;
+        const o = e * 6;
+        wirePositions[o] = positions[a];
+        wirePositions[o + 1] = positions[a + 1];
+        wirePositions[o + 2] = positions[a + 2];
+        wirePositions[o + 3] = positions[b];
+        wirePositions[o + 4] = positions[b + 1];
+        wirePositions[o + 5] = positions[b + 2];
+      }
+      markPositionBufferDirty(wireGeometry);
+      wireGeometry.computeBoundingSphere();
     }
 
     if (p.clipPlane) {
@@ -150,6 +202,7 @@ export function createSurface(props: SurfaceProps, host: SubstrateHost): Surface
       wireframeLines.visible = show && !!current.wireframe;
     },
     dispose() {
+      unFrame();
       unTheme();
       unWireTheme();
       parent.remove(mesh);

@@ -1835,10 +1835,22 @@ disposes its WebGL context`, the known X-18 flake (passes solo).
   so only mesh materials showed the bug.) Full sweep (`test:unit`
   701/701, `test:contract` 228/228) and the ENTIRE Playwright suite
   (`--workers=3`: 53/53, repeated 6+ times stable) pass.
-- [READY] **X-56** Service-worker update notice is missed when a worker
+- [DONE] **X-56** Service-worker update notice is missed when a worker
   is already `waiting` at page load: only `updatefound` triggers it
   (`register.ts:43-55`). After `register()`, notify if
   `registration.waiting && navigator.serviceWorker.controller`
+  **Verified:** `registerServiceWorker`'s `register().then(...)` now calls
+  `notify()` when `registration.waiting && navigator.serviceWorker.controller`
+  (checked before the `updatefound` listener is attached). Three new
+  `register.test.ts` tests: notifies for an already-waiting worker behind
+  a controller with NO `updatefound` event (FAILS pre-fix), does NOT
+  notify for a waiting worker with no controller (first install), and
+  does not notify when nothing waits (both guard the new branch). Full
+  sweep (`test:unit` 704/704, `test:contract` 228/228) and smoke (47/47,
+  `--workers=3`) pass. (A real waiting-worker scenario needs two builds
+  and a persisted worker — not reproducible in the Playwright harness;
+  the unit test drives the same `register()` path with a faithful
+  registration shape.)
 - [READY] **X-57** `field` glyph draws a spurious +y arrow at
   zero-magnitude samples (`field.ts:93-97`; minimum length 0.15 × base in
   length mode, full length in the other modes, `:120-121`). Scale the

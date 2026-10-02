@@ -41,6 +41,13 @@ export function registerServiceWorker(): void {
     navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`)
       .then((registration) => {
+        // A worker already `waiting` at page load — an update that installed
+        // in an earlier session/tab and was never activated — fires no
+        // `updatefound` for this page, so without this check the notice is
+        // silently missed until the NEXT deploy (X-56). As below, an
+        // existing `controller` means it's an update, not a first install.
+        if (registration.waiting && navigator.serviceWorker.controller) notify();
+
         registration.addEventListener('updatefound', () => {
           const installing = registration.installing;
           if (!installing) return;

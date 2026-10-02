@@ -92,6 +92,50 @@ describe('registerServiceWorker', () => {
   });
 });
 
+describe('registerServiceWorker: a worker already waiting at load (X-56)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  async function loadWith(registration: object, controller: object | null) {
+    vi.stubEnv('DEV', false);
+    const register = vi.fn().mockResolvedValue(registration);
+    vi.stubGlobal('navigator', {
+      serviceWorker: { register, controller, addEventListener: () => {} },
+    });
+    const mod = await importFresh();
+    const onUpdate = vi.fn();
+    mod.subscribeUpdateAvailable(onUpdate);
+    mod.registerServiceWorker();
+    window.dispatchEvent(new Event('load'));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    return { ...mod, onUpdate };
+  }
+
+  it('notifies when a worker is already waiting behind an existing controller, without any updatefound', async () => {
+    const registration = { ...makeEventTarget(), waiting: {}, installing: null };
+    const { onUpdate, isUpdateAvailable } = await loadWith(registration, {});
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(isUpdateAvailable()).toBe(true);
+  });
+
+  it('does NOT notify for a waiting worker when there is no controller (a first-ever install)', async () => {
+    const registration = { ...makeEventTarget(), waiting: {}, installing: null };
+    const { onUpdate, isUpdateAvailable } = await loadWith(registration, null);
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(isUpdateAvailable()).toBe(false);
+  });
+
+  it('does not notify when nothing is waiting', async () => {
+    const registration = { ...makeEventTarget(), waiting: null, installing: null };
+    const { onUpdate } = await loadWith(registration, {});
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+});
+
 describe('applyUpdate', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

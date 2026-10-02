@@ -1495,11 +1495,26 @@ exceeded` out of `compileExpr`; 104 nested parens, a 500-term `2^2^…`
   `test:contract` 228/228) pass; smoke 44/45 on `--workers=3` — the one
   failure was `gravitation: renders ... disposes its WebGL context`, the
   known X-18 flake (passes solo).
-- [READY] **X-46** `rotational-dynamics` Dzhanibekov panel always spins
+- [DONE] **X-46** `rotational-dynamics` Dzhanibekov panel always spins
   about body y (`reset()`, `index.ts:654`) and reports
   `dzOmegaIntermediate: w2` (`:624`); with an edited `boxSize` (e.g.
   `[1, 2.4, 1.6]`) y is not intermediate, so the spin is stable and the
   label false. Pick the axis from sorted principal moments
+  **Verified:** new `intermediateAxis(diag)` picks the body axis with the
+  middle principal moment (sorted indices, `order[1]`); `reset()` puts
+  the spin on it and perturbs the other two (first in axis order by
+  `pert`, second by `0.7·pert` — identical to the old `[pert, 1, 0.7pert]`
+  layout when y is intermediate, so the default is unchanged), and
+  `scalars().dzOmegaIntermediate` now reads `dzOmega[intermediateAxis]`
+  instead of a hard-coded `w2`. Two new tests in `module.test.ts`
+  against `boxSize = [1, 2.4, 1.6]` (z intermediate): the post-`reset()`
+  kinetic energy equals the hand-computed value for spin 10 about z with
+  perturbations `[0.5, 0.35]`, and a 3000-step RK4 run's
+  `dzOmegaIntermediate` actually goes negative (the flip); both FAIL
+  against the pre-fix module (spun about stable y). The existing
+  default-box reset/conservation tests pass unchanged. Full sweep
+  (`test:unit` 679/679, `test:contract` 228/228) and full smoke (45/45,
+  `--workers=3`) pass.
 - [DONE] **X-47** `vector-algebra` head-to-tail sum arrow labelled
   `\vec a+\vec b` runs from `a` to `a+b` (`index.ts:192`) — it is `b`
   shifted, length |b|; no resultant from the origin in either mode, no

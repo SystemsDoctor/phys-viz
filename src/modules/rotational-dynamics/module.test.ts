@@ -393,6 +393,45 @@ describe(module.manifest.id, () => {
     expect(s.dzKineticEnergy).toBeGreaterThan(0);
   });
 
+  // X-46: reset() always spun about body y, so any boxSize whose
+  // intermediate axis isn't y (e.g. [1, 2.4, 1.6] -> z) spun about a
+  // STABLE axis and the "intermediate" readout labelled the wrong thing.
+  it('Dzhanibekov: reset() spins about the actual intermediate axis for an edited boxSize (X-46)', () => {
+    const boxSize: [number, number, number] = [1, 2.4, 1.6];
+    const mass = 1.5;
+    const instance = module.create(fakeCtx);
+    const state = stateWith({ boxSize, boxMass: mass, dzSpin: 10, dzPerturbation: 0.05 });
+    instance.reset?.(state);
+    const s = instance.scalars(state);
+    // Principal moments of the solid box: I_x = m(b^2+c^2)/12, etc.
+    const [a, b, c] = boxSize;
+    const I = [(b * b + c * c) / 12, (a * a + c * c) / 12, (a * a + b * b) / 12].map(
+      (v) => v * mass,
+    );
+    expect(I[2]).toBeGreaterThan(I[1]); // z is the middle moment, y the smallest
+    expect(I[2]).toBeLessThan(I[0]);
+    // Spin 10 about z; the other two axes perturbed by 0.05 * 10 (x, first) and 0.7x that (y).
+    const w = [0.5, 0.35, 10];
+    const expectedKE = 0.5 * (I[0] * w[0] ** 2 + I[1] * w[1] ** 2 + I[2] * w[2] ** 2);
+    expect(s.dzKineticEnergy).toBeCloseTo(expectedKE, 9);
+    expect(s.dzOmegaIntermediate).toBeCloseTo(10, 12);
+  });
+
+  it('Dzhanibekov: the spin flips for an edited boxSize whose intermediate axis is not y (X-46)', () => {
+    const instance = module.create(fakeCtx);
+    const state = stateWith({ boxSize: [1, 2.4, 1.6] });
+    instance.reset?.(state);
+    let minOmegaIntermediate = Infinity;
+    for (let i = 0; i < 3000; i++) {
+      instance.step?.(1 / 240, state);
+      minOmegaIntermediate = Math.min(
+        minOmegaIntermediate,
+        instance.scalars(state).dzOmegaIntermediate,
+      );
+    }
+    expect(minOmegaIntermediate).toBeLessThan(0);
+  });
+
   it('Dzhanibekov: energy and angular momentum are conserved (torque-free), and the intermediate-axis spin actually flips sign', () => {
     const instance = module.create(fakeCtx);
     const state = stateWith({});

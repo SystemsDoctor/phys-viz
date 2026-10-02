@@ -46,6 +46,18 @@ const X_HAT: V3 = [1, 0, 0];
 const Y_HAT: V3 = [0, 1, 0];
 const G = 9.8; // local gravitational constant for the precession/rolling demos
 
+/**
+ * Index (0 = x, 1 = y, 2 = z) of the body axis with the MIDDLE principal
+ * moment — the one the Dzhanibekov spin must be about to be unstable
+ * (X-46). It depends on the live `boxSize`: the default `[1, 1.6, 2.4]`
+ * happens to make y intermediate, but e.g. `[1, 2.4, 1.6]` makes z
+ * intermediate and y the (stable) minimum axis.
+ */
+function intermediateAxis(diag: readonly [number, number, number]): 0 | 1 | 2 {
+  const order = [0, 1, 2].sort((a, b) => diag[a] - diag[b]);
+  return order[1] as 0 | 1 | 2;
+}
+
 function mut3(v: V3): [number, number, number] {
   return [v[0], v[1], v[2]];
 }
@@ -635,6 +647,7 @@ const module: PhysicsModule = {
 
         const [w1, w2, w3] = dzOmega;
         const [i1, i2, i3] = dzInertiaDiag;
+        const dzOmegaAboutIntermediate = dzOmega[intermediateAxis(dzInertiaDiag)];
         const dzKineticEnergy = 0.5 * (i1 * w1 * w1 + i2 * w2 * w2 + i3 * w3 * w3);
         const dzAngularMomentumMag = Math.hypot(i1 * w1, i2 * w2, i3 * w3);
 
@@ -652,7 +665,7 @@ const module: PhysicsModule = {
           rollingSpeed: rollOmega * rollRadius,
           dzKineticEnergy,
           dzAngularMomentumMag,
-          dzOmegaIntermediate: w2,
+          dzOmegaIntermediate: dzOmegaAboutIntermediate,
         };
       },
 
@@ -682,7 +695,18 @@ const module: PhysicsModule = {
         const spin = state.params.dzSpin as number;
         const pert = state.params.dzPerturbation as number;
         dzQ = identityQuat();
-        dzOmega = [spin * pert, spin, spin * pert * 0.7];
+        // Spin about the INTERMEDIATE principal axis (whichever body axis
+        // that is for the current `boxSize`), perturbing the other two —
+        // the first in axis order by `pert`, the second by `0.7 * pert`.
+        const spinAxis = intermediateAxis(dzInertiaDiag);
+        const omega0: [number, number, number] = [0, 0, 0];
+        omega0[spinAxis] = spin;
+        let perturbed = 0;
+        for (let axis = 0; axis < 3; axis++) {
+          if (axis === spinAxis) continue;
+          omega0[axis] = spin * pert * (perturbed++ === 0 ? 1 : 0.7);
+        }
+        dzOmega = omega0;
       },
 
       dispose() {

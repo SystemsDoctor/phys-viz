@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compileExpr, isExprError } from './index';
+import { compileExpr, isExprError, MAX_NESTING_DEPTH, MAX_SOURCE_LENGTH } from './index';
 import type { CompiledExpr } from './index';
 
 function compileOk(source: string, vars: string[] = []): CompiledExpr {
@@ -173,6 +173,51 @@ describe('rejected input (never eval, never new Function)', () => {
     const result = compileExpr('1 + xyz', []);
     expect(isExprError(result)).toBe(true);
     if (isExprError(result)) expect(result.offset).toBe(4);
+  });
+});
+
+// X-43: unbounded input used to overflow the JS stack — 3000 nested
+// parens threw a RangeError straight out of compileExpr.
+describe('input bounds (X-43)', () => {
+  const nestedParens = (n: number): string => '('.repeat(n) + '1' + ')'.repeat(n);
+
+  it('returns an ExprError (never throws) for 3000 nested parentheses', () => {
+    let result: ReturnType<typeof compileExpr> | undefined;
+    expect(() => {
+      result = compileExpr(nestedParens(3000), []);
+    }).not.toThrow();
+    expect(isExprError(result!)).toBe(true);
+  });
+
+  it('rejects nesting past MAX_NESTING_DEPTH with an error pointing at the offending paren', () => {
+    const result = compileExpr(nestedParens(MAX_NESTING_DEPTH + 40), []);
+    expect(isExprError(result)).toBe(true);
+    if (isExprError(result)) {
+      expect(result.message).toMatch(/nested too deeply/);
+      expect(result.offset).toBeGreaterThan(0);
+    }
+  });
+
+  it('still accepts realistic nesting well under the limit', () => {
+    expect(compileOk(nestedParens(MAX_NESTING_DEPTH - 5))({})).toBe(1);
+  });
+
+  it('rejects an endless right-associative power chain instead of overflowing', () => {
+    const chain = Array(500).fill('2').join('^'); // 999 chars, under the length cap
+    const result = compileExpr(chain, []);
+    expect(isExprError(result)).toBe(true);
+  });
+
+  it('rejects an over-long source with an ExprError (a long a+a+… chain overflowed at EVALUATION time)', () => {
+    const source = Array(MAX_SOURCE_LENGTH).fill('1').join('+'); // 1999 chars
+    const result = compileExpr(source, []);
+    expect(isExprError(result)).toBe(true);
+    if (isExprError(result)) expect(result.message).toMatch(/too long/);
+  });
+
+  it('accepts a long-but-bounded sum and evaluates it without overflowing', () => {
+    const source = Array(400).fill('1').join('+'); // 799 chars
+    expect(compileOk(source)({})).toBe(400);
   });
 });
 

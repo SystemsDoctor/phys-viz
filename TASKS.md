@@ -1430,11 +1430,27 @@ src/modules/control-showcase/module.test.ts src/kernel/frames`: 56/56
   pass. `npx playwright test tests/e2e/smoke.spec.ts -g
 "gravitation|vector-algebra|control-showcase|non-inertial-frames"
 --workers=2`: 6/6 pass.
-- [READY] **X-43** `kernel/expr` has no recursion-depth limit: 1000
+- [DONE] **X-43** `kernel/expr` has no recursion-depth limit: 1000
   nested parens compile, 3000 throw `RangeError` (reproduced against a
   scratch bundle), which `compileExpr` re-throws. Only `control-showcase`
   is exposed today; M7-9 Sandbox is URL-fed by design. Add a depth
   counter raising `ParseError` plus a length cap
+  **Verified:** exported `MAX_SOURCE_LENGTH = 1000` (checked up front in
+  `compileExpr`, returning an `ExprError` at that offset) and
+  `MAX_NESTING_DEPTH = 64` (a `nested()` wrapper around
+  `parseExpression` — parens and function arguments — and the
+  right-associative `^` exponent recursion, raising a `ParseError`
+  pointing at the offending token). The length cap also covers a case
+  the audit didn't name: a 30000-term `1+1+…` chain compiled fine but
+  threw `RangeError` when EVALUATED (each term wraps the previous
+  closure) — reproduced before the fix. 6 new tests in `index.test.ts`
+  ("input bounds (X-43)"); against the pre-fix file 4 of them FAIL
+  (3000 nested parens throws `RangeError: Maximum call stack size
+exceeded` out of `compileExpr`; 104 nested parens, a 500-term `2^2^…`
+  chain and a 1999-char sum compile without error), the 2 acceptance
+  tests (nesting 59 deep, a 799-char 400-term sum evaluating to 400)
+  pass both ways. Full sweep (`test:unit` 673/673, `test:contract`
+  228/228) pass; pure kernel module, no rendering path.
 - [DONE] **X-44** `rotational-dynamics` disc bodies are never sized:
   disc geometry is diameter 1 (`body.ts:41`), no `scale` passed
   (`index.ts:313-318, 343-349`) — the wheel matches `rollRadius` only at

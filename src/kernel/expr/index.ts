@@ -18,7 +18,20 @@
  *
  * Returns typed errors with character offsets so the input field can
  * underline the problem.
+ *
+ * Input is bounded (X-43): at most `MAX_SOURCE_LENGTH` characters and
+ * `MAX_NESTING_DEPTH` levels of nested parentheses/arguments/`^`-chains.
+ * Without these a long enough input overflowed the JS stack while
+ * parsing (3000 nested parens threw a `RangeError` straight out of
+ * `compileExpr`), and a long `a+a+a+…` chain overflowed it while
+ * EVALUATING (each term wraps the previous closure). Both now come back
+ * as ordinary `ExprError`s.
  */
+
+/** Longest source `compileExpr` accepts — far beyond any hand-written physics expression. */
+export const MAX_SOURCE_LENGTH = 1000;
+/** Deepest nesting of parentheses / function arguments / `^`-chains accepted. */
+export const MAX_NESTING_DEPTH = 64;
 
 export interface ExprError {
   message: string;
@@ -153,6 +166,7 @@ function tokenize(source: string): Token[] {
 
 function parse(tokens: Token[], allowedVars: readonly string[]): CompiledExpr {
   let pos = 0;
+  let depth = 0;
   const peek = (): Token => tokens[pos];
   const advance = (): Token => tokens[pos++];
   const expectRparen = (): void => {
@@ -161,8 +175,23 @@ function parse(tokens: Token[], allowedVars: readonly string[]): CompiledExpr {
     advance();
   };
 
+  /** Runs `body` one nesting level deeper, rejecting past `MAX_NESTING_DEPTH` (X-43). */
+  function nested<T>(body: () => T): T {
+    if (++depth > MAX_NESTING_DEPTH) {
+      throw new ParseError(
+        `expression is nested too deeply (more than ${MAX_NESTING_DEPTH} levels)`,
+        peek().offset,
+      );
+    }
+    try {
+      return body();
+    } finally {
+      depth--;
+    }
+  }
+
   function parseExpression(): CompiledExpr {
-    return parseAdditive();
+    return nested(parseAdditive);
   }
 
   function parseAdditive(): CompiledExpr {
@@ -211,7 +240,7 @@ function parse(tokens: Token[], allowedVars: readonly string[]): CompiledExpr {
     const t = peek();
     if (t.type === 'op' && t.value === '^') {
       advance();
-      const exponent = parseUnary(); // right-associative
+      const exponent = nested(parseUnary); // right-associative; `2^2^2^…` recurses here
       return (vars: Record<string, number>) => Math.pow(base(vars), exponent(vars));
     }
     return base;
@@ -288,6 +317,12 @@ function parse(tokens: Token[], allowedVars: readonly string[]): CompiledExpr {
 }
 
 export function compileExpr(source: string, allowedVars: string[]): CompiledExpr | ExprError {
+  if (source.length > MAX_SOURCE_LENGTH) {
+    return {
+      message: `expression is too long (more than ${MAX_SOURCE_LENGTH} characters)`,
+      offset: MAX_SOURCE_LENGTH,
+    };
+  }
   try {
     const tokens = tokenize(source);
     return parse(tokens, allowedVars);

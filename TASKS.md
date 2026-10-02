@@ -1851,10 +1851,18 @@ disposes its WebGL context`, the known X-18 flake (passes solo).
   and a persisted worker — not reproducible in the Playwright harness;
   the unit test drives the same `register()` path with a faithful
   registration shape.)
-- [READY] **X-57** `field` glyph draws a spurious +y arrow at
+- [DONE] **X-57** `field` glyph draws a spurious +y arrow at
   zero-magnitude samples (`field.ts:93-97`; minimum length 0.15 × base in
   length mode, full length in the other modes, `:120-121`). Scale the
   instance to 0 below epsilon
+  **Verified:** `applyProps` now uses length 0 for any sample with
+  magnitude <= 1e-12 (in every mode; the arbitrary +y direction is still
+  stored but invisible at scale 0). New `field.test.ts` tests, one per
+  mode (`length`, `color`, `normalized`), sample `(x − 1, 0, 0)` on a
+  3-point line and decompose the real instance matrices: the zero sample
+  at x=1 has scale exactly 0, its neighbours > 0.05. All 3 FAIL pre-fix
+  (spurious arrow). Full sweep (`test:unit` 707/707, `test:contract`
+  228/228) and smoke (47/47, `--workers=3`) pass.
 - [READY] **X-58** Latent: `dimensionLine`'s `applyGeometry` sets
   `line.visible = true` unconditionally (`dimensionLine.ts:77-78`) and
   `surface` does the same for its wireframe (`surface.ts:122`), so a

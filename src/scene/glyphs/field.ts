@@ -117,8 +117,15 @@ export function createField(props: FieldProps, host: SubstrateHost): FieldHandle
           );
           scratchQuat.setFromUnitVectors(upHint, scratchDirection);
 
-          const length =
-            mode === 'length' ? BASE_LENGTH * (0.15 + 0.85 * normalizedMag) : BASE_LENGTH;
+          // A zero-magnitude sample has no direction, so draw NO arrow there
+          // (scale 0) instead of a spurious +y one — at the 0.15 minimum
+          // length in `length` mode, at full length in the other modes (X-57).
+          const isZeroSample = magnitude <= 1e-12;
+          const length = isZeroSample
+            ? 0
+            : mode === 'length'
+              ? BASE_LENGTH * (0.15 + 0.85 * normalizedMag)
+              : BASE_LENGTH;
           scratchScale.set(length, length, length);
           scratchPosition.set(x, y, z);
           scratchMatrix.compose(scratchPosition, scratchQuat, scratchScale);

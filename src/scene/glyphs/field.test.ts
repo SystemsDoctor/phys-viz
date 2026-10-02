@@ -135,4 +135,40 @@ describe('createField', () => {
     handle.dispose();
     expect(host.root.children.length).toBe(0);
   });
+
+  // X-57: a zero-magnitude sample has no direction; it used to get a
+  // fallback +y arrow (at the 0.15 minimum length in 'length' mode, at FULL
+  // length in 'normalized'/'color'), a spurious vector where the field is zero.
+  describe('zero-field samples draw no arrow (X-57)', () => {
+    const scaleOf = (mesh: THREE.InstancedMesh, index: number): number => {
+      const m = new THREE.Matrix4();
+      mesh.getMatrixAt(index, m);
+      const position = new THREE.Vector3();
+      const quaternion = new THREE.Quaternion();
+      const scale = new THREE.Vector3();
+      m.decompose(position, quaternion, scale);
+      return scale.x;
+    };
+
+    for (const mode of ['length', 'color', 'normalized'] as const) {
+      it(`mode '${mode}': the zero sample's instance has scale 0, nonzero samples do not`, () => {
+        const host = createFakeHost();
+        const handle = createField(
+          {
+            // Field = (x - 1, 0, 0): zero exactly at the middle sample (x = 1).
+            sample: (p) => [p[0] - 1, 0, 0],
+            gridBounds: { min: [0, 0, 0], max: [2, 0, 0] },
+            gridResolution: [3, 1, 1],
+            mode,
+          },
+          host,
+        );
+        const mesh = getMesh(host);
+        expect(scaleOf(mesh, 0)).toBeGreaterThan(0.05);
+        expect(scaleOf(mesh, 1)).toBe(0); // the zero-field sample
+        expect(scaleOf(mesh, 2)).toBeGreaterThan(0.05);
+        handle.dispose();
+      });
+    }
+  });
 });

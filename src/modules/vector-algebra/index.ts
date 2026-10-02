@@ -292,14 +292,21 @@ const module: PhysicsModule = {
         const b = effective(s.params.b as V3, planar, up);
         const c = effective(s.params.c as V3, planar, up);
         const aNorm = norm(a);
+        const bNorm = norm(b);
+        // X-51: the angle (and the direction cosines) are undefined for a
+        // zero vector — report 0 rather than NaN — and rounding can push
+        // the cosine of an exactly (anti)parallel pair a hair outside
+        // [-1, 1] (e.g. -1.0000000000000004), which `acos` turns into NaN.
+        const cosTheta = aNorm > 0 && bNorm > 0 ? dot(a, b) / (aNorm * bNorm) : 1;
+        const clampedCosTheta = Math.max(-1, Math.min(1, cosTheta));
         return {
           dot: dot(a, b),
-          theta: (Math.acos(dot(a, b) / (norm(a) * norm(b))) * 180) / Math.PI,
+          theta: (Math.acos(clampedCosTheta) * 180) / Math.PI,
           xmag: norm(cross(a, b)),
           volume: Math.abs(dot(a, cross(b, c))),
-          cosAlpha: a[0] / aNorm,
-          cosBeta: a[1] / aNorm,
-          cosGamma: a[2] / aNorm,
+          cosAlpha: aNorm > 0 ? a[0] / aNorm : 0,
+          cosBeta: aNorm > 0 ? a[1] / aNorm : 0,
+          cosGamma: aNorm > 0 ? a[2] / aNorm : 0,
         };
       },
 

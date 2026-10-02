@@ -1745,10 +1745,21 @@ gr=0`, `#7b8494` within 40): 229 -> 439 with `?pj=1` post-fix;
   sweep (`test:unit` 687/687, `test:contract` 228/228) and smoke 45/46 on
   `--workers=3` — the one failure was `gravitation: renders ...
 disposes its WebGL context`, the known X-18 flake (passes solo).
-- [READY] **X-51** `vector-algebra` `theta` can be `NaN`: `Math.acos`
+- [DONE] **X-51** `vector-algebra` `theta` can be `NaN`: `Math.acos`
   unclamped (`index.ts:249`) — `a=[−0.5,0,−3]`, `b=−0.5a` gives
   cos = −1.0000000000000004 (reproduced); `a=0` also NaNs θ and the
   direction cosines. Clamp and guard zero norms
+  **Verified:** `scalars()` now clamps `dot(a,b)/(|a||b|)` to `[-1, 1]`
+  before `acos`, reports `theta = 0` (cos treated as 1) when either
+  vector is zero, and gives `cosAlpha/Beta/Gamma = 0` for `a = 0`. Four
+  new tests in `module.test.ts` ("degenerate vectors never produce NaN
+  readouts"), including the audit's exact reproduction (`a=[−0.5,0,−3]`,
+  `b=−0.5a`, asserting the raw cosine really is below −1 and `theta`
+  comes out 180); 3 of 4 FAIL against the pre-fix module (the
+  parallel-rounds-above-1 case happens to land on exactly 1 and passes
+  both ways — kept as a regression guard). Full sweep (`test:unit`
+  691/691, `test:contract` 228/228) and the vector-algebra smoke tests
+  (3/3) pass.
 - [READY] **X-52** `gravitation` gravity arrow (length `0.15·μ/r²`,
   `index.ts:256-260`) overshoots the central mass — 1.2 long at the
   default periapsis r=1, ~30 at e=0.9. Saturate and clamp below

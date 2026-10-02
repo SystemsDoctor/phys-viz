@@ -162,4 +162,54 @@ describe(module.manifest.id, () => {
 
     expect(capturedTo).toEqual([2, 0, 3]); // a+b = [2, 4, 3] with world Y zeroed
   });
+
+  // X-51: theta and the direction cosines used to be NaN for a zero vector,
+  // and for (anti)parallel vectors whose cosine rounds just outside [-1, 1].
+  describe('degenerate vectors never produce NaN readouts (X-51)', () => {
+    const scalarsFor = (a: [number, number, number], b: [number, number, number]) =>
+      module.create(fakeCtx).scalars({
+        params: {
+          a,
+          b,
+          c: [0, 0, 1],
+          sumStyle: 'tip',
+          planar: false,
+          basisAngle: 0,
+        },
+        layers: {},
+        t: 0,
+      });
+
+    it('b = -0.5 a with a = [-0.5, 0, -3] (cos = -1.0000000000000004) reports theta = 180', () => {
+      const a: [number, number, number] = [-0.5, 0, -3];
+      const b: [number, number, number] = [0.25, -0, 1.5]; // exactly -0.5 * a
+      // The reproduction from the audit: the raw cosine falls outside [-1, 1].
+      const rawCos =
+        (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (Math.hypot(...a) * Math.hypot(...b));
+      expect(rawCos).toBeLessThan(-1);
+      const s = scalarsFor(a, b);
+      expect(Number.isNaN(s.theta)).toBe(false);
+      expect(s.theta).toBeCloseTo(180, 9);
+    });
+
+    it('an exactly parallel pair whose cosine rounds above 1 reports theta = 0', () => {
+      const s = scalarsFor([0.1, 0.2, 0.3], [0.3, 0.6, 0.9]);
+      expect(Number.isNaN(s.theta)).toBe(false);
+      expect(s.theta).toBeCloseTo(0, 6);
+    });
+
+    it('a = 0 gives finite theta and direction cosines (all zero / zero angle), not NaN', () => {
+      const s = scalarsFor([0, 0, 0], [1, 2, 3]);
+      for (const key of ['theta', 'cosAlpha', 'cosBeta', 'cosGamma'] as const) {
+        expect(Number.isNaN(s[key])).toBe(false);
+      }
+      expect(s.cosAlpha).toBe(0);
+      expect(s.cosBeta).toBe(0);
+      expect(s.cosGamma).toBe(0);
+    });
+
+    it('b = 0 gives a finite theta too', () => {
+      expect(Number.isNaN(scalarsFor([1, 2, 3], [0, 0, 0]).theta)).toBe(false);
+    });
+  });
 });

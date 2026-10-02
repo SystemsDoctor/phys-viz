@@ -1529,12 +1529,26 @@ src/modules/control-showcase/module.test.ts src/kernel/frames`: 56/56
     all pass. `npx playwright test tests/e2e/smoke.spec.ts --workers=3`:
     37/37 pass (full smoke suite, not just the scoped subset, since
     `arrow` is used by nearly every module).
-  - [READY] `path` (`src/scene/glyphs/path.ts`) — variable point count
-    per frame (a live trace/orbit outline), so unlike `arrow`'s shaft it
-    cannot use the in-place-buffer trick; will call `setPositions()`
-    per frame like the standard three.js Line2 usage pattern (ADR 0020's
-    §5 documents why that per-frame allocation is accepted as
-    unavoidable through the public API for a variable-length line).
+  - [DONE] `path` (`src/scene/glyphs/path.ts`) — `Line2`/`LineGeometry`/
+    `LineMaterial` with per-vertex colours for the fade. Variable point
+    count, but the instance buffers are allocated ONCE at `MAX_POINTS`
+    capacity and `set()` writes into them and sets `instanceCount`
+    (N-1 segments), so — better than ADR 0020 §5's predicted
+    `setPositions()`-per-frame — it still allocates nothing per `set()`.
+    `frustumCulled = false` (bounding sphere would cover the zero-padded
+    capacity). Extracted arrow's raw-buffer helpers into shared
+    `src/scene/internal/line2.ts`; `fakeHost` now records
+    `themedMaterials`. Verified: `path.test.ts` 7/7 pass post-fix, 6/7
+    FAIL against the pre-fix `path.ts` (constructor `Line` not `Line2`,
+    no `instanceCount`, ...), incl. new golden "is a Line2 with a
+    LineMaterial that projector mode can thicken" (constructor, linewidth
+    > 1, registered as a themed 'line', `resolution` synced from
+    > `FrameInfo`). New e2e "X-49: projector mode actually thickens a path
+    > trace (gravitation orbit outline...)" (grid off via `gr=0`): 197 ->
+    > 329 matching pixels with `?pj=1` post-fix; pre-fix fails (64 vs. 64,
+    > needs > 72). Smoke helper `countMatchingPixels` hoisted to file
+    > scope, now shared. Full sweep (`test:unit` 656/656, `test:contract`
+    > 228/228) and full smoke (38/38, `--workers=3`) pass.
   - [READY] `curvedArrow` (`src/scene/glyphs/curvedArrow.ts`) — same
     variable-point-count shape as `path`.
   - [READY] `annotate/dimensionLine.ts` — fixed small point count

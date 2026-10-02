@@ -18,6 +18,8 @@ export interface FakeHost extends SubstrateHost {
   fireFrame(info?: Partial<FrameInfo>): void;
   readonly root: THREE.Scene;
   readonly registeredPickTargets: PickTarget[];
+  /** Every material passed to `registerThemedMaterial` (X-49: lets tests assert a glyph's line material is projector-aware). */
+  readonly themedMaterials: { material: THREE.Material; kind: 'line' | 'fill' }[];
 }
 
 export function createFakeHost(): FakeHost {
@@ -25,6 +27,7 @@ export function createFakeHost(): FakeHost {
   const groups = new Map<string, THREE.Group>();
   const listeners = new Set<(info: FrameInfo) => void>();
   const registeredPickTargets: PickTarget[] = [];
+  const themedMaterials: FakeHost['themedMaterials'] = [];
   const upAxisValue: 'y' | 'z' = 'y';
 
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
@@ -47,8 +50,13 @@ export function createFakeHost(): FakeHost {
       return () => listeners.delete(listener);
     },
     overlayEl: document.createElement('div'),
-    registerThemedMaterial() {
-      return () => {};
+    registerThemedMaterial(material, kind) {
+      const entry = { material, kind };
+      themedMaterials.push(entry);
+      return () => {
+        const i = themedMaterials.indexOf(entry);
+        if (i >= 0) themedMaterials.splice(i, 1);
+      };
     },
     registerPickTarget(target) {
       registeredPickTargets.push(target);
@@ -72,6 +80,7 @@ export function createFakeHost(): FakeHost {
     },
     root,
     registeredPickTargets,
+    themedMaterials,
   };
   return host;
 }

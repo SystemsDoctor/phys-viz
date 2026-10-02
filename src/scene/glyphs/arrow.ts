@@ -11,6 +11,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
 import type { SubstrateHost } from '../internal/SubstrateHost';
+import { rawPositionBuffer, markPositionBufferDirty } from '../internal/line2';
 import { worldUnitsPerPixel } from '../internal/screenSpace';
 import { createLabel } from '../annotate/label';
 import type { LabelHandle } from '../annotate/label';
@@ -49,29 +50,6 @@ const upHint = new THREE.Vector3(0, 1, 0);
 
 function coneGeometry(): THREE.ConeGeometry {
   return new THREE.ConeGeometry(HEAD_RADIUS_RATIO, 1, 10);
-}
-
-/**
- * `LineGeometry.setPositions()` always allocates a fresh
- * `InstancedInterleavedBuffer` plus two new `InterleavedBufferAttribute`
- * wrappers (three.js's own implementation, not something this file can
- * change) — fine once at construction, but every glyph here moves its
- * shaft every frame, and `kernel/math`'s scratch-pool doc comment is
- * explicit about GC stutter being visible on a projector. Writing
- * directly into the already-allocated interleaved buffer's typed array
- * (found once, right after the one `setPositions()` call at
- * construction) avoids that per-frame allocation entirely.
- */
-function rawPositionBuffer(geometry: LineGeometry): Float32Array {
-  const attr = geometry.attributes.instanceStart as unknown as {
-    data: { array: Float32Array; needsUpdate: boolean };
-  };
-  return attr.data.array;
-}
-function markPositionBufferDirty(geometry: LineGeometry): void {
-  (
-    geometry.attributes.instanceStart as unknown as { data: { needsUpdate: boolean } }
-  ).data.needsUpdate = true;
 }
 
 export function createArrow(props: ArrowProps, host: SubstrateHost): ArrowHandle {

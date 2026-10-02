@@ -43,6 +43,31 @@ describe('createDimensionLine', () => {
     handle.dispose();
   });
 
+  // X-58: applyGeometry forced `line.visible = true`, so a set() after
+  // visible(false) silently re-showed a hidden line.
+  it('set() after visible(false) does not re-show the line or its label (X-58)', () => {
+    const host = createFakeHost();
+    const handle = createDimensionLine({ from: [0, 0, 0], to: [2, 0, 0], label: 'd' }, host);
+    const line = getLine(host);
+    handle.visible(false);
+    handle.set({ to: [3, 0, 0] });
+    expect(line.visible).toBe(false);
+    handle.visible(true);
+    expect(line.visible).toBe(true);
+    handle.dispose();
+  });
+
+  it('a label added by set() while hidden starts hidden too (X-58)', () => {
+    const host = createFakeHost();
+    const handle = createDimensionLine({ from: [0, 0, 0], to: [2, 0, 0] }, host);
+    handle.visible(false);
+    handle.set({ label: 'late' });
+    const labelEl = host.overlayEl.children[0] as HTMLElement;
+    expect(labelEl).toBeDefined();
+    expect(labelEl.style.visibility).toBe('hidden');
+    handle.dispose();
+  });
+
   it('dashed is a real toggle on the material, not a huge-dash hack', () => {
     const host = createFakeHost();
     const handle = createDimensionLine({ from: [0, 0, 0], to: [2, 0, 0], dashed: true }, host);

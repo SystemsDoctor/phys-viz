@@ -174,6 +174,24 @@ describe('createSurface', () => {
     handle.dispose();
   });
 
+  // X-58: set({ wireframe: true }) forced the overlay visible even after
+  // visible(false).
+  it('set({ wireframe }) after visible(false) does not re-show the wireframe (X-58)', () => {
+    const host = createFakeHost();
+    const handle = createSurface(
+      { parametric: (u, v) => [u, v, 0], uRange: [0, 1], vRange: [0, 1], wireframe: false },
+      host,
+    );
+    handle.visible(false);
+    handle.set({ wireframe: true });
+    expect(getWire(host).visible).toBe(false);
+    expect(getMesh(host).visible).toBe(false);
+    handle.visible(true);
+    expect(getWire(host).visible).toBe(true);
+    expect(getMesh(host).visible).toBe(true);
+    handle.dispose();
+  });
+
   it('applies a clip plane to the material and clears it when removed', () => {
     const host = createFakeHost();
     const handle = createSurface(

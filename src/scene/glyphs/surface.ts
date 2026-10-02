@@ -127,6 +127,10 @@ export function createSurface(props: SurfaceProps, host: SubstrateHost): Surface
     wireMaterial.resolution.set(info.rendererWidth, info.rendererHeight);
   });
 
+  // Whether the caller last asked for this surface to be shown, so a later
+  // `set({ wireframe: true })` can't re-show the overlay of a hidden surface
+  // (X-58).
+  let shown = true;
   let clipPlaneObj: THREE.Plane | null = null;
 
   function applyProps(p: SurfaceProps): void {
@@ -171,7 +175,7 @@ export function createSurface(props: SurfaceProps, host: SubstrateHost): Surface
     }
     geometry.attributes.color.needsUpdate = true;
 
-    wireframeLines.visible = !!p.wireframe;
+    wireframeLines.visible = shown && !!p.wireframe;
     if (p.wireframe) {
       for (let e = 0; e < edgeCount; e++) {
         const a = edgePairs[e * 2] * 3;
@@ -208,6 +212,7 @@ export function createSurface(props: SurfaceProps, host: SubstrateHost): Surface
       applyProps(current);
     },
     visible(show) {
+      shown = show;
       mesh.visible = show;
       wireframeLines.visible = show && !!current.wireframe;
     },

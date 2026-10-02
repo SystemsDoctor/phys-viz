@@ -1863,11 +1863,20 @@ disposes its WebGL context`, the known X-18 flake (passes solo).
   at x=1 has scale exactly 0, its neighbours > 0.05. All 3 FAIL pre-fix
   (spurious arrow). Full sweep (`test:unit` 707/707, `test:contract`
   228/228) and smoke (47/47, `--workers=3`) pass.
-- [READY] **X-58** Latent: `dimensionLine`'s `applyGeometry` sets
+- [DONE] **X-58** Latent: `dimensionLine`'s `applyGeometry` sets
   `line.visible = true` unconditionally (`dimensionLine.ts:77-78`) and
   `surface` does the same for its wireframe (`surface.ts:122`), so a
   `set()` after `visible(false)` re-shows them. No current module hits
   it. Track a `shown` flag the way `label` does
+  **Verified:** `dimensionLine` no longer forces `line.visible`/
+  `material.visible` in `applyGeometry` (a `shown` flag set only by
+  `visible()`; a label created by `set()` while hidden starts hidden);
+  `surface` computes the wireframe overlay as `shown && wireframe` with
+  the same flag. 3 new tests (`dimensionLine.test.ts` x2,
+  `surface.test.ts` x1) — `set()` after `visible(false)` leaves the line/
+  wireframe hidden, `visible(true)` restores them — all 3 FAIL against
+  the pre-fix files. Full sweep (`test:unit` 710/710, `test:contract`
+  228/228) and smoke (47/47, `--workers=3`) pass.
 - [READY] **X-59** Two `ModuleView` lifecycle races: the 420ms 2D-lock
   `setTimeout` is never cleared (`ModuleView.tsx:443-446`), so toggling
   back within 420ms re-locks anyway and after unmount it touches a

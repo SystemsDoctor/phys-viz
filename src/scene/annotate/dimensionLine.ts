@@ -72,6 +72,10 @@ export function createDimensionLine(
     material.resolution.set(info.rendererWidth, info.rendererHeight);
   });
 
+  // Whether the caller last asked for this line to be shown. `set()` must
+  // not touch visibility: it used to force `line.visible = true`, so a
+  // `set()` after `visible(false)` silently re-showed a hidden line (X-58).
+  let shown = true;
   let label: LabelHandle | null = null;
   let current: DimensionLineProps = { ...props };
 
@@ -89,13 +93,13 @@ export function createDimensionLine(
     // (`computeLineDistances`) is only needed for the dashed pattern.
     material.dashed = !!p.dashed;
     if (p.dashed) line.computeLineDistances();
-    material.visible = true;
-    line.visible = true;
 
     const midpoint: Vec3 = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2];
     if (p.label) {
-      if (!label) label = createLabel({ latex: p.label, anchor: midpoint }, host, line);
-      else label.set({ latex: p.label, anchor: midpoint });
+      if (!label) {
+        label = createLabel({ latex: p.label, anchor: midpoint }, host, line);
+        label.visible(shown);
+      } else label.set({ latex: p.label, anchor: midpoint });
     } else if (label) {
       label.dispose();
       label = null;
@@ -109,6 +113,7 @@ export function createDimensionLine(
       applyGeometry(current);
     },
     visible(show) {
+      shown = show;
       line.visible = show;
       label?.visible(show);
     },

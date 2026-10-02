@@ -11,9 +11,13 @@
  * grid squares line up with the axis ticks at any zoom level.
  */
 import * as THREE from 'three';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { GroupHandle } from '../SceneContext';
 import type { Handle } from './Handle';
 import type { SubstrateHost } from '../internal/SubstrateHost';
+import { rawPositionBuffer, markPositionBufferDirty } from '../internal/line2';
 import { worldUnitsPerPixel } from '../internal/screenSpace';
 import { niceSpacing } from './axes';
 
@@ -34,6 +38,9 @@ const MAX_LINES_PER_DIRECTION = 64;
 // deliberately not one of ctx.palette's semantic colours.
 const GRID_COLOR = 0xc8ccd4;
 const GRID_OPACITY = 0.5;
+// X-49: pixel screen-space width (see arrow.ts) — a real number the
+// projector multiplier can act on, unlike an ANGLE-clamped `THREE.Line`.
+const GRID_LINE_WIDTH_PX = 1.5;
 
 /** The two in-plane basis directions for each grid kind, e.g. 'xy' spans x and y at z=0. */
 const PLANE_AXES: Record<
@@ -67,19 +74,23 @@ export function createGridPlane(
 
   const [axisA, axisB] = PLANE_AXES[kind];
 
-  const geometry = new THREE.BufferGeometry();
   // Two line families (parallel to A, parallel to B), each up to
-  // (2*MAX+1) lines, 2 points per line, 3 coords per point.
+  // (2*MAX+1) lines, 2 points per line, 3 coords per point. `LineSegments2`
+  // geometry is one 6-float record per segment, written in place; the live
+  // segment count is `instanceCount`.
+  const geometry = new LineSegmentsGeometry();
   const maxFloats = 2 * (2 * MAX_LINES_PER_DIRECTION + 1) * 2 * 3;
-  const positions = new Float32Array(maxFloats);
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setDrawRange(0, 0);
-  const material = new THREE.LineBasicMaterial({
+  geometry.setPositions(new Float32Array(maxFloats));
+  const positions = rawPositionBuffer(geometry);
+  geometry.instanceCount = 0;
+  const material = new LineMaterial({
     color: GRID_COLOR,
+    linewidth: GRID_LINE_WIDTH_PX,
+    worldUnits: false,
     transparent: true,
     opacity: GRID_OPACITY,
   });
-  const lines = new THREE.LineSegments(geometry, material);
+  const lines = new LineSegments2(geometry, material);
   root.add(lines);
   const unTheme = host.registerThemedMaterial(material, 'line');
 
@@ -114,14 +125,15 @@ export function createGridPlane(
       positions[cursor++] = offY + axisB[1] * extent;
       positions[cursor++] = offZ + axisB[2] * extent;
     }
-    geometry.setDrawRange(0, cursor / 3);
-    geometry.attributes.position.needsUpdate = true;
+    geometry.instanceCount = cursor / 6;
+    markPositionBufferDirty(geometry);
     if (cursor > 0) geometry.computeBoundingSphere();
   }
 
   rebuild(niceSpacing(DEFAULT_EXTENT / 10));
 
   const unFrame = host.onFrame((info) => {
+    material.resolution.set(info.rendererWidth, info.rendererHeight);
     const distance = info.camera.position.distanceTo(scratchOrigin);
     const roughSpacing =
       TARGET_TICK_PX * worldUnitsPerPixel(info.camera, distance, info.rendererHeight);

@@ -390,13 +390,15 @@ async function countMatchingPixels(
   forceReload = false,
   /** Optional clip rect in canvas fractions (0..1) to isolate one glyph. */
   clip: { x0: number; x1: number; y0: number; y1: number } = { x0: 0, x1: 1, y0: 0, y1: 1 },
+  /** Count pixels FARTHER than `tol` from `rgb` instead (e.g. "anything but the background"). */
+  invert = false,
 ): Promise<number> {
   await page.goto(url);
   if (forceReload) await page.reload();
   await expect(page.locator('canvas.pv-viewport-canvas')).toBeVisible();
   await page.waitForTimeout(300);
   return page.evaluate(
-    ({ r, g, b, tol, clip }) =>
+    ({ r, g, b, tol, clip, invert }) =>
       new Promise<number>((resolve) => {
         requestAnimationFrame(() => {
           const webgl = document.querySelector('canvas.pv-viewport-canvas') as HTMLCanvasElement;
@@ -415,12 +417,12 @@ async function countMatchingPixels(
             const dr = data[i] - r;
             const dg = data[i + 1] - g;
             const db = data[i + 2] - b;
-            if (Math.sqrt(dr * dr + dg * dg + db * db) < tol) count++;
+            if (Math.sqrt(dr * dr + dg * dg + db * db) < tol !== invert) count++;
           }
           resolve(count);
         });
       }),
-    { ...rgb, tol, clip },
+    { ...rgb, tol, clip, invert },
   );
 }
 
@@ -972,6 +974,29 @@ test('X-49: projector mode actually thickens the reference axes and tick marks (
   const base = '#/m/vector-algebra?a=1,0,0&b=0,1,0';
   const withoutProjector = await countMatchingPixels(page, base, axisGrey, 60);
   const withProjector = await countMatchingPixels(page, `${base}&pj=1`, axisGrey, 60, true);
+  expect(withoutProjector).toBeGreaterThan(0);
+  expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
+});
+
+test('X-49: projector mode actually thickens a per-plane grid (gridPlane glyph)', async ({
+  page,
+}) => {
+  // Axes off (`gr=0`), the xy grid plane on (`gxy=1`), and no vectors
+  // (a = b = 0) so the only non-background pixels are the grid's lines.
+  // The scene background is #eceef2 (light theme, `getSceneTheme`).
+  const background = { r: 0xec, g: 0xee, b: 0xf2 };
+  const base = '#/m/vector-algebra?a=0,0,0&b=0,0,0&gr=0&gxy=1';
+  const clip = { x0: 0, x1: 0.7, y0: 0.1, y1: 1 }; // clear of the param panel
+  const withoutProjector = await countMatchingPixels(page, base, background, 4, false, clip, true);
+  const withProjector = await countMatchingPixels(
+    page,
+    `${base}&pj=1`,
+    background,
+    4,
+    true,
+    clip,
+    true,
+  );
   expect(withoutProjector).toBeGreaterThan(0);
   expect(withProjector).toBeGreaterThan(withoutProjector * 1.15);
 });

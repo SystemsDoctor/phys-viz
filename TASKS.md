@@ -1601,8 +1601,22 @@ src/modules/control-showcase/module.test.ts src/kernel/frames`: 56/56
 context`, which passed solo and on the rerun (same transient-
     under-parallel-workers family as X-18; not reproducible, not
     attributable to this change).
-  - [READY] `gridPlane` (`src/scene/glyphs/gridPlane.ts`) — same
-    shell-owned, low-churn shape as `axes`.
+  - [DONE] `gridPlane` (`src/scene/glyphs/gridPlane.ts`) —
+    `LineSegments2`/`LineSegmentsGeometry`, same shape as `axes`:
+    fixed-capacity buffer written in place, live count via
+    `instanceCount`; 1.5px, and the material keeps `transparent` +
+    `opacity: 0.5` (so the projector opacity-floor path still applies).
+    Verified: `gridPlane.test.ts` 5/5 pass post-fix, 3/5 FAIL against
+    the pre-fix file, incl. new golden asserting the exact
+    `LineSegments2`/`LineMaterial` object, linewidth > 1, translucency
+    retained, themed 'line' registration and `resolution` sync; the
+    plane-confinement and spacing tests now read the instance buffer.
+    New e2e "X-49: ... per-plane grid (gridPlane glyph)" (`gr=0&gxy=1`,
+    zero vectors; `countMatchingPixels` gained an `invert` flag to count
+    "anything but the background"): 51492 -> 74011 with `?pj=1`
+    post-fix; pre-fix fails (42176 vs. 42176). Full sweep (`test:unit`
+    663/663, `test:contract` 228/228) and full smoke (42/42,
+    `--workers=3`) pass.
   - [READY] `arc` (`src/scene/glyphs/arc.ts`) — used by
     `control-showcase`'s angle arc and others; fixed sample count per
     `radius`/`from`/`to`, likely rebuildable each `.set()` rather than
